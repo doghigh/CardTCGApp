@@ -1,0 +1,38 @@
+name: card_tcg_mobile
+description: Mobile companion app for Trading Card Manager — scan, grade, and value cards on the go.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Database
+  sqflite: ^2.3.2
+  path_provider: ^2.1.1
+  path: ^1.9.0
+
+  # Camera / image selection
+  image_picker: ^1.0.7
+
+  # Image processing (card inspection)
+  image: ^4.1.3
+
+  # Networking (valuations)
+  http: ^1.2.0
+
+  # Utilities
+  intl: ^0.19.0
+  share_plus: ^7.2.1
+  csv: ^6.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
