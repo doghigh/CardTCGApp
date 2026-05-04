@@ -21,8 +21,13 @@ pyinstaller --noconfirm ^
     --onefile ^
     --windowed ^
     --name TradingCardManager ^
-    --hidden-import=PyQt6 ^
+    --collect-all=PyQt6 ^
+    --hidden-import=PyQt6.QtWidgets ^
+    --hidden-import=PyQt6.QtCore ^
+    --hidden-import=PyQt6.QtGui ^
+    --hidden-import=PyQt6.sip ^
     --hidden-import=cv2 ^
+    --collect-all=cv2 ^
     --hidden-import=pytwain ^
     --hidden-import=pytesseract ^
     --hidden-import=reportlab ^
