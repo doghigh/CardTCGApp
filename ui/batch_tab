@@ -1,0 +1,106 @@
+import csv
+from pathlib import Path
+from typing import Dict
+
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QComboBox,
+    QCheckBox, QProgressBar, QTextEdit, QFileDialog, QMessageBox, QGroupBox
+)
+from PyQt6.QtCore import QThread, pyqtSignal
+
+from core.database import Database
+from core.scanner import ScannerInterface
+from core.inspector import CardInspector
+from core.identifier import CardIdentifier
+from core.valuator import CardValuator
+from ui.dialogs import CsvMappingDialog   # We'll create this next if needed
+
+
+class ImageBatchWorker(QThread):
+    progress = pyqtSignal(str, int)
+    finished = pyqtSignal(int)
+
+    def __init__(self, folder: Path, scanner: ScannerInterface, inspector: CardInspector,
+                 identifier: CardIdentifier, valuator: CardValuator, auto_value: bool = False):
+        super().__init__()
+        self.folder = folder
+        self.scanner = scanner
+        self.inspector = inspector
+        self.identifier = identifier
+        self.valuator = valuator
+        self.auto_value = auto_value
+
+    def run(self):
+        images = sorted(list(self.folder.glob("*.png")) +
+                       list(self.folder.glob("*.jpg")) +
+                       list(self.folder.glob("*.jpeg")) +
+                       list(self.folder.glob("*.jpeg")))
+
+        added = 0
+        total = len(images)
+
+        for i, img_path in enumerate(images):
+            try:
+                progress_pct = int((i + 1) / total * 100)
+                self.progress.emit(f"Processing {img_path.name}...", progress_pct)
+
+                img = self.scanner.scan_from_file(str(img_path))
+                if img is None:
+                    continue
+
+                text = self.identifier.extract_text(img)
+                info = self.identifier.parse_card_info(text)
+                inspection = self.inspector.inspect(img)
+
+                estimate = 0.0
+                if self.auto_value and info.get('name'):
+                    vals = self.valuator.fetch_all_values(info.get('name'), info.get('set_name'))
+                    if vals:
+                        estimate = self.valuator.compute_estimate(vals, inspection['score'])
+
+                # Save image
+                ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+                scan_path = str(SCANS_DIR / f"batch_{ts}_{img_path.stem}.png")
+                cv2.imwrite(scan_path, cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
+
+                card_data = {
+                    'name': info.get('name') or img_path.stem,
+                    'set_name': info.get('set_name'),
+                    'card_number': info.get('card_number'),
+                    'rarity': info.get('rarity'),
+                    'game': 'Other',
+                    'year': datetime.now().year,
+                    'front_scan_path': scan_path,
+                    'condition_grade': inspection['grade'],
+                    'condition_score': inspection['score'],
+                    'defects': inspection['defects'],
+                    'estimated_value': estimate,
+                    'quantity': 1,
+                    'notes': f"Batch import from {img_path.name}",
+                }
+
+                self.db.add_card(card_data)
+                added += 1
+                self.progress.emit(f"✅ Saved: {card_data['name']}", progress_pct)
+
+            except Exception as e:
+                self.progress.emit(f"❌ Error on {img_path.name}: {str(e)[:80]}", progress_pct)
+
+        self.finished.emit(added)
+
+
+class CsvBatchWorker(QThread):
+    progress = pyqtSignal(str, int)
+    finished = pyqtSignal(int)
+
+    def __init__(self, csv_path: Path, db: Database, mapping: Dict = None):
+        super().__init__()
+        self.csv_path = csv_path
+        self.db = db
+        self.mapping = mapping or {}
+
+    def run(self):
+        added = 0
+        errors = 0
+        try:
+            with open(self.csv_path, newline='', encoding='utf-8') as f
