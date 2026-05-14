@@ -1,4 +1,5 @@
 import cv2
+import numpy as np
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -8,7 +9,7 @@ from PyQt6.QtWidgets import (
     QTextEdit, QComboBox, QSpinBox, QDoubleSpinBox, QCheckBox, QGroupBox,
     QFormLayout, QSplitter, QMessageBox, QFileDialog, QScrollArea
 )
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QPixmap, QImage
 
 from core.scanner import ScannerInterface
@@ -18,20 +19,25 @@ from core.valuator import CardValuator
 from core.database import Database
 
 
-SCANS_DIR = Path(os.environ.get('APPDATA', Path.home())) / "TradingCardManager" / "scans"
-SCANS_DIR.mkdir(exist_ok=True)
+SCANS_DIR: Path = Path(os.environ.get('APPDATA', Path.home())) / "TradingCardManager" / "scans"
+SCANS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class ImageViewer(QLabel):
-    """Custom widget to display card images."""
+    """Display card images with proper scaling."""
     def __init__(self, placeholder: str = "No image"):
         super().__init__()
         self.setMinimumSize(280, 380)
         self.setMaximumSize(450, 600)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setStyleSheet("""
-            QLabel { background: #1a202c; color: #718096;
-                     border: 2px dashed #2d3748; border-radius: 8px; font-size: 13px; }
+            QLabel { 
+                background: #1a202c; 
+                color: #718096;
+                border: 2px dashed #2d3748; 
+                border-radius: 8px; 
+                font-size: 13px; 
+            }
         """)
         self._placeholder = placeholder
         self.setText(placeholder)
@@ -54,6 +60,7 @@ class ImageViewer(QLabel):
 
 
 class ScanTab(QWidget):
+    """Scan & Add tab with continuous scanning support."""
     card_added = pyqtSignal(int)
 
     def __init__(self, db: Database, scanner: ScannerInterface,
@@ -72,6 +79,8 @@ class ScanTab(QWidget):
         self.current_valuations = []
         self._continuous_mode = False
         self._continuous_count = 0
+        self._worker = None
+        self._val_worker = None
 
         self._build_ui()
 
@@ -80,7 +89,7 @@ class ScanTab(QWidget):
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(14)
 
-        # Scanner controls
+        # Scanner Bar
         bar = QHBoxLayout()
         self.source_combo = QComboBox()
         self.source_combo.setMinimumWidth(220)
@@ -119,142 +128,7 @@ class ScanTab(QWidget):
         bar.addStretch()
         layout.addLayout(bar)
 
-        # Image viewers
+        # Image Splitter
         splitter = QSplitter(Qt.Orientation.Horizontal)
         img_widget = QWidget()
-        img_layout = QHBoxLayout(img_widget)
-
-        front_box = QGroupBox("Front")
-        fl = QVBoxLayout(front_box)
-        self.front_view = ImageViewer("Front side\nNot scanned yet")
-        fl.addWidget(self.front_view)
-
-        back_box = QGroupBox("Back")
-        bl = QVBoxLayout(back_box)
-        self.back_view = ImageViewer("Back side\nNot scanned yet")
-        bl.addWidget(self.back_view)
-
-        img_layout.addWidget(front_box)
-        img_layout.addWidget(back_box)
-        splitter.addWidget(img_widget)
-
-        # Right panel (details)
-        right = QWidget()
-        right_layout = QVBoxLayout(right)
-        right_layout.setSpacing(10)
-
-        # Card Details
-        details_group = QGroupBox("Card Details")
-        form = QFormLayout(details_group)
-        self.name_edit = QLineEdit()
-        self.set_edit = QLineEdit()
-        self.number_edit = QLineEdit()
-        self.rarity_edit = QLineEdit()
-        self.game_edit = QComboBox()
-        self.game_edit.setEditable(True)
-        self.game_edit.addItems(["Magic: The Gathering", "Pokémon", "Yu-Gi-Oh!", "One Piece", "Lorcana", "Flesh and Blood", "Sports", "Other"])
-        self.year_spin = QSpinBox()
-        self.year_spin.setRange(1900, 2100)
-        self.year_spin.setValue(datetime.now().year)
-        self.lang_edit = QLineEdit("English")
-        self.foil_check = QCheckBox("Foil / Holographic")
-        self.qty_spin = QSpinBox()
-        self.qty_spin.setRange(1, 9999)
-        self.qty_spin.setValue(1)
-        self.purchase_spin = QDoubleSpinBox()
-        self.purchase_spin.setRange(0, 999999)
-        self.purchase_spin.setPrefix("$")
-        self.purchase_spin.setDecimals(2)
-        self.notes_edit = QTextEdit()
-        self.notes_edit.setMaximumHeight(60)
-
-        for label, widget in [
-            ("Name:", self.name_edit), ("Set:", self.set_edit),
-            ("Card #:", self.number_edit), ("Rarity:", self.rarity_edit),
-            ("Game:", self.game_edit), ("Year:", self.year_spin),
-            ("Language:", self.lang_edit), ("Foil:", self.foil_check),
-            ("Quantity:", self.qty_spin), ("Purchase Price:", self.purchase_spin),
-            ("Notes:", self.notes_edit)
-        ]:
-            form.addRow(label, widget)
-
-        right_layout.addWidget(details_group)
-
-        # Inspection & Valuation groups (same as before)
-        # ... (I can expand if needed, but to keep it reasonable)
-
-        self.save_btn = QPushButton("💾 Save Card to Collection")
-        self.save_btn.setMinimumHeight(44)
-        self.save_btn.clicked.connect(self._save_card)
-        right_layout.addWidget(self.save_btn)
-        right_layout.addStretch()
-
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setWidget(right)
-        splitter.addWidget(scroll)
-        splitter.setSizes([700, 500])
-        layout.addWidget(splitter)
-
-        self.status_label = QLabel("Ready.")
-        layout.addWidget(self.status_label)
-
-    # === Scanning Methods ===
-    def _scan(self, side: str):
-        # ... (same as previous versions with worker)
-
-    def _load_file(self, side: str):
-        # ... (same)
-
-    def _scan_done(self, side: str, img):
-        # ... (same with auto-identify)
-
-    def _auto_identify(self):
-        front_text = self.identifier.extract_text(self.current_front_img) if self.current_front_img is not None else ""
-        back_text = self.identifier.extract_text(self.current_back_img) if self.current_back_img is not None else ""
-        info = self.identifier.parse_card_info(front_text, back_text)
-
-        if info.get('name') and not self.name_edit.text():
-            self.name_edit.setText(info['name'])
-        if info.get('card_number') and not self.number_edit.text():
-            self.number_edit.setText(info['card_number'])
-        if info.get('set_name') and not self.set_edit.text():
-            self.set_edit.setText(info['set_name'])
-        if info.get('rarity') and not self.rarity_edit.text():
-            self.rarity_edit.setText(info['rarity'])
-
-    def _inspect(self):
-        # ... (same)
-
-    def _fetch_value(self):
-        # ... (same)
-
-    def _save_card(self):
-        # ... (same logic as before)
-
-    def _reset(self):
-        """Clear everything for a new card."""
-        self.current_front_img = None
-        self.current_back_img = None
-        self.current_inspection = None
-        self.current_valuations = []
-        self.front_view.set_image(None)
-        self.back_view.set_image(None)
-        self.name_edit.clear()
-        self.set_edit.clear()
-        self.number_edit.clear()
-        self.rarity_edit.clear()
-        self.qty_spin.setValue(1)
-        self.purchase_spin.setValue(0)
-        self.notes_edit.clear()
-        self.foil_check.setChecked(False)
-        self.grade_label.setText("Not inspected")  # assuming you have these labels
-        self.score_label.setText("Score: -")
-        self.defects_text.clear()
-        self.value_label.setText("Estimate: -")
-        self.value_text.clear()
-
-    # Continuous Scan Mode
-    def _start_continuous_scan(self):
-        # Full implementation from previous message
-        pass  # Add the continuous scan methods here if needed
+        img
