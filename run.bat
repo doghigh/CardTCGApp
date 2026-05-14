@@ -1,26 +1,28 @@
 @echo off
+title Trading Card Manager - Launcher
+echo.
 echo ================================================
-echo    Trading Card Manager - Launcher
+echo    Trading Card Manager v1.1.0
+echo    Privacy-First TCG Collection App
 echo ================================================
+echo.
 
-:: Set paths
-set PYTHON_EXE=python
-set VENV_DIR=venv
-set PROJECT_DIR=%\~dp0
+:: Set working directory to script location
+cd /d "%\~dp0"
 
-:: Check if Python is installed
+:: Check Python
 where python >nul 2>nul
 if %errorlevel% neq 0 (
-    echo [ERROR] Python not found in PATH.
-    echo Please install Python from https://python.org and check "Add Python to PATH"
+    echo [ERROR] Python is not installed or not in PATH.
+    echo Please download from https://python.org and check "Add Python to PATH"
     pause
     exit /b 1
 )
 
 :: Create virtual environment if it doesn't exist
-if not exist %VENV_DIR% (
+if not exist venv (
     echo Creating virtual environment...
-    %PYTHON_EXE% -m venv %VENV_DIR%
+    python -m venv venv
     if %errorlevel% neq 0 (
         echo [ERROR] Failed to create virtual environment.
         pause
@@ -28,13 +30,37 @@ if not exist %VENV_DIR% (
     )
 )
 
-:: Activate virtual environment
-call %VENV_DIR%\Scripts\activate.bat
+:: Activate venv
+call venv\Scripts\activate.bat
 
-:: Install/upgrade dependencies
-echo Installing dependencies...
+:: Install dependencies
+echo Installing / updating dependencies...
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
+
+if %errorlevel% neq 0 (
+    echo [WARNING] Some packages failed to install.
+    echo Tesseract OCR is recommended for best OCR performance.
+    echo.
+)
+
+:: Create required folders
+mkdir "%APPDATA%\TradingCardManager\scans" 2>nul
+mkdir "%APPDATA%\TradingCardManager\reports" 2>nul
+
+echo.
+echo ================================================
+echo    Starting Trading Card Manager...
+echo    Press Ctrl+C in this window to stop
+echo ================================================
+echo.
+
+:: Launch the app
+python main.py
+
+echo.
+echo Application closed.
+pausepython -m pip install -r requirements.txt
 
 if %errorlevel% neq 0 (
     echo [WARNING] Some dependencies failed to install.
