@@ -1,6 +1,7 @@
 import cv2
 import re
 import os
+import numpy as np
 from typing import Dict
 
 try:

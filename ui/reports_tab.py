@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -8,7 +9,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 
 from core.database import Database
-from core.report_generator import ReportGenerator   # We'll need this next if not created yet
+from core.reports_generator import ReportGenerator
 
 
 class ReportsTab(QWidget):

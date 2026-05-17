@@ -6,6 +6,9 @@ import os
 from pathlib import Path
 from typing import Optional, List, Dict
 
+APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "TradingCardManager"
+APP_DIR.mkdir(parents=True, exist_ok=True)
+
 import pyotp
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC

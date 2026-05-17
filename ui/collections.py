@@ -1,6 +1,9 @@
 import csv
+import os
 from pathlib import Path
 from typing import List, Dict
+
+APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "TradingCardManager"
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit,
@@ -88,7 +91,7 @@ class CollectionTab(QWidget):
             f"<b>{stats.get('total_quantity', 0)}</b> total cards  •  "
             f"💰 Total value: <b>${stats.get('total_value', 0):,.2f}</b>  •  "
             f"💵 Cost basis: <b>${stats.get('total_cost', 0):,.2f}</b>  •  "
-            f"📈 Net: <b>${stats.get('total_value', 0) - stats.get('total_cost', 0):+, .2f}</b>  •  "
+            f"📈 Net: <b>${stats.get('total_value', 0) - stats.get('total_cost', 0):+,.2f}</b>  •  "
             f"⭐ Avg condition: <b>{stats.get('avg_condition', 0):.1f}/100</b>"
         )
 

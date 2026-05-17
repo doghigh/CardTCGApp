@@ -4,17 +4,17 @@ from pathlib import Path
 from datetime import datetime
 
 from PyQt6.QtWidgets import (
-    QMainWindow, QTabWidget, QStatusBar, QMenuBar, QAction, QMessageBox
+    QMainWindow, QTabWidget, QStatusBar, QMenuBar, QMessageBox
 )
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QKeySequence, QShortcut
+from PyQt6.QtGui import QAction, QKeySequence, QShortcut
 
 from core.database import Database
 from core.scanner import ScannerInterface
 from core.inspector import CardInspector
 from core.identifier import CardIdentifier
 from core.valuator import CardValuator
-from core.auth import AuthManager, WindowsHelloAuth, LoginDialog
+from core.auth import AuthManager, WindowsHelloAuth
 
 from ui.scan_tab import ScanTab
 from ui.batch_tab import BatchTab
@@ -37,6 +37,7 @@ class MainWindow(QMainWindow):
 
         # Login check
         if self.auth.has_password() or (hasattr(self.auth, 'totp_secret_file') and self.auth.totp_secret_file.exists()):
+            from ui.dialogs import LoginDialog
             dlg = LoginDialog(self.auth, self.hello_auth, self)
             if dlg.exec() != 1:  # QDialog.Accepted
                 sys.exit(0)

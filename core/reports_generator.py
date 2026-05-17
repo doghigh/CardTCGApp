@@ -124,4 +124,58 @@ class ReportGenerator:
             t = Table(data, colWidths=[2.2*inch, 1.6*inch, 1.0*inch, 0.5*inch, 0.9*inch])
             t.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2c5282')),
-                ('TEXTCOLOR', (0, 0), (-1
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#f7fafc'), colors.white]),
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ]))
+            story.append(Paragraph("Cards Added This Month", h2_style))
+            story.append(t)
+            story.append(Spacer(1, 0.3 * inch))
+
+        # Full collection table
+        story.append(PageBreak())
+        story.append(Paragraph("Full Collection", h2_style))
+
+        if all_cards:
+            col_data = [['Name', 'Set', 'Grade', 'Score', 'Qty', 'Value', 'Added']]
+            for c in all_cards[:200]:
+                qty = c.get('quantity', 1) or 1
+                val = c.get('estimated_value', 0) or 0
+                col_data.append([
+                    (c.get('name') or '')[:28],
+                    (c.get('set_name') or '')[:18],
+                    c.get('condition_grade') or '-',
+                    f"{c.get('condition_score', 0):.0f}",
+                    str(qty),
+                    f"${val:.2f}",
+                    str(c.get('created_at', ''))[:10],
+                ])
+            ct = Table(col_data, colWidths=[
+                2.0*inch, 1.5*inch, 0.9*inch, 0.5*inch, 0.4*inch, 0.7*inch, 0.9*inch
+            ])
+            ct.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2c5282')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('GRID', (0, 0), (-1, -1), 0.4, colors.grey),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#f7fafc'), colors.white]),
+                ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ]))
+            story.append(ct)
+
+        doc.build(story)
+
+        # Record in DB
+        total_value = stats.get('total_value', 0)
+        total_cards = stats.get('total_cards', 0)
+        self.db.save_report(
+            start.strftime('%Y-%m-%d'),
+            end.strftime('%Y-%m-%d'),
+            total_cards,
+            total_value,
+            str(out_path),
+        )
+
+        return out_path

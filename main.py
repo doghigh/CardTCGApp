@@ -31,7 +31,7 @@ def main():
     window = MainWindow()
     window.show()
 
-    print(f"🚀 {APP_NAME} v{APP_VERSION} started successfully!")
+    print(f"{APP_NAME} v{APP_VERSION} started successfully!")
     sys.exit(app.exec())
 
 

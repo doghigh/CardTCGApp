@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"from ui.main_window import MainWindow; print\\('imports ok'\\)\")",
+      "Bash(start /B python main.py)"
+    ]
+  }
+}
