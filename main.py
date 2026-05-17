@@ -5,8 +5,19 @@ Trading Card Manager - Main Entry Point
 import sys
 import os
 from pathlib import Path
+from PyQt6.QtCore import Qt
 
-from PyQt6.QtWidgets import QApplication
+
+try:
+    from PyQt6.QtWidgets import (
+        QApplication, 
+        QWidget,
+        )
+except ImportError:
+    try:
+        from PyQt5.QtWidgets import (QApplication, QWidget)
+    except ImportError as exc:
+        raise ImportError("PyQt6 or PyQt5 is required to run this application") from exc
 
 # Import theme
 from utils.theme import apply_dark_theme

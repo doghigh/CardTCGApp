@@ -1,28 +1,24 @@
+# core/database.py
 import sqlite3
 import json
 import threading
-from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict
 
 
 class Database:
-    """Handles all database operations with thread safety."""
-
     def __init__(self, db_path: Path):
         self.db_path = db_path
         self._lock = threading.Lock()
         self._init_db()
 
     def _conn(self):
-        """Create a new connection with row factory."""
         conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
         return conn
 
     def _init_db(self):
-        """Create tables and indexes if they don't exist."""
         with self._lock, self._conn() as conn:
             conn.executescript("""
                 CREATE TABLE IF NOT EXISTS cards (
@@ -72,19 +68,15 @@ class Database:
 
                 CREATE INDEX IF NOT EXISTS idx_cards_name ON cards(name);
                 CREATE INDEX IF NOT EXISTS idx_cards_set ON cards(set_name);
-                CREATE INDEX IF NOT EXISTS idx_cards_game ON cards(game);
-                CREATE INDEX IF NOT EXISTS idx_valuations_card ON valuations(card_id);
             """)
 
     def add_card(self, card: Dict) -> int:
-        """Add a new card and return its ID."""
         with self._lock, self._conn() as conn:
             cursor = conn.execute("""
-                INSERT INTO cards (
-                    name, set_name, card_number, rarity, game, year, language, foil,
-                    front_scan_path, back_scan_path, condition_grade, condition_score,
-                    defects_json, estimated_value, purchase_price, purchase_date, notes, quantity
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO cards (name, set_name, card_number, rarity, game, year, language, foil,
+                    front_scan_path, back_scan_path, condition_grade, condition_score, defects_json,
+                    estimated_value, purchase_price, purchase_date, notes, quantity)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 card.get('name', 'Unknown'),
                 card.get('set_name'),
@@ -108,22 +100,33 @@ class Database:
             return cursor.lastrowid
 
     def update_card(self, card_id: int, updates: Dict):
-        """Update an existing card."""
+        allowed = {'name', 'set_name', 'card_number', 'rarity', 'game', 'year', 'language',
+                   'foil', 'condition_grade', 'condition_score', 'estimated_value',
+                   'purchase_price', 'purchase_date', 'notes', 'quantity'}
+
+        fields = []
+        values = []
+        for k, v in updates.items():
+            if k not in allowed:
+                continue
+            if k == 'defects':
+                fields.append("defects_json = ?")
+                values.append(json.dumps(v))
+            else:
+                fields.append(f"{k} = ?")
+                values.append(v)
+
+        if not fields:
+            return
+        fields.append("updated_at = CURRENT_TIMESTAMP")
+        values.append(card_id)
+
+        query = f"UPDATE cards SET {', '.join(fields)} WHERE id = ?"
         with self._lock, self._conn() as conn:
-            fields = []
-            values = []
-            for k, v in updates.items():
-                if k == 'defects':
-                    fields.append("defects_json = ?")
-                    values.append(json.dumps(v))
-                else:
-                    fields.append(f"{k} = ?")
-                    values.append(v)
-            fields.append("updated_at = CURRENT_TIMESTAMP")
-            values.append(card_id)
+            conn.execute(query, values)
 
-            conn.execute(f"UPDATE cards SET {', '.join(fields)} WHERE id = ?", values)
-
+    # Add the rest of your original methods (get_all_cards, delete_card, get_collection_stats, etc.)
+    # They are safe as long as you use parameters (?)
     def delete_card(self, card_id: int):
         """Delete a card."""
         with self._lock, self._conn() as conn:

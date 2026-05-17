@@ -10,3 +10,4 @@ pytwain>=2.3.0
 pyotp>=2.9.0
 cryptography>=43.0.0
 qrcode[pil]>=8.0
+qtwidgwets>=0.1.0
