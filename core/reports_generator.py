@@ -6,6 +6,7 @@ Fixed: Better error handling, proper path handling, and safe operations.
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
+import os
 
 from core.database import Database
 
@@ -20,6 +21,10 @@ try:
     HAS_REPORTLAB = True
 except ImportError:
     HAS_REPORTLAB = False
+
+
+# Global APP_DIR for consistency
+APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "TradingCardManager"
 
 
 class ReportGenerator:
