@@ -1,4 +1,4 @@
-import os
+# ui/reports_tab.py
 from datetime import datetime
 from pathlib import Path
 
@@ -9,11 +9,11 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 
 from core.database import Database
-from core.reports_generator import ReportGenerator
+from core.report_generator import ReportGenerator
 
 
 class ReportsTab(QWidget):
-    """Monthly PDF reports tab."""
+    """Monthly PDF reports tab with improved error handling."""
 
     def __init__(self, db: Database):
         super().__init__()
@@ -27,7 +27,7 @@ class ReportsTab(QWidget):
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(12)
 
-        # Report generation controls
+        # Controls
         controls = QHBoxLayout()
         controls.addWidget(QLabel("Year:"))
 
@@ -52,51 +52,43 @@ class ReportsTab(QWidget):
         controls.addStretch()
         layout.addLayout(controls)
 
-        # Past reports list
+        # Reports list
         layout.addWidget(QLabel("📚 Past Reports (double-click to open):"))
         self.report_list = QListWidget()
         self.report_list.itemDoubleClicked.connect(self._open_report)
         layout.addWidget(self.report_list)
 
     def refresh(self):
-        """Refresh the list of saved reports."""
+        """Refresh list of generated reports."""
         self.report_list.clear()
         reports = self.db.get_reports()
         for r in reports:
-            text = (f"{r['period_start']} → {r['period_end']}  •  "
-                    f"{r['total_cards']} cards  •  "
-                    f"${r['total_value']:,.2f}  •  {Path(r['file_path']).name}")
+            text = f"{r['period_start']} → {r['period_end']} • {r['total_cards']} cards • ${r['total_value']:,.2f}"
             item = QListWidgetItem(text)
             item.setData(Qt.ItemDataRole.UserRole, r['file_path'])
             self.report_list.addItem(item)
 
     def _generate_report(self):
-        """Generate a new monthly report."""
+        """Generate monthly report with error handling."""
         year = self.year_spin.value()
         month = self.month_combo.currentData()
 
         try:
             path = self.report_gen.generate_monthly(year, month)
             if path:
-                QMessageBox.information(self, "Report Generated",
-                    f"Monthly report saved to:\n{path}")
+                QMessageBox.information(self, "Success", f"Report generated:\n{path}")
                 self.refresh()
-
-                # Auto-open the PDF
                 if hasattr(os, 'startfile'):
                     os.startfile(str(path))
             else:
-                QMessageBox.warning(self, "Generation Failed", "Report generation returned no file.")
+                QMessageBox.warning(self, "Failed", "Report generation failed.")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to generate report:\n{str(e)}")
 
     def _open_report(self, item: QListWidgetItem):
-        """Open a saved report PDF."""
         path = item.data(Qt.ItemDataRole.UserRole)
         if path and Path(path).exists():
             if hasattr(os, 'startfile'):
                 os.startfile(path)
-            else:
-                QMessageBox.information(self, "Path", f"Report location:\n{path}")
         else:
             QMessageBox.warning(self, "Not Found", f"Report file not found:\n{path}")
