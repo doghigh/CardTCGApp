@@ -1,24 +1,33 @@
-# core/database.py
+"""
+Database module for Trading Card Manager.
+Fixed: SQL Injection prevention, better error handling, input validation.
+"""
+
 import sqlite3
 import json
 import threading
 from pathlib import Path
 from typing import Optional, List, Dict
+from datetime import datetime
 
 
 class Database:
+    """Thread-safe SQLite database handler."""
+
     def __init__(self, db_path: Path):
         self.db_path = db_path
         self._lock = threading.Lock()
         self._init_db()
 
     def _conn(self):
+        """Create a new database connection."""
         conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
         return conn
 
     def _init_db(self):
+        """Initialize database schema."""
         with self._lock, self._conn() as conn:
             conn.executescript("""
                 CREATE TABLE IF NOT EXISTS cards (
@@ -68,15 +77,19 @@ class Database:
 
                 CREATE INDEX IF NOT EXISTS idx_cards_name ON cards(name);
                 CREATE INDEX IF NOT EXISTS idx_cards_set ON cards(set_name);
+                CREATE INDEX IF NOT EXISTS idx_cards_game ON cards(game);
+                CREATE INDEX IF NOT EXISTS idx_valuations_card ON valuations(card_id);
             """)
 
     def add_card(self, card: Dict) -> int:
+        """Add a new card to the database."""
         with self._lock, self._conn() as conn:
             cursor = conn.execute("""
-                INSERT INTO cards (name, set_name, card_number, rarity, game, year, language, foil,
-                    front_scan_path, back_scan_path, condition_grade, condition_score, defects_json,
-                    estimated_value, purchase_price, purchase_date, notes, quantity)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO cards (
+                    name, set_name, card_number, rarity, game, year, language, foil,
+                    front_scan_path, back_scan_path, condition_grade, condition_score,
+                    defects_json, estimated_value, purchase_price, purchase_date, notes, quantity
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 card.get('name', 'Unknown'),
                 card.get('set_name'),
@@ -100,14 +113,17 @@ class Database:
             return cursor.lastrowid
 
     def update_card(self, card_id: int, updates: Dict):
-        allowed = {'name', 'set_name', 'card_number', 'rarity', 'game', 'year', 'language',
-                   'foil', 'condition_grade', 'condition_score', 'estimated_value',
-                   'purchase_price', 'purchase_date', 'notes', 'quantity'}
+        """Safe update with column whitelist to prevent SQL injection."""
+        allowed_fields = {
+            'name', 'set_name', 'card_number', 'rarity', 'game', 'year',
+            'language', 'foil', 'condition_grade', 'condition_score',
+            'estimated_value', 'purchase_price', 'purchase_date', 'notes', 'quantity'
+        }
 
         fields = []
         values = []
         for k, v in updates.items():
-            if k not in allowed:
+            if k not in allowed_fields:
                 continue
             if k == 'defects':
                 fields.append("defects_json = ?")
@@ -118,6 +134,7 @@ class Database:
 
         if not fields:
             return
+
         fields.append("updated_at = CURRENT_TIMESTAMP")
         values.append(card_id)
 
@@ -125,35 +142,30 @@ class Database:
         with self._lock, self._conn() as conn:
             conn.execute(query, values)
 
-    # Add the rest of your original methods (get_all_cards, delete_card, get_collection_stats, etc.)
-    # They are safe as long as you use parameters (?)
     def delete_card(self, card_id: int):
-        """Delete a card."""
+        """Delete a card by ID."""
         with self._lock, self._conn() as conn:
             conn.execute("DELETE FROM cards WHERE id = ?", (card_id,))
 
     def get_card(self, card_id: int) -> Optional[Dict]:
-        """Get single card by ID."""
         with self._lock, self._conn() as conn:
             row = conn.execute("SELECT * FROM cards WHERE id = ?", (card_id,)).fetchone()
             return dict(row) if row else None
 
     def get_all_cards(self, search: str = None) -> List[Dict]:
-        """Get all cards, optionally filtered by search term."""
         with self._lock, self._conn() as conn:
-            if search:
-                query = """
+            if search and search.strip():
+                term = f"%{search.strip()}%"
+                rows = conn.execute("""
                     SELECT * FROM cards 
                     WHERE name LIKE ? OR set_name LIKE ? OR game LIKE ? OR card_number LIKE ?
                     ORDER BY updated_at DESC
-                """
-                rows = conn.execute(query, (f"%{search}%", f"%{search}%", f"%{search}%", f"%{search}%")).fetchall()
+                """, (term, term, term, term)).fetchall()
             else:
                 rows = conn.execute("SELECT * FROM cards ORDER BY updated_at DESC").fetchall()
             return [dict(r) for r in rows]
 
-    def add_valuation(self, card_id: int, source: str, value: float, url: str = None):
-        """Add a valuation record."""
+    def add_valuation(self, card_id: int, source: str, value: float, url: Optional[str] = None):
         with self._lock, self._conn() as conn:
             conn.execute("""
                 INSERT INTO valuations (card_id, source, value, url)
@@ -161,17 +173,13 @@ class Database:
             """, (card_id, source, value, url))
 
     def get_valuations(self, card_id: int) -> List[Dict]:
-        """Get all valuations for a card."""
         with self._lock, self._conn() as conn:
             rows = conn.execute("""
-                SELECT * FROM valuations 
-                WHERE card_id = ? 
-                ORDER BY fetched_at DESC
+                SELECT * FROM valuations WHERE card_id = ? ORDER BY fetched_at DESC
             """, (card_id,)).fetchall()
             return [dict(r) for r in rows]
 
     def get_collection_stats(self) -> Dict:
-        """Return overall collection statistics."""
         with self._lock, self._conn() as conn:
             row = conn.execute("""
                 SELECT 
@@ -185,7 +193,6 @@ class Database:
             return dict(row) if row else {}
 
     def get_cards_for_period(self, start: str, end: str) -> List[Dict]:
-        """Get cards added in a specific date range."""
         with self._lock, self._conn() as conn:
             rows = conn.execute("""
                 SELECT * FROM cards 
@@ -196,7 +203,6 @@ class Database:
 
     def save_report(self, period_start: str, period_end: str, total_cards: int,
                     total_value: float, file_path: str) -> int:
-        """Save a generated report record."""
         with self._lock, self._conn() as conn:
             cursor = conn.execute("""
                 INSERT INTO reports (period_start, period_end, total_cards, total_value, file_path)
@@ -205,7 +211,6 @@ class Database:
             return cursor.lastrowid
 
     def get_reports(self) -> List[Dict]:
-        """Get all saved reports."""
         with self._lock, self._conn() as conn:
             rows = conn.execute("SELECT * FROM reports ORDER BY generated_at DESC").fetchall()
             return [dict(r) for r in rows]

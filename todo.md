@@ -4,7 +4,106 @@
 
 ---
 
-## 🔴 **Critical Issues**
+## 🔴 **Runtime Crash Bugs** *(App will not run until these are fixed)*
+
+### BUG-1. `LoginDialog` Not Defined — App Crashes on Startup (`ui/main_window.py:15`)
+- **Issue:** `LoginDialog` is imported from `core.auth` but is never defined there.
+- **Error:** `ImportError: cannot import name 'LoginDialog' from 'core.auth'`
+- **Fix:** Add `LoginDialog` class to `core/auth.py` or change the import to wherever it is actually defined.
+
+### BUG-2. Wrong Module Name for Report Generator (`ui/reports_tab.py:12`)
+- **Issue:** Imports `from core.report_generator import ReportGenerator` but the file is `core/reports_generator.py` (with an extra `s`).
+- **Error:** `ModuleNotFoundError: No module named 'core.report_generator'`
+- **Fix:** Change import to `from core.reports_generator import ReportGenerator`
+
+### BUG-3. `os` Not Imported in `reports_tab.py` (`ui/reports_tab.py:81,92`)
+- **Issue:** `os.startfile(str(path))` is called in `_generate_report` and `_open_report` but `os` is never imported.
+- **Error:** `NameError: name 'os' is not defined`
+- **Fix:** Add `import os` at the top of `ui/reports_tab.py`
+
+### BUG-4. `APP_DIR` Not Defined in Report Generator (`core/reports_generator.py:40`)
+- **Issue:** `reports_dir = APP_DIR / "reports"` uses `APP_DIR` but it is never imported or defined in this file.
+- **Error:** `NameError: name 'APP_DIR' is not defined`
+- **Fix:** Add at the top of file:
+```python
+import os
+from pathlib import Path
+APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "TradingCardManager"
+```
+
+### BUG-5. SyntaxError in `dialogs.py` on Python 3.11 (`ui/dialogs.py:65-67`)
+- **Issue:** Backslash `\n` used inside f-string `{}` expression, which is invalid on Python < 3.12. Since `__pycache__` shows `cpython-311`, this will crash at import time for the entire module, taking down both `main_window.py` and `batch_tab.py` with it.
+- **Error:** `SyntaxError: f-string expression part cannot include a backslash`
+- **Affected lines:**
+```python
+# BROKEN on Python 3.11:
+<pre>{"\n".join([f"• {d.get('type')} @ {d.get('location')}" for d in defects]) or "None"}</pre>
+<pre>{"\n".join([f"• {v['source']}: ${v['value']}" for v in valuations]) or "None"}</pre>
+```
+- **Fix:** Extract the join to a variable before the f-string:
+```python
+defect_lines = "\n".join(f"• {d.get('type')} @ {d.get('location')}" for d in defects) or "None"
+val_lines = "\n".join(f"• {v['source']}: ${v['value']}" for v in valuations) or "None"
+info.setHtml(f"""
+    ...
+    <pre>{defect_lines}</pre>
+    ...
+    <pre>{val_lines}</pre>
+""")
+```
+
+### BUG-6. `CsvMappingDialog` Not Defined (`ui/dialogs.py`, `ui/batch_tab.py:274`)
+- **Issue:** `from ui.dialogs import CsvMappingDialog` in `batch_tab.py` but `CsvMappingDialog` is never defined in `dialogs.py`.
+- **Error:** `ImportError: cannot import name 'CsvMappingDialog' from 'ui.dialogs'`
+- **Fix:** Implement `CsvMappingDialog` in `ui/dialogs.py` (a dialog that maps CSV column headers to card fields).
+
+### BUG-7. `APP_DIR` Not Defined in `collection_tab.py` (`ui/collection_tab.py:138`)
+- **Issue:** `_export_csv` references `APP_DIR` as a default path but `APP_DIR` is never imported or defined in `ui/collection_tab.py`.
+- **Error:** `NameError: name 'APP_DIR' is not defined`
+- **Fix:** Add `APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "TradingCardManager"` at the top of the file (it's already defined in `ui/collections.py` but not in `ui/collection_tab.py`).
+
+### BUG-8. Ellipsis Literal Written to CSV (`ui/collection_tab.py:147`)
+- **Issue:** `writer.writerow([c.get('id'), c.get('name'), c.get('set_name'), ...])` uses the Python `...` (Ellipsis) object as an argument. The remaining columns are never written; instead the string `"Ellipsis"` is written in the last cell.
+- **Error:** Silent data corruption — CSV output is incomplete and malformed.
+- **Fix:** Replace `...` with all actual column values matching the header row defined on line 145.
+
+---
+
+## 🔴 **Logic Errors**
+
+### BUG-9. `update_card` Defects Branch Is Dead Code (`core/database.py:102-117`)
+- **Issue:** The `if k == 'defects':` branch at line 112 is unreachable. The `allowed` set does not include `'defects'`, so any card with a `'defects'` key is already filtered out by `if k not in allowed: continue` on line 110-111. Defect data can never be updated via `update_card`.
+- **Fix:** Add `'defects'` to the `allowed` set, or handle it before the loop:
+```python
+allowed = {'name', 'set_name', ..., 'defects'}
+```
+
+### BUG-10. Report PDF Body Is Empty (`core/reports_generator.py:54-55`)
+- **Issue:** The story-building code is replaced with a comment `# ... (full story building code from earlier version)`. The generated PDF contains only a title and no actual card data.
+- **Fix:** Implement the summary table, top cards list, and condition distribution sections.
+
+### BUG-11. Zero Quantity Allowed in CSV Import (`ui/batch_tab.py:131`)
+- **Issue:** `"quantity": int(get("quantity") or 1)` — if the CSV contains `"0"`, then `"0" or 1` evaluates to `"0"` (a non-empty string is truthy), so `int("0") = 0`. Cards with quantity 0 can be inserted.
+- **Fix:**
+```python
+"quantity": max(1, int(get("quantity") or 1))
+```
+
+### BUG-12. Duplicate `CollectionTab` Class (`ui/collection_tab.py`, `ui/collections.py`)
+- **Issue:** Both files define a `CollectionTab` class. `main_window.py` imports from `ui.collection_tab` (the broken version missing `APP_DIR` and with the `...` CSV bug). The complete version is in `ui/collections.py` but is never used.
+- **Fix:** Delete `ui/collection_tab.py` and update the import in `main_window.py` to `from ui.collections import CollectionTab`.
+
+### BUG-13. `_setup_menu` Is Empty (`ui/main_window.py:111-112`)
+- **Issue:** `_setup_menu` contains only `pass`, so no File or Help menus are created despite the method being called in `__init__`.
+- **Fix:** Implement the menu bar with File (Open Data Folder, Exit) and Help actions.
+
+### BUG-14. Help Dialog Shows Placeholder Text (`ui/main_window.py:109`)
+- **Issue:** `_show_help` displays `"..."` instead of actual keyboard shortcut documentation.
+- **Fix:** Populate the help text with the full shortcuts table (Ctrl+1–4, Ctrl+N, Ctrl+F, Ctrl+S, F5, F1, Ctrl+Q).
+
+---
+
+## 🟠 **Critical Issues** *(Pre-existing, security-related)*
 
 ### 1. SQL Injection Vulnerability in Database Updates (`core/database.py:120`)
 - **Issue:** Column names are interpolated directly into SQL string. While values are parameterized, malicious column names could cause issues.
@@ -36,18 +135,8 @@ def check_password(self, password: str) -> bool:
 ```
 - **Priority:** CRITICAL - Security vulnerability
 
-### 3. Weak Recovery Codes (`core/auth.py:92`)
-- **Issue:** Using `random.randint()` instead of `secrets` for cryptographic codes
-- **Location:** `core/auth.py`, `generate_recovery_codes()` method
-- **Current Code:**
-```python
-codes = [f"{random.randint(100000, 999999)}-{random.randint(1000, 9999)}" for _ in range(8)]
-```
-- **Fix:** Use `secrets` module
-```python
-codes = [f"{secrets.randbelow(1000000):06d}-{secrets.randbelow(10000):04d}" for _ in range(8)]
-```
-- **Priority:** CRITICAL - Cryptographic weakness
+### 3. ~~Weak Recovery Codes~~ (`core/auth.py:92`) — **FIXED**
+- Current code already uses `secrets.token_hex(4).upper()`. Issue resolved.
 
 ### 4. No Input Validation for Card Data (`core/database.py:79-108`)
 - **Issue:** No validation of data types, ranges, or string lengths before storage
@@ -82,6 +171,7 @@ def add_card(self, card: Dict) -> int:
   - `core/valuator.py:38, 71, 96, 111` - Price fetching methods
   - `core/identifier.py:69` - `extract_text()`
   - `core/inspector.py` - Various detection methods
+  - `core/scanner.py:51` - bare `except:` in `_auto_rotate()`
 - **Fix:** Catch specific exceptions only
 ```python
 # Instead of:
@@ -195,9 +285,11 @@ conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
 ### 13. No Logging Framework
 - **Issue:** Using `print()` instead of Python's logging module
 - **Locations:**
-  - `main.py:34` - `print(f"🚀 {APP_NAME} v{APP_VERSION}...")`
-  - `core/auth.py:146` - `print(f"Windows Hello error...")`
-  - `core/identifier.py:70` - `print(f"OCR Error...")`
+  - `main.py:45` - `print(f"{APP_NAME} v{APP_VERSION} started successfully!")`
+  - `core/auth.py:161` - `print(f"Windows Hello error...")`
+  - `core/identifier.py:71` - `print(f"OCR Error...")`
+  - `core/scanner.py:105` - `print(f"Scan error: {e}")`
+  - `core/scanner.py:120` - `print(f"File load error: {e}")`
 - **Fix:** Implement logging
 ```python
 import logging
@@ -212,7 +304,7 @@ logging.basicConfig(
         logging.StreamHandler()
     ]
 )
-logger.info(f"🚀 {APP_NAME} v{APP_VERSION} started successfully!")
+logger.info(f"{APP_NAME} v{APP_VERSION} started successfully!")
 ```
 - **Priority:** MEDIUM - Debugging and monitoring
 
@@ -253,74 +345,120 @@ QMessageBox.warning(self, "Error", f"Failed to fetch card value: {str(e)}")
 - **Fix:** Consider write batching or connection pooling
 - **Priority:** LOW - Depends on usage patterns
 
+### 17. `_revalue_worker` Blocks the UI Thread (`ui/collections.py:161-171`)
+- **Issue:** `_revalue_worker` runs synchronously on the main/UI thread via `QTimer.singleShot`, fetching web prices for every selected card in sequence. This freezes the UI for as long as the fetches take.
+- **Fix:** Run re-valuation in a `QThread` similar to `_Worker` in `scan_tab.py`.
+- **Priority:** MEDIUM - UX
+
+### 18. Duplicate Tab Emoji in Main Window (`ui/main_window.py:63-64`)
+- **Issue:** Both "Batch Import" and "Collection" tabs use the "📦" emoji, making them visually indistinguishable.
+- **Fix:** Change one of the icons, e.g. Collection tab to "📋 Collection".
+- **Priority:** LOW - UX
+
 ---
 
 ## 🔵 **Low Priority Issues**
 
-### 17. Unused Imports
-- **Location:** `core/identifier.py:4` - `import os` defined but not used directly
-- **Fix:** Clean up or remove
+### 19. Unused Import in `main.py` (`main.py:8`)
+- **Location:** `from PyQt6.QtCore import Qt` — `Qt` is never used in `main.py`
+- **Fix:** Remove the import
 - **Priority:** LOW - Code cleanliness
 
-### 18. Windows Hello Auth Has No Fallback (`core/auth.py:121-146`)
+### 20. Unused Import (`core/identifier.py:3`)
+- **Location:** `import os` — only used indirectly through `os.environ.get` and `os.path.exists`; actually it IS used. But the comment in todo referred to it being unnecessary for other uses. Verify and clean up if truly unused.
+- **Priority:** LOW - Code cleanliness
+
+### 21. Windows Hello Auth Has No Fallback (`core/auth.py:121-146`)
 - **Issue:** If Windows Hello fails, app could become inaccessible
 - **Location:** `core/auth.py`, `request_biometric_login()`
 - **Fix:** Ensure password fallback always works
 - **Priority:** LOW - UX consideration
 
-### 19. Missing Unit Tests
+### 22. Missing Unit Tests
 - **Issue:** No test coverage for security-critical functions
 - **Examples:** Password verification, SQL queries, data validation
 - **Priority:** LOW - Best practice
 
-### 20. No Code Signing for Executable
+### 23. No Code Signing for Executable
 - **Issue:** Distributed .exe should be signed for distribution
 - **Location:** `build_exe.bat`
 - **Priority:** LOW - Distribution security
+
+### 24. File Comment Mismatch (`core/reports_generator.py:1`)
+- **Issue:** File comment says `# core/report_generator.py` but the actual filename is `reports_generator.py`
+- **Fix:** Update the comment to match the filename
+- **Priority:** LOW - Code cleanliness
+
+### 25. TOTP Secret Stored in Plaintext (`core/auth.py:79-81`)
+- **Issue:** `.totp_secret` file is stored unencrypted on disk
+- **Fix:** Encrypt using the derived key
+- **Priority:** MEDIUM - Security best practice
 
 ---
 
 ## ✅ **Strengths to Maintain**
 
-- ✅ Uses `secrets` module for salt generation
+- ✅ Uses `secrets` module for salt and recovery code generation
 - ✅ PBKDF2 with 600,000 iterations (good key derivation)
 - ✅ Parameterized SQL queries (mostly correct)
 - ✅ Foreign key constraints enabled
 - ✅ Thread-safe database with locks
 - ✅ Privacy-first design (local SQLite, no cloud)
+- ✅ `update_card` has column whitelist (SQL injection mitigated)
 
 ---
 
 ## 📋 **Implementation Priority**
 
-### Phase 1: Critical (Before Production)
+### Phase 0: Fix Crashes First (Nothing Runs Without These)
+- [ ] Add `LoginDialog` to `core/auth.py` (BUG-1)
+- [ ] Fix module import typo in `ui/reports_tab.py` (BUG-2)
+- [ ] Add `import os` to `ui/reports_tab.py` (BUG-3)
+- [ ] Define `APP_DIR` in `core/reports_generator.py` (BUG-4)
+- [ ] Fix backslash-in-f-string SyntaxError in `ui/dialogs.py` (BUG-5)
+- [ ] Implement `CsvMappingDialog` in `ui/dialogs.py` (BUG-6)
+- [ ] Define `APP_DIR` in `ui/collection_tab.py` or switch to `ui/collections.py` (BUG-7)
+- [ ] Fix CSV export Ellipsis bug in `ui/collection_tab.py` (BUG-8)
+
+### Phase 1: Logic Errors
+- [ ] Fix `update_card` dead code for defects field (BUG-9)
+- [ ] Implement report PDF body content (BUG-10)
+- [ ] Fix zero-quantity in CSV import (BUG-11)
+- [ ] Remove duplicate `CollectionTab` (BUG-12)
+- [ ] Implement `_setup_menu` (BUG-13)
+- [ ] Implement `_show_help` with real shortcut table (BUG-14)
+
+### Phase 2: Critical Security (Before Production)
 - [ ] Fix password storage (#2)
-- [ ] Implement column whitelist (#1)
-- [ ] Replace `random` with `secrets` (#3)
 - [ ] Add input validation (#4)
 
-### Phase 2: High (Before Release)
+### Phase 3: High (Before Release)
 - [ ] Replace bare exception handlers (#5)
 - [ ] Add logging framework (#13)
 - [ ] Pin dependency versions (#14)
 - [ ] Add rate limiting to web scraping (#7)
+- [ ] Move re-value to background thread (#17)
 
-### Phase 3: Medium (Soon After)
+### Phase 4: Medium (Soon After)
 - [ ] Validate scan file paths (#11)
 - [ ] Add Tesseract validation (#6)
 - [ ] Review thread safety (#12)
 - [ ] Add user error messages (#15)
+- [ ] Encrypt TOTP secret (#25)
 
-### Phase 4: Nice to Have
-- [ ] Add unit tests (#19)
-- [ ] Code signing (#20)
-- [ ] Windows Hello fallback (#18)
+### Phase 5: Nice to Have
+- [ ] Add unit tests (#22)
+- [ ] Code signing (#23)
+- [ ] Windows Hello fallback (#21)
+- [ ] Fix duplicate tab emoji (#18)
 
 ---
 
 ## 📝 **Notes**
 
-- This review was conducted on commit `9995c56`
-- All file paths and line numbers are accurate as of that commit
+- This review was updated on 2026-05-17 with all newly discovered runtime bugs
+- Phase 0 bugs will prevent the app from launching at all on Python 3.11
+- The `ui/dialogs.py` SyntaxError (BUG-5) cascades: it breaks `main_window.py` AND `batch_tab.py` imports
+- `ui/collections.py` is the correct/complete `CollectionTab` — prefer it over `ui/collection_tab.py`
 - Test thoroughly after each fix, especially authentication and database operations
 - Consider adding pre-commit hooks for security linting (bandit, semgrep)
