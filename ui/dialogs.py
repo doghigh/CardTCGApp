@@ -55,6 +55,11 @@ class CardDetailDialog(QDialog):
         info.setReadOnly(True)
 
         defects = json.loads(card.get('defects_json', '[]')) if card.get('defects_json') else []
+        valuations = valuations or []
+
+        # Fixed: pre-compute lines to avoid backslash in f-string (BUG-5)
+        defect_lines = "\n".join([f"• {d.get('type')} @ {d.get('location')}" for d in defects]) or "None"
+        val_lines = "\n".join([f"• {v['source']}: ${v['value']}" for v in valuations]) or "None"
 
         info.setHtml(f"""
             <h2>{card.get('name')}</h2>
@@ -62,9 +67,9 @@ class CardDetailDialog(QDialog):
                <b>Number:</b> {card.get('card_number')}<br>
                <b>Grade:</b> {card.get('condition_grade')} ({card.get('condition_score')}/100)</p>
             <h3>Defects</h3>
-            <pre>{"\n".join([f"• {d.get('type')} @ {d.get('location')}" for d in defects]) or "None"}</pre>
+            <pre>{defect_lines}</pre>
             <h3>Valuations</h3>
-            <pre>{"\n".join([f"• {v['source']}: ${v['value']}" for v in valuations]) or "None"}</pre>
+            <pre>{val_lines}</pre>
         """)
 
         right.addWidget(info)
@@ -73,3 +78,5 @@ class CardDetailDialog(QDialog):
         right.addWidget(btn)
 
         layout.addLayout(right)
+
+        # TODO: Add CsvMappingDialog here if needed later
