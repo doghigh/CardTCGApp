@@ -7,6 +7,8 @@ import csv
 from pathlib import Path
 from typing import List, Dict
 
+import os
+
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit,
     QTableWidget, QTableWidgetItem, QFileDialog, QMessageBox, QHeaderView
@@ -17,6 +19,9 @@ from PyQt6.QtGui import QColor
 from core.database import Database
 from core.valuator import CardValuator
 from ui.dialogs import CardDetailDialog
+
+
+APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "TradingCardManager"
 
 
 class CollectionTab(QWidget):
