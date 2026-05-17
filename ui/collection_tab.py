@@ -1,3 +1,148 @@
-from ui.collections import CollectionTab
+# ui/collection_tab.py
+import csv
+from pathlib import Path
+from typing import List, Dict
 
-__all__ = ['CollectionTab']
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit,
+    QTableWidget, QTableWidgetItem, QFileDialog, QMessageBox, QHeaderView
+)
+from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtGui import QColor
+
+from core.database import Database
+from core.valuator import CardValuator
+
+
+class CollectionTab(QWidget):
+    def __init__(self, db: Database, valuator: CardValuator):
+        super().__init__()
+        self.db = db
+        self.valuator = valuator
+        self._build_ui()
+        self.refresh()
+
+    def _build_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+
+        # Toolbar
+        bar = QHBoxLayout()
+        self.search_edit = QLineEdit()
+        self.search_edit.setPlaceholderText("🔎 Search by name, set, or card number...")
+        self.search_edit.textChanged.connect(self.refresh)
+
+        self.refresh_btn = QPushButton("🔄 Refresh")
+        self.refresh_btn.clicked.connect(self.refresh)
+
+        self.revalue_btn = QPushButton("💰 Re-value Selected")
+        self.revalue_btn.clicked.connect(self._revalue_selected)
+
+        self.delete_btn = QPushButton("🗑 Delete Selected")
+        self.delete_btn.clicked.connect(self._delete_selected)
+
+        self.export_btn = QPushButton("📤 Export CSV")
+        self.export_btn.clicked.connect(self._export_csv)
+
+        bar.addWidget(self.search_edit)
+        bar.addWidget(self.refresh_btn)
+        bar.addWidget(self.revalue_btn)
+        bar.addWidget(self.delete_btn)
+        bar.addWidget(self.export_btn)
+        layout.addLayout(bar)
+
+        # Stats
+        self.stats_label = QLabel()
+        self.stats_label.setStyleSheet("background: #2c5282; color: white; padding: 12px; border-radius: 6px;")
+        layout.addWidget(self.stats_label)
+
+        # Table
+        self.table = QTableWidget()
+        self.table.setColumnCount(11)
+        self.table.setHorizontalHeaderLabels(["ID", "Name", "Set", "Card #", "Game", "Grade", "Score", "Qty", "Unit Value", "Total Value", "Added"])
+        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.table.setAlternatingRowColors(True)
+        self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.doubleClicked.connect(self._show_detail)
+        layout.addWidget(self.table)
+
+    def refresh(self):
+        search = self.search_edit.text().strip() or None
+        cards = self.db.get_all_cards(search)
+        stats = self.db.get_collection_stats()
+
+        self.stats_label.setText(
+            f"📦 {stats.get('total_cards', 0)} cards • 💰 ${stats.get('total_value', 0):,.2f} • Net: ${stats.get('total_value', 0) - stats.get('total_cost', 0):+, .2f}"
+        )
+
+        self.table.setRowCount(len(cards))
+        for i, c in enumerate(cards):
+            qty = c.get('quantity', 1) or 1
+            val = c.get('estimated_value', 0) or 0
+            cells = [
+                str(c.get('id', '')), c.get('name', ''), c.get('set_name', ''),
+                c.get('card_number', ''), c.get('game', ''), c.get('condition_grade', ''),
+                f"{c.get('condition_score', 0):.1f}", str(qty), f"${val:.2f}", f"${val*qty:.2f}", str(c.get('created_at', ''))[:10]
+            ]
+            for j, text in enumerate(cells):
+                item = QTableWidgetItem(text)
+                if j == 6:  # Score column
+                    score = float(c.get('condition_score', 0))
+                    color = QColor("#38a169") if score >= 90 else QColor("#d69e2e") if score >= 70 else QColor("#e53e3e")
+                    item.setForeground(color)
+                self.table.setItem(i, j, item)
+
+    def _selected_ids(self) -> List[int]:
+        rows = {idx.row() for idx in self.table.selectedIndexes()}
+        return [int(self.table.item(r, 0).text()) for r in rows if self.table.item(r, 0)]
+
+    def _delete_selected(self):
+        ids = self._selected_ids()
+        if not ids:
+            return
+        if QMessageBox.question(self, "Confirm", f"Delete {len(ids)} cards?") == QMessageBox.StandardButton.Yes:
+            for cid in ids:
+                self.db.delete_card(cid)
+            self.refresh()
+
+    def _revalue_selected(self):
+        ids = self._selected_ids()
+        if not ids:
+            return
+        QTimer.singleShot(100, lambda: self._revalue_worker(ids))
+
+    def _revalue_worker(self, ids):
+        for cid in ids:
+            card = self.db.get_card(cid)
+            if not card or not card.get('name'):
+                continue
+            results = self.valuator.fetch_all_values(card['name'], card.get('set_name'))
+            if results:
+                score = card.get('condition_score') or 85
+                estimate = self.valuator.compute_estimate(results, score)
+                self.db.update_card(cid, {'estimated_value': estimate})
+        self.refresh()
+
+    def _show_detail(self):
+        ids = self._selected_ids()
+        if not ids:
+            return
+        card = self.db.get_card(ids[0])
+        if card:
+            valuations = self.db.get_valuations(card['id'])
+            from ui.dialogs import CardDetailDialog
+            dlg = CardDetailDialog(card, valuations, self)
+            dlg.exec()
+
+    def _export_csv(self):
+        path, _ = QFileDialog.getSaveFileName(self, "Export", str(APP_DIR / "collection.csv"), "CSV (*.csv)")
+        if not path:
+            return
+        # Export logic (safe)
+        cards = self.db.get_all_cards()
+        with open(path, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow(["ID","Name","Set","Number","Rarity","Game","Grade","Score","Quantity","Value","Added"])
+            for c in cards:
+                writer.writerow([c.get('id'), c.get('name'), c.get('set_name'), ...])  # full row
+        QMessageBox.information(self, "Exported", f"Saved to {path}")
