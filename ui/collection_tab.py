@@ -97,7 +97,7 @@ class CollectionTab(QWidget):
             f"📦 <b>{stats.get('total_cards', 0)}</b> unique • "
             f"<b>{stats.get('total_quantity', 0)}</b> total • "
             f"💰 <b>${stats.get('total_value', 0):,.2f}</b> • "
-            f"Net: <b>${stats.get('total_value', 0) - stats.get('total_cost', 0):+, .2f}</b>"
+            f"Net: <b>${stats.get('total_value', 0) - stats.get('total_cost', 0):+,.2f}</b>"
         )
 
         self.table.setRowCount(len(cards))

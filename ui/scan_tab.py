@@ -2,6 +2,7 @@
 Scan & Add Tab - Full implementation with fixes.
 """
 
+import os
 import cv2
 import numpy as np
 from datetime import datetime
@@ -13,7 +14,7 @@ from PyQt6.QtWidgets import (
     QTextEdit, QComboBox, QSpinBox, QDoubleSpinBox, QCheckBox, QGroupBox,
     QFormLayout, QSplitter, QMessageBox, QFileDialog, QScrollArea
 )
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal
 from PyQt6.QtGui import QPixmap, QImage
 
 from core.scanner import ScannerInterface
@@ -25,6 +26,30 @@ from core.database import Database
 
 SCANS_DIR = Path(os.environ.get('APPDATA', Path.home())) / "TradingCardManager" / "scans"
 SCANS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+class ScanWorker(QThread):
+    """Background thread for scanning and file loading."""
+    finished = pyqtSignal(object)
+    error = pyqtSignal(str)
+
+    def __init__(self, scanner: ScannerInterface, source_name: str = None,
+                 dpi: int = 300, file_path: str = None):
+        super().__init__()
+        self.scanner = scanner
+        self.source_name = source_name
+        self.dpi = dpi
+        self.file_path = file_path
+
+    def run(self):
+        try:
+            if self.file_path:
+                img = self.scanner.scan_from_file(self.file_path)
+            else:
+                img = self.scanner.scan(self.source_name, self.dpi)
+            self.finished.emit(img)
+        except Exception as e:
+            self.error.emit(str(e))
 
 
 class ImageViewer(QLabel):
@@ -57,7 +82,7 @@ class ImageViewer(QLabel):
 
 
 class ScanTab(QWidget):
-    card_added = pyqtSignal(int)
+    card_added = pyqtSignal()
 
     def __init__(self, db: Database, scanner: ScannerInterface,
                  inspector: CardInspector, identifier: CardIdentifier,
@@ -300,19 +325,98 @@ class ScanTab(QWidget):
         if not name:
             QMessageBox.warning(self, "Missing", "Enter card name first.")
             return
-        # ... valuation logic with try/except
+        self.fetch_value_btn.setEnabled(False)
+        self.fetch_value_btn.setText("Fetching…")
+        set_name = self.set_edit.text().strip() or None
+        score = (self.current_inspection or {}).get('score', 85.0) or 85.0
+        valuator = self.valuator
+
+        def work():
+            results = valuator.fetch_all_values(name, set_name)
+            estimate = valuator.compute_estimate(results, score)
+            return results, estimate
+
+        self._val_worker = QThread()
+
+        class _ValWorker(QThread):
+            done = pyqtSignal(object, float)
+            err = pyqtSignal(str)
+            def __init__(self, fn):
+                super().__init__()
+                self._fn = fn
+            def run(self):
+                try:
+                    r, e = self._fn()
+                    self.done.emit(r, e)
+                except Exception as ex:
+                    self.err.emit(str(ex))
+
+        w = _ValWorker(work)
+        w.done.connect(self._on_value_done)
+        w.err.connect(lambda msg: (
+            self.fetch_value_btn.setEnabled(True),
+            self.fetch_value_btn.setText("💰 Fetch Online Values"),
+            QMessageBox.warning(self, "Valuation Error", msg)
+        ))
+        w.start()
+        self._val_worker = w
+
+    def _on_value_done(self, results, estimate):
+        self.fetch_value_btn.setEnabled(True)
+        self.fetch_value_btn.setText("💰 Fetch Online Values")
+        self.current_valuations = results
+        self.value_label.setText(f"Estimate: ${estimate:.2f}")
+        lines = [f"• {r['source']}: ${r['value']:.2f}" for r in results]
+        self.value_text.setPlainText("\n".join(lines) if lines else "No results found.")
 
     def _save_card(self):
         name = self.name_edit.text().strip()
         if not name:
             QMessageBox.warning(self, "Validation Error", "Card name is required.")
+            self.name_edit.setFocus()
             return
 
-        # Save logic with validation...
+        SCANS_DIR.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        front_path = back_path = None
+
+        if self.current_front_img is not None:
+            front_path = str(SCANS_DIR / f"front_{ts}.png")
+            cv2.imwrite(front_path, cv2.cvtColor(self.current_front_img, cv2.COLOR_RGB2BGR))
+        if self.current_back_img is not None:
+            back_path = str(SCANS_DIR / f"back_{ts}.png")
+            cv2.imwrite(back_path, cv2.cvtColor(self.current_back_img, cv2.COLOR_RGB2BGR))
+
+        insp = self.current_inspection or {}
+        estimate = 0.0
+        if self.current_valuations:
+            score = insp.get('score', 85.0) or 85.0
+            estimate = self.valuator.compute_estimate(self.current_valuations, score)
+
+        card = {
+            'name': name,
+            'set_name': self.set_edit.text().strip() or None,
+            'card_number': self.number_edit.text().strip() or None,
+            'rarity': self.rarity_edit.text().strip() or None,
+            'game': self.game_edit.currentText(),
+            'year': self.year_spin.value(),
+            'language': self.lang_edit.text().strip() or 'English',
+            'foil': int(self.foil_check.isChecked()),
+            'front_scan_path': front_path,
+            'back_scan_path': back_path,
+            'condition_grade': insp.get('grade'),
+            'condition_score': insp.get('score'),
+            'defects': insp.get('defects', []),
+            'estimated_value': estimate,
+            'purchase_price': self.purchase_spin.value(),
+            'notes': self.notes_edit.toPlainText().strip() or None,
+            'quantity': self.qty_spin.value(),
+        }
+
         try:
-            # full save code
-            card_id = self.db.add_card({...})
-            self.card_added.emit(card_id)
+            self.db.add_card(card)
+            QMessageBox.information(self, "Saved", f"'{name}' added to collection.")
+            self.card_added.emit()
             self._reset()
         except Exception as e:
             QMessageBox.critical(self, "Save Error", str(e))
@@ -324,4 +428,23 @@ class ScanTab(QWidget):
         self.front_view.set_image(None)
         self.back_view.set_image(None)
         self.name_edit.clear()
-        # ... clear all fields
+        self.set_edit.clear()
+        self.number_edit.clear()
+        self.rarity_edit.clear()
+        self.game_edit.setCurrentIndex(0)
+        self.year_spin.setValue(datetime.now().year)
+        self.lang_edit.setText("English")
+        self.foil_check.setChecked(False)
+        self.qty_spin.setValue(1)
+        self.purchase_spin.setValue(0)
+        self.notes_edit.clear()
+        self.grade_label.setText("Not inspected")
+        self.score_label.setText("Score: -")
+        self.defects_text.clear()
+        self.value_label.setText("Estimate: -")
+        self.value_text.clear()
+        self.status_label.setText("Ready.")
+
+    def _start_continuous_scan(self):
+        """Ctrl+Shift+N — scan front immediately."""
+        self._scan('front')

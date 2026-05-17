@@ -8,10 +8,10 @@ import os
 from pathlib import Path
 
 from PyQt6.QtWidgets import (
-    QMainWindow, QTabWidget, QStatusBar, QMenuBar, QAction, QMessageBox
+    QMainWindow, QTabWidget, QStatusBar, QMenuBar, QMessageBox
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QKeySequence, QShortcut
+from PyQt6.QtGui import QKeySequence, QShortcut, QAction
 
 from core.database import Database
 from core.scanner import ScannerInterface

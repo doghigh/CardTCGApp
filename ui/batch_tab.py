@@ -4,6 +4,7 @@ Fixed: Better error handling, input validation, and CSV mapping integration.
 """
 
 import csv
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Dict

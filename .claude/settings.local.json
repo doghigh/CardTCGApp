@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "Bash(python -c \"from ui.main_window import MainWindow; print\\('imports ok'\\)\")",
-      "Bash(start /B python main.py)"
+      "Bash(start /B python main.py)",
+      "Bash(python -c \"import sys; sys.exit\\(0\\)\")",
+      "Bash(python main.py)",
+      "Bash(python -c \"import sys; sys.path.insert\\(0, '.'\\); import core.auth; print\\(dir\\(core.auth\\)\\)\")",
+      "Bash(python -c ' *)",
+      "Bash(ping -n 4 127.0.0.1)"
     ]
   }
 }
