@@ -1,6 +1,7 @@
 # ui/reports_tab.py
 from datetime import datetime
 from pathlib import Path
+import os
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSpinBox, QComboBox,
@@ -8,14 +9,13 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 
-from core.database import Database
-from core.report_generator import ReportGenerator
+from core.reports_generator import ReportGenerator
 
 
 class ReportsTab(QWidget):
     """Monthly PDF reports tab with improved error handling."""
 
-    def __init__(self, db: Database):
+    def __init__(self, db):
         super().__init__()
         self.db = db
         self.report_gen = ReportGenerator(db)
