@@ -16,8 +16,8 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.backends import default_backend
 
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QLabel, QLineEdit, QPushButton, 
-                             QCheckBox, QMessageBox, QHBoxLayout)
+from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QLabel, QLineEdit, QPushButton,
+                             QCheckBox, QMessageBox, QHBoxLayout, QInputDialog)
 from PyQt6.QtCore import Qt
 
 # Global APP_DIR
@@ -94,9 +94,6 @@ class LoginDialog(QDialog):
             self.accept()
         else:
             QMessageBox.warning(self, "Invalid", "Recovery code invalid or used.")
-
-
-from PyQt6.QtWidgets import QInputDialog  # used in _recovery_login
 
 
 class AuthManager:

@@ -202,7 +202,6 @@ class ScanTab(QWidget):
             "Sports Cards",
             "Other"
         ])
-        form.addRow("Game:", self.game_combo)
         self.year_spin = QSpinBox()
         self.year_spin.setRange(1900, 2100)
         self.year_spin.setValue(datetime.now().year)
@@ -278,13 +277,13 @@ class ScanTab(QWidget):
         if self.current_front_img is not None:
             self.current_front_img = cv2.rotate(self.current_front_img, cv2.ROTATE_180)
             self.front_view.set_image(self.current_front_img)
-            print("Front rotated 180°")
+            self.status_label.setText("↻ Front rotated 180°")
 
     def _rotate_back(self):
         if self.current_back_img is not None:
             self.current_back_img = cv2.rotate(self.current_back_img, cv2.ROTATE_180)
             self.back_view.set_image(self.current_back_img)
-            print("Back rotated 180°")
+            self.status_label.setText("↻ Back rotated 180°")
 
     def _load_file(self, side: str):
         path, _ = QFileDialog.getOpenFileName(self, f"Load {side} image", "",
@@ -314,16 +313,42 @@ class ScanTab(QWidget):
     def _start_continuous_scan(self):
         QMessageBox.information(self, "Continuous Scan", "Coming soon!")
 
-    # Stub methods - connect these to your real logic
     def _auto_identify(self):
-        pass
+        if self.current_front_img is None:
+            return
+        try:
+            text = self.identifier.extract_text(self.current_front_img)
+            info = self.identifier.parse_card_info(text)
+            if info.get('name') and not self.name_edit.text().strip():
+                self.name_edit.setText(info['name'])
+            if info.get('set_name') and not self.set_edit.text().strip():
+                self.set_edit.setText(info['set_name'])
+            if info.get('card_number') and not self.number_edit.text().strip():
+                self.number_edit.setText(info['card_number'])
+            if info.get('rarity') and not self.rarity_edit.text().strip():
+                self.rarity_edit.setText(info['rarity'])
+            if info.get('name'):
+                self.status_label.setText(f"✅ Identified: {info['name']}")
+        except Exception as e:
+            self.status_label.setText(f"OCR: {str(e)[:60]}")
 
     def _inspect(self):
-        pass
+        if self.current_front_img is None:
+            return
+        try:
+            self.current_inspection = self.inspector.inspect(self.current_front_img)
+            grade = self.current_inspection['grade']
+            score = self.current_inspection['score']
+            defect_count = len(self.current_inspection.get('defects', []))
+            self.status_label.setText(
+                f"🔍 Grade: {grade} ({score:.1f}/100) — {defect_count} defect(s) found"
+            )
+        except Exception as e:
+            self.status_label.setText(f"Inspection error: {str(e)[:60]}")
 
     def _save_card(self):
         """Save card to database with images."""
-        if not self.current_front_img is None and self.name_edit.text().strip() == "":
+        if not self.name_edit.text().strip():
             QMessageBox.warning(self, "Missing Info", "Please enter at least the card Name.")
             return
 
@@ -359,10 +384,9 @@ class ScanTab(QWidget):
                 'purchase_price': float(self.purchase_spin.value()),
                 'quantity': int(self.qty_spin.value()),
                 'notes': self.notes_edit.toPlainText().strip(),
-                # Optional fields (can be filled by inspector later)
-                'condition_grade': None,
-                'condition_score': None,
-                'defects': [],
+                'condition_grade': self.current_inspection['grade'] if self.current_inspection else None,
+                'condition_score': self.current_inspection['score'] if self.current_inspection else None,
+                'defects': self.current_inspection.get('defects', []) if self.current_inspection else [],
                 'estimated_value': 0.0,
             }
 
@@ -390,5 +414,7 @@ class ScanTab(QWidget):
         self.qty_spin.setValue(1)
         self.current_front_img = None
         self.current_back_img = None
+        self.current_inspection = None
         self.front_view.set_image(None)
         self.back_view.set_image(None)
+        self.status_label.setText("Ready.")

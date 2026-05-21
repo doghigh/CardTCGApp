@@ -117,7 +117,8 @@ class Database:
         allowed_fields = {
             'name', 'set_name', 'card_number', 'rarity', 'game', 'year',
             'language', 'foil', 'condition_grade', 'condition_score',
-            'estimated_value', 'purchase_price', 'purchase_date', 'notes', 'quantity'
+            'estimated_value', 'purchase_price', 'purchase_date', 'notes', 'quantity',
+            'defects'
         }
 
         fields = []

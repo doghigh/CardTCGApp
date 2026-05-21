@@ -74,7 +74,7 @@ class MainWindow(QMainWindow):
         # Add tabs
         self.tabs.addTab(self.scan_tab, "🃏 Scan & Add")
         self.tabs.addTab(self.batch_tab, "📦 Batch Import")
-        self.tabs.addTab(self.collection_tab, "📦 Collection")
+        self.tabs.addTab(self.collection_tab, "📋 Collection")
         self.tabs.addTab(self.reports_tab, "📊 Reports")
 
         self.setCentralWidget(self.tabs)

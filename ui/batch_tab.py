@@ -4,6 +4,7 @@ Fixed: Better error handling, input validation, and CSV mapping integration.
 """
 
 import csv
+import cv2
 import os
 from datetime import datetime
 from pathlib import Path
@@ -31,10 +32,12 @@ class ImageBatchWorker(QThread):
     progress = pyqtSignal(str, int)
     finished = pyqtSignal(int)
 
-    def __init__(self, folder: Path, scanner: ScannerInterface, inspector: CardInspector,
-                 identifier: CardIdentifier, valuator: CardValuator, auto_value: bool = False):
+    def __init__(self, folder: Path, db: Database, scanner: ScannerInterface,
+                 inspector: CardInspector, identifier: CardIdentifier,
+                 valuator: CardValuator, auto_value: bool = False):
         super().__init__()
         self.folder = folder
+        self.db = db
         self.scanner = scanner
         self.inspector = inspector
         self.identifier = identifier
@@ -260,7 +263,7 @@ class BatchTab(QWidget):
 
         if self.mode_combo.currentIndex() == 0:  # Image Folder
             self._batch_worker = ImageBatchWorker(
-                self.current_path, self.scanner, self.inspector,
+                self.current_path, self.db, self.scanner, self.inspector,
                 self.identifier, self.valuator, self.auto_value_check.isChecked()
             )
         else:  # CSV
@@ -268,7 +271,7 @@ class BatchTab(QWidget):
             if dialog.exec() != 1:   # Accepted
                 self.process_btn.setEnabled(True)
                 return
-            mapping = dialog.get_mapping()
+            mapping = dialog.mapping
             self._batch_worker = CsvBatchWorker(self.current_path, self.db, mapping)
 
         self._batch_worker.progress.connect(self._on_progress)
