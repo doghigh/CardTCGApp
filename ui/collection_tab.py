@@ -104,6 +104,10 @@ class CollectionTab(QWidget):
         for i, c in enumerate(cards):
             qty = int(c.get('quantity', 1) or 1)
             val = float(c.get('estimated_value', 0) or 0)
+            
+            # Safe condition score handling
+            score = c.get('condition_score')
+            score_display = f"{float(score):.1f}" if score is not None else "—"
 
             cells = [
                 str(c.get('id', '')),
@@ -111,8 +115,8 @@ class CollectionTab(QWidget):
                 c.get('set_name', ''),
                 c.get('card_number', ''),
                 c.get('game', ''),
-                c.get('condition_grade', ''),
-                f"{float(c.get('condition_score', 0)):.1f}",
+                c.get('condition_grade', '') or "—",
+                score_display,                    # Fixed here
                 str(qty),
                 f"${val:.2f}",
                 f"${val * qty:.2f}",
@@ -121,16 +125,20 @@ class CollectionTab(QWidget):
 
             for j, text in enumerate(cells):
                 item = QTableWidgetItem(text)
-                if j == 6:  # Score column
-                    score = float(c.get('condition_score', 0))
-                    if score >= 90:
-                        item.setForeground(QColor("#38a169"))
-                    elif score >= 70:
-                        item.setForeground(QColor("#d69e2e"))
-                    else:
-                        item.setForeground(QColor("#e53e3e"))
+                # Color coding for score
+                if j == 6 and score is not None:   # Score column
+                    try:
+                        s = float(score)
+                        if s >= 90:
+                            item.setForeground(QColor("#38a169"))
+                        elif s >= 70:
+                            item.setForeground(QColor("#d69e2e"))
+                        else:
+                            item.setForeground(QColor("#e53e3e"))
+                    except:
+                        pass
                 self.table.setItem(i, j, item)
-
+                
     def _selected_ids(self) -> List[int]:
         """Get selected card IDs."""
         rows = {idx.row() for idx in self.table.selectedIndexes()}
