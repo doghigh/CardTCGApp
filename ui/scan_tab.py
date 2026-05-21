@@ -1,5 +1,5 @@
 """
-Scan & Add Tab - Full implementation with Duplex support.
+Scan & Add Tab - Single Scan Card + Manual Rotate Buttons
 """
 
 import os
@@ -12,9 +12,10 @@ from typing import Optional
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit,
     QTextEdit, QComboBox, QSpinBox, QDoubleSpinBox, QCheckBox, QGroupBox,
-    QFormLayout, QSplitter, QMessageBox, QFileDialog, QScrollArea
+    QFormLayout, QSplitter, QMessageBox, QFileDialog
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtGui import QPixmap, QImage
 
 from core.scanner import ScannerInterface
 from core.inspector import CardInspector
@@ -28,8 +29,7 @@ SCANS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class ScanWorker(QThread):
-    """Background thread for scanning and file loading."""
-    finished = pyqtSignal(object)   # Now accepts list or single image
+    finished = pyqtSignal(object)
     error = pyqtSignal(str)
 
     def __init__(self, scanner: ScannerInterface, source_name: str = None,
@@ -48,13 +48,12 @@ class ScanWorker(QThread):
                 self.finished.emit(img)
             else:
                 images = self.scanner.scan(self.source_name, self.dpi, self.duplex)
-                self.finished.emit(images)   # list for duplex
+                self.finished.emit(images)
         except Exception as e:
             self.error.emit(str(e))
 
 
 class ImageViewer(QLabel):
-    """Display card images."""
     def __init__(self, placeholder: str = "No image"):
         super().__init__()
         self.setMinimumSize(280, 380)
@@ -119,22 +118,20 @@ class ScanTab(QWidget):
         self.dpi_spin.setValue(300)
         self.dpi_spin.setSuffix(" DPI")
 
-        # === NEW: Duplex Checkbox ===
         self.duplex_check = QCheckBox("Enable Duplex (both sides)")
-        self.duplex_check.setChecked(False)
+        self.duplex_check.setChecked(True)
 
-        self.scan_front_btn = QPushButton("📷 Scan Front")
-        self.scan_back_btn = QPushButton("🔄 Scan Back")
+        self.scan_card_btn = QPushButton("📷 Scan Card")
+        self.scan_card_btn.setMinimumHeight(36)
+        self.scan_card_btn.clicked.connect(self._scan_card)
+
         self.load_front_btn = QPushButton("📂 Load Front")
         self.load_back_btn = QPushButton("📂 Load Back")
         self.continuous_btn = QPushButton("🔄 Continuous Scan")
 
-        for btn in [self.scan_front_btn, self.scan_back_btn, self.load_front_btn,
-                    self.load_back_btn, self.continuous_btn]:
+        for btn in [self.load_front_btn, self.load_back_btn, self.continuous_btn]:
             btn.setMinimumHeight(36)
 
-        self.scan_front_btn.clicked.connect(lambda: self._scan('front'))
-        self.scan_back_btn.clicked.connect(lambda: self._scan('back'))
         self.load_front_btn.clicked.connect(lambda: self._load_file('front'))
         self.load_back_btn.clicked.connect(lambda: self._load_file('back'))
         self.continuous_btn.clicked.connect(self._start_continuous_scan)
@@ -142,66 +139,256 @@ class ScanTab(QWidget):
         bar.addWidget(QLabel("Scanner:"))
         bar.addWidget(self.source_combo)
         bar.addWidget(self.dpi_spin)
-        bar.addWidget(self.duplex_check)          # ← Added here
-        bar.addWidget(self.scan_front_btn)
-        bar.addWidget(self.scan_back_btn)
+        bar.addWidget(self.duplex_check)
+        bar.addWidget(self.scan_card_btn)
         bar.addWidget(self.load_front_btn)
         bar.addWidget(self.load_back_btn)
         bar.addWidget(self.continuous_btn)
         bar.addStretch()
         layout.addLayout(bar)
 
-        # ... (rest of the UI stays the same - images, details, etc.)
-        # [The rest of _build_ui, _scan, _scan_done, etc. remains unchanged except for duplex passing]
+        # Images with Rotate buttons
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        img_widget = QWidget()
+        img_layout = QHBoxLayout(img_widget)
 
-        # Images, right panel, etc. (omitted for brevity - copy from your current file)
-        # Just make sure to keep everything after the bar layout.
+        # FRONT
+        front_box = QGroupBox("Front")
+        fl = QVBoxLayout(front_box)
+        self.front_view = ImageViewer("Front side\nNot scanned yet")
+        self.front_rotate_btn = QPushButton("↻ Rotate 180°")
+        self.front_rotate_btn.clicked.connect(self._rotate_front)
+        fl.addWidget(self.front_view)
+        fl.addWidget(self.front_rotate_btn)
 
-    def _scan(self, side: str):
+        # BACK
+        back_box = QGroupBox("Back")
+        bl = QVBoxLayout(back_box)
+        self.back_view = ImageViewer("Back side\nNot scanned yet")
+        self.back_rotate_btn = QPushButton("↻ Rotate 180°")
+        self.back_rotate_btn.clicked.connect(self._rotate_back)
+        bl.addWidget(self.back_view)
+        bl.addWidget(self.back_rotate_btn)
+
+        img_layout.addWidget(front_box)
+        img_layout.addWidget(back_box)
+        splitter.addWidget(img_widget)
+
+        # Right panel - Card Details
+        right_panel = QWidget()
+        right_layout = QVBoxLayout(right_panel)
+
+        details_group = QGroupBox("Card Details")
+        form = QFormLayout(details_group)
+
+        self.name_edit = QLineEdit()
+        self.set_edit = QLineEdit()
+        self.number_edit = QLineEdit()
+        self.rarity_edit = QLineEdit()
+        # Inside details_group form
+        self.game_combo = QComboBox()
+        self.game_combo.setEditable(True)
+        self.game_combo.addItems([
+            "Magic: The Gathering",
+            "Pokémon",
+            "Yu-Gi-Oh!",
+            "One Piece",
+            "Lorcana",
+            "Flesh and Blood",
+            "Baseball",
+            "Basketball",
+            "Football",
+            "Hockey",
+            "Sports Cards",
+            "Other"
+        ])
+        form.addRow("Game:", self.game_combo)
+        self.year_spin = QSpinBox()
+        self.year_spin.setRange(1900, 2100)
+        self.year_spin.setValue(datetime.now().year)
+        self.lang_edit = QLineEdit("English")
+        self.foil_check = QCheckBox("Foil / Holographic")
+        self.qty_spin = QSpinBox()
+        self.qty_spin.setValue(1)
+        self.purchase_spin = QDoubleSpinBox()
+        self.purchase_spin.setPrefix("$")
+        self.purchase_spin.setDecimals(2)
+        self.notes_edit = QTextEdit()
+        self.notes_edit.setMaximumHeight(80)
+
+        for label, widget in [
+            ("Name:", self.name_edit), ("Set:", self.set_edit),
+            ("Card #:", self.number_edit), ("Rarity:", self.rarity_edit),
+            ("Game:", self.game_combo), ("Year:", self.year_spin),
+            ("Language:", self.lang_edit), ("Foil:", self.foil_check),
+            ("Quantity:", self.qty_spin), ("Purchase Price:", self.purchase_spin),
+            ("Notes:", self.notes_edit)
+        ]:
+            form.addRow(label, widget)
+
+        right_layout.addWidget(details_group)
+
+        save_btn = QPushButton("💾 Save Card")
+        save_btn.clicked.connect(self._save_card)
+        right_layout.addWidget(save_btn)
+
+        splitter.addWidget(right_panel)
+        layout.addWidget(splitter)
+
+        self.status_label = QLabel("Ready.")
+        layout.addWidget(self.status_label)
+
+    def _scan_card(self):
         source = self.source_combo.currentText()
         if "no TWAIN" in source.lower():
             QMessageBox.warning(self, "No Scanner", "Use Load buttons or connect a TWAIN scanner.")
             return
 
-        duplex = self.duplex_check.isChecked() and side == 'front'  # Only on front scan for duplex
+        duplex = self.duplex_check.isChecked()
+        self.status_label.setText(f"Scanning... {'(Duplex)' if duplex else ''}")
 
-        self.status_label.setText(f"Scanning {side}... {'(Duplex)' if duplex else ''}")
         self._worker = ScanWorker(
-            self.scanner,
-            source_name=source,
-            dpi=self.dpi_spin.value(),
-            duplex=duplex
+            self.scanner, source_name=source, dpi=self.dpi_spin.value(), duplex=duplex
         )
-        self._worker.finished.connect(lambda imgs: self._scan_done(side, imgs))
+        self._worker.finished.connect(self._scan_done)
         self._worker.error.connect(self._scan_error)
         self._worker.start()
 
-    def _scan_done(self, side: str, result):
-        """Handle single image or list from duplex."""
+    def _scan_done(self, result):
+        """Handle scan result."""
         if isinstance(result, list) and len(result) >= 2:
-            # Duplex returned front + back
             self.current_front_img = result[0]
             self.current_back_img = result[1]
             self.front_view.set_image(result[0])
             self.back_view.set_image(result[1])
-            self.status_label.setText("Both sides scanned via Duplex!")
+            self.status_label.setText("✅ Both sides scanned successfully!")
         elif isinstance(result, list) and len(result) == 1:
-            img = result[0]
-            self._set_side_image(side, img)
+            self.current_front_img = result[0]
+            self.front_view.set_image(result[0])
+            self.status_label.setText("✅ Front scanned")
         else:
-            self._set_side_image(side, result)
+            self.current_front_img = result
+            self.front_view.set_image(result)
+            self.status_label.setText("✅ Card scanned")
 
         self._auto_identify()
-        if side == 'front' or (isinstance(result, list) and len(result) > 0):
-            self._inspect()
-        self.status_label.setText(f"{side.capitalize()} captured.")
+        self._inspect()
 
-    def _set_side_image(self, side: str, img):
+    def _rotate_front(self):
+        if self.current_front_img is not None:
+            self.current_front_img = cv2.rotate(self.current_front_img, cv2.ROTATE_180)
+            self.front_view.set_image(self.current_front_img)
+            print("Front rotated 180°")
+
+    def _rotate_back(self):
+        if self.current_back_img is not None:
+            self.current_back_img = cv2.rotate(self.current_back_img, cv2.ROTATE_180)
+            self.back_view.set_image(self.current_back_img)
+            print("Back rotated 180°")
+
+    def _load_file(self, side: str):
+        path, _ = QFileDialog.getOpenFileName(self, f"Load {side} image", "",
+            "Images (*.png *.jpg *.jpeg *.bmp *.tiff)")
+        if not path:
+            return
+        self.status_label.setText(f"Loading {side}...")
+        self._worker = ScanWorker(self.scanner, file_path=path)
+        self._worker.finished.connect(lambda img: self._load_done(side, img))
+        self._worker.error.connect(self._scan_error)
+        self._worker.start()
+
+    def _load_done(self, side: str, img):
         if side == 'front':
             self.current_front_img = img
             self.front_view.set_image(img)
         else:
             self.current_back_img = img
             self.back_view.set_image(img)
+        self.status_label.setText(f"{side.capitalize()} loaded")
+        self._auto_identify()
 
-    # ... keep all other methods (_load_file, _scan_error, _auto_identify, etc.) as they are
+    def _scan_error(self, msg: str):
+        self.status_label.setText(f"Error: {msg}")
+        QMessageBox.critical(self, "Scan Error", msg)
+
+    def _start_continuous_scan(self):
+        QMessageBox.information(self, "Continuous Scan", "Coming soon!")
+
+    # Stub methods - connect these to your real logic
+    def _auto_identify(self):
+        pass
+
+    def _inspect(self):
+        pass
+
+    def _save_card(self):
+        """Save card to database with images."""
+        if not self.current_front_img is None and self.name_edit.text().strip() == "":
+            QMessageBox.warning(self, "Missing Info", "Please enter at least the card Name.")
+            return
+
+        try:
+            # Save images to disk
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            front_path = None
+            back_path = None
+
+            scans_dir = SCANS_DIR / "cards"
+            scans_dir.mkdir(parents=True, exist_ok=True)
+
+            if self.current_front_img is not None:
+                front_path = str(scans_dir / f"{timestamp}_front.png")
+                cv2.imwrite(front_path, cv2.cvtColor(self.current_front_img, cv2.COLOR_RGB2BGR))
+
+            if self.current_back_img is not None:
+                back_path = str(scans_dir / f"{timestamp}_back.png")
+                cv2.imwrite(back_path, cv2.cvtColor(self.current_back_img, cv2.COLOR_RGB2BGR))
+
+            # Prepare card data
+            card_data = {
+                'name': self.name_edit.text().strip(),
+                'set_name': self.set_edit.text().strip(),
+                'card_number': self.number_edit.text().strip(),
+                'rarity': self.rarity_edit.text().strip(),
+                'game': self.game_combo.currentText().strip(),
+                'year': self.year_spin.value(),
+                'language': self.lang_edit.text().strip() or "English",
+                'foil': 1 if self.foil_check.isChecked() else 0,
+                'front_scan_path': front_path,
+                'back_scan_path': back_path,
+                'purchase_price': float(self.purchase_spin.value()),
+                'quantity': int(self.qty_spin.value()),
+                'notes': self.notes_edit.toPlainText().strip(),
+                # Optional fields (can be filled by inspector later)
+                'condition_grade': None,
+                'condition_score': None,
+                'defects': [],
+                'estimated_value': 0.0,
+            }
+
+            card_id = self.db.add_card(card_data)
+
+            QMessageBox.information(self, "Success", 
+                f"✅ Card saved successfully!\nID: {card_id}\nName: {card_data['name']}")
+
+            # Clear form for next card
+            self._reset_form()
+            self.card_added.emit()  # Refresh collection tab
+
+        except Exception as e:
+            QMessageBox.critical(self, "Save Failed", f"Error saving card:\n{str(e)}")
+            print(f"Save error: {e}")
+            
+    def _reset_form(self):
+        """Clear the form after saving."""
+        self.name_edit.clear()
+        self.set_edit.clear()
+        self.number_edit.clear()
+        self.rarity_edit.clear()
+        self.notes_edit.clear()
+        self.purchase_spin.setValue(0.0)
+        self.qty_spin.setValue(1)
+        self.current_front_img = None
+        self.current_back_img = None
+        self.front_view.set_image(None)
+        self.back_view.set_image(None)
