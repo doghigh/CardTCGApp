@@ -5,6 +5,9 @@ import io
 from pathlib import Path
 from typing import Optional, List
 
+twain = None
+pytesseract = None
+
 try:
     import twain
     HAS_TWAIN = True
@@ -26,6 +29,7 @@ class ScannerInterface:
         if not HAS_TWAIN:
             return []
         try:
+            assert twain is not None
             sm = twain.SourceManager(0)
             sources = sm.GetSourceList()
             sm.destroy()
