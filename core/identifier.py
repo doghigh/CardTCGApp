@@ -80,47 +80,74 @@ class CardIdentifier:
             return ""
 
     def extract_header_text(self, img: np.ndarray) -> str:
-        """Extract text from the top ~25% of an image (card header / player name area).
+        """Extract text from the colored header band of a card back (player name area).
 
-        Uses individual color channels so white-on-red or white-on-dark headers
-        survive thresholding — pure grayscale loses contrast on colored backgrounds.
+        Automatically locates the saturated header strip using HSV, then picks the
+        color channel with maximum contrast (std dev) so white-on-red / white-on-dark
+        text survives thresholding without guessing which channel to use.
         """
         if not HAS_TESSERACT or img is None or img.size == 0:
             return ""
 
         try:
             h, w = img.shape[:2]
-            header = img[:max(h // 4, 60), :]
 
-            scale = max(2.0, 800 / w)
-            config = r'--oem 3 --psm 6'
-            results = []
+            # --- Find the colored header band via HSV saturation ---
+            hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+            sat = hsv[:, :, 1]  # saturation channel
 
-            if len(header.shape) == 3:
-                channels = [
-                    header[:, :, 0],  # R
-                    header[:, :, 1],  # G
-                    header[:, :, 2],  # B
-                    cv2.cvtColor(header, cv2.COLOR_RGB2GRAY),
-                ]
+            # Row-wise mean saturation; the header band will be highly saturated
+            row_sat = sat.mean(axis=1)
+            # Look only in the top 40% of the image
+            top = int(h * 0.40)
+            top_sat = row_sat[:top]
+
+            threshold = max(top_sat.mean() + top_sat.std(), 60)
+            saturated_rows = np.where(top_sat > threshold)[0]
+
+            if len(saturated_rows) >= 4:
+                r0 = int(saturated_rows[0])
+                r1 = int(saturated_rows[-1]) + 1
+                # Add a small margin
+                r0 = max(0, r0 - 4)
+                r1 = min(h, r1 + 8)
+                header = img[r0:r1, :]
             else:
-                channels = [header]
+                # Fallback: top 20%
+                header = img[:max(h // 5, 40), :]
 
-            for ch in channels:
-                resized = cv2.resize(ch, None, fx=scale, fy=scale,
-                                     interpolation=cv2.INTER_CUBIC)
-                for inv in (False, True):
-                    mode = cv2.THRESH_BINARY_INV if inv else cv2.THRESH_BINARY
-                    _, thresh = cv2.threshold(resized, 0, 255,
-                                              mode | cv2.THRESH_OTSU)
-                    t = pytesseract.image_to_string(thresh, config=config).strip()
+            if header.shape[0] < 8:
+                header = img[:max(h // 5, 40), :]
+
+            # --- Scale up aggressively for large-print text ---
+            scale = max(3.0, 1200 / w)
+            header_big = cv2.resize(header, None, fx=scale, fy=scale,
+                                    interpolation=cv2.INTER_CUBIC)
+
+            # --- Pick the channel with the highest contrast (std dev) ---
+            channels = [header_big[:, :, i] for i in range(3)]
+            channels.append(cv2.cvtColor(header_big, cv2.COLOR_RGB2GRAY))
+            best_ch = max(channels, key=lambda c: float(c.std()))
+
+            results = []
+            # Try both normal and inverted Otsu on the best channel
+            for inv in (False, True):
+                mode = cv2.THRESH_BINARY_INV if inv else cv2.THRESH_BINARY
+                blurred = cv2.GaussianBlur(best_ch, (3, 3), 0)
+                _, thresh = cv2.threshold(blurred, 0, 255, mode | cv2.THRESH_OTSU)
+                # Morphological close to join broken strokes
+                kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+                thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+                for psm in ('7', '6'):
+                    cfg = f'--oem 3 --psm {psm}'
+                    t = pytesseract.image_to_string(thresh, config=cfg).strip()
                     if t:
                         results.append(t)
 
             if not results:
                 return ""
             return max(results, key=lambda t: sum(
-                1 for w in t.split() if len(w) >= 2 and w.isalpha()))
+                1 for word in t.split() if len(word) >= 2 and word.isalpha()))
 
         except Exception as e:
             print(f"Header OCR Error: {e}")
