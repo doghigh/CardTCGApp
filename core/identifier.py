@@ -62,17 +62,16 @@ class CardIdentifier:
                                           cv2.THRESH_BINARY, 31, 10)
             results.append(pytesseract.image_to_string(adapt, config=config).strip())
 
-            # Strategy 2: Otsu on denoised (good for clean text)
+            # Strategy 2: Otsu on denoised
             blur = cv2.GaussianBlur(gray, (3, 3), 0)
             _, otsu = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
             results.append(pytesseract.image_to_string(otsu, config=config).strip())
 
-            # Strategy 3: inverted adaptive (dark text on light bg variant)
+            # Strategy 3: inverted adaptive
             adapt_inv = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
                                               cv2.THRESH_BINARY_INV, 31, 10)
             results.append(pytesseract.image_to_string(adapt_inv, config=config).strip())
 
-            # Pick the result with the most recognizable words (longest clean text)
             best = max(results, key=lambda t: sum(1 for w in t.split() if len(w) >= 3 and w.isalpha()))
             return best
 
@@ -80,7 +79,55 @@ class CardIdentifier:
             print(f"OCR Error: {e}")
             return ""
 
-    def parse_card_info(self, front_text: str = "", back_text: str = "") -> Dict:
+    def extract_header_text(self, img: np.ndarray) -> str:
+        """Extract text from the top ~25% of an image (card header / player name area).
+
+        Uses individual color channels so white-on-red or white-on-dark headers
+        survive thresholding — pure grayscale loses contrast on colored backgrounds.
+        """
+        if not HAS_TESSERACT or img is None or img.size == 0:
+            return ""
+
+        try:
+            h, w = img.shape[:2]
+            header = img[:max(h // 4, 60), :]
+
+            scale = max(2.0, 800 / w)
+            config = r'--oem 3 --psm 6'
+            results = []
+
+            if len(header.shape) == 3:
+                channels = [
+                    header[:, :, 0],  # R
+                    header[:, :, 1],  # G
+                    header[:, :, 2],  # B
+                    cv2.cvtColor(header, cv2.COLOR_RGB2GRAY),
+                ]
+            else:
+                channels = [header]
+
+            for ch in channels:
+                resized = cv2.resize(ch, None, fx=scale, fy=scale,
+                                     interpolation=cv2.INTER_CUBIC)
+                for inv in (False, True):
+                    mode = cv2.THRESH_BINARY_INV if inv else cv2.THRESH_BINARY
+                    _, thresh = cv2.threshold(resized, 0, 255,
+                                              mode | cv2.THRESH_OTSU)
+                    t = pytesseract.image_to_string(thresh, config=config).strip()
+                    if t:
+                        results.append(t)
+
+            if not results:
+                return ""
+            return max(results, key=lambda t: sum(
+                1 for w in t.split() if len(w) >= 2 and w.isalpha()))
+
+        except Exception as e:
+            print(f"Header OCR Error: {e}")
+            return ""
+
+    def parse_card_info(self, front_text: str = "", back_text: str = "",
+                        header_text: str = "") -> Dict:
         """Parse card details from OCR text (supports front + back)."""
         info = {
             'name': None,
@@ -135,37 +182,57 @@ class CardIdentifier:
 
         # --- Card number ---
         for line in lines:
-            # Explicit "No." or "#" prefix
             num_match = re.search(r'(?:No\.|#|Card\s*#?)\s*(\d{1,4})', line, re.I)
             if num_match and not info['card_number']:
                 info['card_number'] = num_match.group(1)
                 break
         if not info['card_number']:
-            # Standalone number at end of short line (e.g. "86" alone)
+            # Standalone number on its own line
             for line in lines:
                 if re.fullmatch(r'\d{1,4}', line) and not info['card_number']:
                     info['card_number'] = line
                     break
+        if not info['card_number'] and header_text:
+            # Number in header (e.g. Fleer set number in logo circle)
+            m = re.search(r'\b(\d{1,4})\b', header_text)
+            if m:
+                info['card_number'] = m.group(1)
 
-        # --- Rarity ---
-        rarity_pattern = r'\b(R|M|U|C|SR|UR|SEC|PR|SP|RR|CHR|Rare|Common|Uncommon)\b'
+        # --- Rarity (require multi-char tokens to avoid noise) ---
+        rarity_pattern = r'\b(SR|UR|SEC|PR|SP|RR|CHR|Rare|Common|Uncommon)\b'
         for line in lines:
-            if re.search(rarity_pattern, line, re.I):
-                info['rarity'] = line.split()[-1] if len(line.split()) > 1 else line
+            m = re.search(rarity_pattern, line, re.I)
+            if m:
+                info['rarity'] = m.group(1)
                 break
 
-        # --- Name: prefer short all-caps line (sports card player name) ---
-        caps_candidates = [
-            ln for ln in lines
-            if 2 <= len(ln.split()) <= 5
-            and ln.isupper()
+        # --- Name: header text takes highest priority (dedicated region OCR) ---
+        header_lines = [ln.strip() for ln in header_text.split('\n') if ln.strip()] if header_text else []
+        header_caps = [
+            ln for ln in header_lines
+            if 1 <= len(ln.split()) <= 5
             and all(c.isalpha() or c.isspace() for c in ln)
-            and len(ln) >= 5
+            and len(ln) >= 4
         ]
-        if caps_candidates:
-            info['name'] = caps_candidates[0]
-        else:
-            # Fallback: title-case short line
+        if header_caps:
+            # Prefer all-caps; otherwise take first clean alpha line
+            all_caps = [ln for ln in header_caps if ln.isupper()]
+            info['name'] = (all_caps or header_caps)[0]
+
+        # Fallback: all-caps line from combined body text
+        if not info['name']:
+            caps_candidates = [
+                ln for ln in lines
+                if 2 <= len(ln.split()) <= 5
+                and ln.isupper()
+                and all(c.isalpha() or c.isspace() for c in ln)
+                and len(ln) >= 5
+            ]
+            if caps_candidates:
+                info['name'] = caps_candidates[0]
+
+        # Last resort: title-case short line
+        if not info['name']:
             for line in lines:
                 words = line.split()
                 if 2 <= len(words) <= 6 and not re.search(r'^\d', line):
