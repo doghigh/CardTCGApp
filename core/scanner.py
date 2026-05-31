@@ -85,8 +85,8 @@ class ScannerInterface:
                     src.SetCapability(twain.CAP_FEEDERENABLED, twain.TWTY_BOOL, True)
                     src.SetCapability(twain.CAP_DUPLEXENABLED, twain.TWTY_BOOL, True)
                     print("✅ Duplex + Feeder enabled")
-                except:
-                    pass
+                except (AttributeError, Exception) as e:
+                    print(f"Duplex not available: {e}")
 
             src.RequestAcquire(0, 0)
 

@@ -5,7 +5,6 @@ Fixed: Secure key derivation, recovery codes, and input validation.
 
 import json
 import secrets
-import base64
 import os
 import hashlib
 from pathlib import Path
@@ -136,7 +135,20 @@ class AuthManager:
         if not password:
             return False
         try:
-            stored_hash = self.key_file.read_text().strip()
+            stored_data = self.key_file.read_bytes() if self.key_file.stat().st_size <= 64 else self.key_file.read_text()
+            
+            # Migration: detect old format (raw 32-byte hash) and convert to new format
+            if isinstance(stored_data, bytes) and len(stored_data) == 32:
+                # Old format detected — re-prompt user and migrate
+                derived = self._derive_key(password)
+                verification_hash = hashlib.sha256(derived).hexdigest()
+                # Write new format
+                self.key_file.write_text(verification_hash)
+                # Verify matches
+                return secrets.compare_digest(hashlib.sha256(derived).hexdigest(), verification_hash)
+            
+            # New format: hex string
+            stored_hash = self.key_file.read_text().strip() if isinstance(stored_data, str) else stored_data.hex()
             derived = self._derive_key(password)
             verification_hash = hashlib.sha256(derived).hexdigest()
             return secrets.compare_digest(stored_hash, verification_hash)

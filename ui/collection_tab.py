@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit,
     QTableWidget, QTableWidgetItem, QFileDialog, QMessageBox, QHeaderView
 )
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QColor
 
 from core.database import Database
@@ -24,6 +24,33 @@ from ui.dialogs import CardDetailDialog
 APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "TradingCardManager"
 
 
+
+class RevalueWorker(QThread):
+    """Background thread for re-valuating cards."""
+    finished = pyqtSignal()
+    
+    def __init__(self, db: Database, valuator: CardValuator, ids: List[int]):
+        super().__init__()
+        self.db = db
+        self.valuator = valuator
+        self.ids = ids
+    
+    def run(self):
+        for cid in self.ids:
+            card = self.db.get_card(cid)
+            if not card or not card.get('name'):
+                continue
+            try:
+                results = self.valuator.fetch_all_values(card['name'], card.get('set_name'))
+                if results:
+                    score = card.get('condition_score') or 85.0
+                    estimate = self.valuator.compute_estimate(results, score)
+                    self.db.update_card(cid, {'estimated_value': estimate})
+            except Exception as e:
+                print(f"Error re-valuing card {cid}: {e}")
+        self.finished.emit()
+
+
 class CollectionTab(QWidget):
     """Collection browser tab."""
 
@@ -31,6 +58,7 @@ class CollectionTab(QWidget):
         super().__init__()
         self.db = db
         self.valuator = valuator
+        self._revalue_worker = None
         self._build_ui()
         self.refresh()
 
@@ -135,7 +163,8 @@ class CollectionTab(QWidget):
                             item.setForeground(QColor("#d69e2e"))
                         else:
                             item.setForeground(QColor("#e53e3e"))
-                    except:
+                    except (ValueError, TypeError):
+                        # Score not convertible to float
                         pass
                 self.table.setItem(i, j, item)
                 
@@ -167,20 +196,23 @@ class CollectionTab(QWidget):
         ids = self._selected_ids()
         if not ids:
             return
-        QMessageBox.information(self, "Re-valuing", f"Re-fetching values for {len(ids)} cards...")
-        QTimer.singleShot(100, lambda: self._revalue_worker(ids))
-
-    def _revalue_worker(self, ids: List[int]):
-        for cid in ids:
-            card = self.db.get_card(cid)
-            if not card or not card.get('name'):
-                continue
-            results = self.valuator.fetch_all_values(card['name'], card.get('set_name'))
-            if results:
-                score = card.get('condition_score') or 85.0
-                estimate = self.valuator.compute_estimate(results, score)
-                self.db.update_card(cid, {'estimated_value': estimate})
+        if self._revalue_worker and self._revalue_worker.isRunning():
+            QMessageBox.warning(self, "In Progress", "Re-valuation already in progress.")
+            return
+        
+        self.revalue_btn.setEnabled(False)
+        self.revalue_btn.setText("⏳ Re-valuing...")
+        
+        self._revalue_worker = RevalueWorker(self.db, self.valuator, ids)
+        self._revalue_worker.finished.connect(self._on_revalue_finished)
+        self._revalue_worker.start()
+    
+    def _on_revalue_finished(self):
+        """Handle re-valuation completion."""
+        self.revalue_btn.setEnabled(True)
+        self.revalue_btn.setText("💰 Re-value Selected")
         self.refresh()
+        QMessageBox.information(self, "Complete", "Re-valuation finished!")
 
     def _show_detail(self):
         ids = self._selected_ids()

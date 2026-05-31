@@ -227,6 +227,16 @@ class ScanTab(QWidget):
 
         right_layout.addWidget(details_group)
 
+        # Defects panel
+        defects_group = QGroupBox("Defects Found")
+        defects_layout = QVBoxLayout(defects_group)
+        self.defects_text = QTextEdit()
+        self.defects_text.setReadOnly(True)
+        self.defects_text.setMaximumHeight(100)
+        self.defects_text.setPlainText("No inspection yet")
+        defects_layout.addWidget(self.defects_text)
+        right_layout.addWidget(defects_group)
+
         save_btn = QPushButton("💾 Save Card")
         save_btn.clicked.connect(self._save_card)
         right_layout.addWidget(save_btn)
@@ -339,10 +349,20 @@ class ScanTab(QWidget):
             self.current_inspection = self.inspector.inspect(self.current_front_img)
             grade = self.current_inspection['grade']
             score = self.current_inspection['score']
-            defect_count = len(self.current_inspection.get('defects', []))
+            defects = self.current_inspection.get('defects', [])
+            defect_count = len(defects)
+            
             self.status_label.setText(
                 f"🔍 Grade: {grade} ({score:.1f}/100) — {defect_count} defect(s) found"
             )
+            
+            # Update defects display
+            if defects:
+                lines = [f"• [{d['severity'].upper()}] {d['type'].replace('_', ' ').title()} @ {d['location']}"
+                         for d in defects]
+                self.defects_text.setPlainText("\n".join(lines))
+            else:
+                self.defects_text.setPlainText("None detected.")
         except Exception as e:
             self.status_label.setText(f"Inspection error: {str(e)[:60]}")
 
@@ -417,4 +437,5 @@ class ScanTab(QWidget):
         self.current_inspection = None
         self.front_view.set_image(None)
         self.back_view.set_image(None)
+        self.defects_text.setPlainText("No inspection yet")
         self.status_label.setText("Ready.")
