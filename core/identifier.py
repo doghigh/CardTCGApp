@@ -40,32 +40,41 @@ class CardIdentifier:
                 break
 
     def extract_text(self, img: np.ndarray) -> str:
-        """Extract text from card image with optimized preprocessing."""
+        """Extract text from card image using multiple preprocessing strategies."""
         if not HAS_TESSERACT or img is None or img.size == 0:
             return ""
 
         try:
-            # Convert to grayscale
             if len(img.shape) == 3:
                 gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
             else:
-                gray = img
+                gray = img.copy()
 
-            # Resize for better OCR accuracy
             height, width = gray.shape
-            scale = max(1.8, 900 / width)  # Target \~900px width
+            scale = max(1.5, 800 / width)
             gray = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
 
-            # Strong preprocessing for trading cards
-            gray = cv2.GaussianBlur(gray, (3, 3), 0)
-            _, gray = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-            gray = cv2.medianBlur(gray, 3)
+            results = []
+            config = r'--oem 3 --psm 6'
 
-            # OCR configuration optimized for cards
-            custom_config = r'--oem 3 --psm 6 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789:/-.,# '
-            text = pytesseract.image_to_string(gray, config=custom_config).strip()
+            # Strategy 1: adaptive threshold (handles colored backgrounds)
+            adapt = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                          cv2.THRESH_BINARY, 31, 10)
+            results.append(pytesseract.image_to_string(adapt, config=config).strip())
 
-            return text
+            # Strategy 2: Otsu on denoised (good for clean text)
+            blur = cv2.GaussianBlur(gray, (3, 3), 0)
+            _, otsu = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            results.append(pytesseract.image_to_string(otsu, config=config).strip())
+
+            # Strategy 3: inverted adaptive (dark text on light bg variant)
+            adapt_inv = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                              cv2.THRESH_BINARY_INV, 31, 10)
+            results.append(pytesseract.image_to_string(adapt_inv, config=config).strip())
+
+            # Pick the result with the most recognizable words (longest clean text)
+            best = max(results, key=lambda t: sum(1 for w in t.split() if len(w) >= 3 and w.isalpha()))
+            return best
 
         except Exception as e:
             print(f"OCR Error: {e}")
@@ -77,7 +86,9 @@ class CardIdentifier:
             'name': None,
             'set_name': None,
             'card_number': None,
-            'rarity': None
+            'rarity': None,
+            'year': None,
+            'game': None,
         }
 
         combined = (front_text + "\n" + back_text).strip()
@@ -86,37 +97,94 @@ class CardIdentifier:
 
         lines = [line.strip() for line in combined.split('\n') if line.strip()]
 
-        # Card number patterns (very common)
-        for line in lines:
-            num_match = re.search(r'(\d{1,4})\s*[/-]?\s*(\d{1,4})', line)
-            if num_match and not info['card_number']:
-                info['card_number'] = num_match.group(0)
-                break
+        # --- Year extraction ---
+        year_match = re.search(r'\b(19[5-9]\d|20[0-3]\d)\b', combined)
+        if year_match:
+            info['year'] = int(year_match.group(1))
 
-        # Rarity
+        # --- Game detection ---
+        lower = combined.lower()
+        sports_signals = ['batting avg', 'slugging', 'strikeout', 'innings', 'touchdowns',
+                          'rebounds', 'assists', 'goals', 'pts.', 'g ab r h', 'era',
+                          'bats both', 'bats right', 'bats left', 'throws right', 'throws left',
+                          'born ', 'ht.', 'wt.', 'height', 'weight']
+        tcg_signals = ['energy', 'trainer', 'item', 'mana cost', 'converted mana',
+                       'flying', 'trample', 'haste', 'summon', 'destroy target',
+                       'hp ', 'weakness', 'resistance', 'retreat', 'life points']
+        sports_score = sum(1 for s in sports_signals if s in lower)
+        tcg_score = sum(1 for s in tcg_signals if s in lower)
+        if sports_score > tcg_score:
+            # Distinguish sport type
+            if any(x in lower for x in ['batting', 'strikeout', 'rbi', 'innings', 'era', 'g ab']):
+                info['game'] = 'Baseball'
+            elif any(x in lower for x in ['rebounds', 'assists', 'field goal', 'three-point']):
+                info['game'] = 'Basketball'
+            elif any(x in lower for x in ['touchdowns', 'rushing', 'receiving', 'quarterback']):
+                info['game'] = 'Football'
+            elif any(x in lower for x in ['goals', 'penalty', 'power play', 'goalie']):
+                info['game'] = 'Hockey'
+            else:
+                info['game'] = 'Sports Cards'
+        elif tcg_score > 0:
+            if any(x in lower for x in ['mana', 'summon', 'enchantment', 'artifact', 'sorcery', 'instant']):
+                info['game'] = 'Magic: The Gathering'
+            elif any(x in lower for x in ['hp', 'pokemon', 'pokémon', 'trainer', 'energy']):
+                info['game'] = 'Pokémon'
+            elif any(x in lower for x in ['life points', 'atk/', 'def/', 'tribute']):
+                info['game'] = 'Yu-Gi-Oh!'
+
+        # --- Card number ---
+        for line in lines:
+            # Explicit "No." or "#" prefix
+            num_match = re.search(r'(?:No\.|#|Card\s*#?)\s*(\d{1,4})', line, re.I)
+            if num_match and not info['card_number']:
+                info['card_number'] = num_match.group(1)
+                break
+        if not info['card_number']:
+            # Standalone number at end of short line (e.g. "86" alone)
+            for line in lines:
+                if re.fullmatch(r'\d{1,4}', line) and not info['card_number']:
+                    info['card_number'] = line
+                    break
+
+        # --- Rarity ---
         rarity_pattern = r'\b(R|M|U|C|SR|UR|SEC|PR|SP|RR|CHR|Rare|Common|Uncommon)\b'
         for line in lines:
             if re.search(rarity_pattern, line, re.I):
                 info['rarity'] = line.split()[-1] if len(line.split()) > 1 else line
                 break
 
-        # Name (longest title-like line)
-        for line in lines:
-            if len(line) > 8 and not re.search(r'^\d', line) and len(line.split()) > 1:
-                if not info['name'] or len(line) > len(info.get('name', '')):
-                    info['name'] = line[:120]
-                    break
+        # --- Name: prefer short all-caps line (sports card player name) ---
+        caps_candidates = [
+            ln for ln in lines
+            if 2 <= len(ln.split()) <= 5
+            and ln.isupper()
+            and all(c.isalpha() or c.isspace() for c in ln)
+            and len(ln) >= 5
+        ]
+        if caps_candidates:
+            info['name'] = caps_candidates[0]
+        else:
+            # Fallback: title-case short line
+            for line in lines:
+                words = line.split()
+                if 2 <= len(words) <= 6 and not re.search(r'^\d', line):
+                    alpha_ratio = sum(1 for c in line if c.isalpha()) / max(len(line), 1)
+                    if alpha_ratio > 0.7:
+                        info['name'] = line[:80]
+                        break
 
-        # Set name fallback
-        for line in lines[:20]:
-            if 4 <= len(line) <= 40 and re.search(r'[A-Z]{3,}', line) and not any(
-                    x in line.lower() for x in ['copyright', 'illustration', 'artist', 'tm']):
-                if not info['set_name']:
-                    info['set_name'] = line[:40]
-                    break
+        # --- Set name ---
+        set_exclude = ['copyright', '©', 'illustration', 'artist', 'tm', 'printed', 'corp']
+        for line in lines[:25]:
+            if (4 <= len(line) <= 40
+                    and re.search(r'[A-Za-z]{3,}', line)
+                    and not any(x in line.lower() for x in set_exclude)
+                    and line != info.get('name')):
+                info['set_name'] = line[:40]
+                break
 
-        # Final fallback
         if not info['name'] and lines:
-            info['name'] = lines[0][:120]
+            info['name'] = lines[0][:80]
 
         return info

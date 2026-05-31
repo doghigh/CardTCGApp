@@ -327,8 +327,10 @@ class ScanTab(QWidget):
         if self.current_front_img is None:
             return
         try:
-            text = self.identifier.extract_text(self.current_front_img)
-            info = self.identifier.parse_card_info(text)
+            front_text = self.identifier.extract_text(self.current_front_img)
+            back_text = self.identifier.extract_text(self.current_back_img) if self.current_back_img is not None else ""
+            info = self.identifier.parse_card_info(front_text, back_text)
+
             if info.get('name') and not self.name_edit.text().strip():
                 self.name_edit.setText(info['name'])
             if info.get('set_name') and not self.set_edit.text().strip():
@@ -337,6 +339,15 @@ class ScanTab(QWidget):
                 self.number_edit.setText(info['card_number'])
             if info.get('rarity') and not self.rarity_edit.text().strip():
                 self.rarity_edit.setText(info['rarity'])
+            if info.get('year'):
+                self.year_spin.setValue(info['year'])
+            if info.get('game'):
+                idx = self.game_combo.findText(info['game'], Qt.MatchFlag.MatchFixedString)
+                if idx >= 0:
+                    self.game_combo.setCurrentIndex(idx)
+                else:
+                    self.game_combo.setCurrentText(info['game'])
+
             if info.get('name'):
                 self.status_label.setText(f"✅ Identified: {info['name']}")
         except Exception as e:
