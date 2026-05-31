@@ -327,10 +327,7 @@ class ScanTab(QWidget):
         if self.current_front_img is None:
             return
         try:
-            front_text = self.identifier.extract_text(self.current_front_img)
-            back_text = self.identifier.extract_text(self.current_back_img) if self.current_back_img is not None else ""
-            header_text = self.identifier.extract_header_text(self.current_back_img) if self.current_back_img is not None else ""
-            info = self.identifier.parse_card_info(front_text, back_text, header_text)
+            info = self.identifier.identify_card(self.current_front_img, self.current_back_img)
 
             if info.get('name') and not self.name_edit.text().strip():
                 self.name_edit.setText(info['name'])

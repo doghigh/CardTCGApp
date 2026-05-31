@@ -1,8 +1,16 @@
-import cv2
+import base64
+import json
 import re
 import os
+import cv2
 import numpy as np
-from typing import Dict
+from typing import Dict, Optional
+
+try:
+    import anthropic
+    HAS_ANTHROPIC = True
+except ImportError:
+    HAS_ANTHROPIC = False
 
 try:
     import pytesseract
@@ -11,136 +19,213 @@ except ImportError:
     HAS_TESSERACT = False
 
 
+VISION_PROMPT = """You are a trading card expert. Examine this card image and extract the following fields.
+Respond with ONLY a JSON object — no markdown, no explanation.
+
+Fields:
+- name: player name or card name (string)
+- set_name: the set or brand name (e.g. "Fleer", "Topps", "Base Set") (string)
+- card_number: card number as printed (string)
+- rarity: rarity if present, else null
+- year: 4-digit year as integer, or null
+- game: one of "Baseball", "Basketball", "Football", "Hockey", "Magic: The Gathering", "Pokémon", "Yu-Gi-Oh!", "One Piece", "Lorcana", "Sports Cards", or "Other"
+
+Example response:
+{"name": "Manny Lee", "set_name": "Fleer", "card_number": "86", "rarity": null, "year": 1990, "game": "Baseball"}"""
+
+
 class CardIdentifier:
-    """OCR-based card information extraction with improved preprocessing."""
+    """Card identification via Claude vision API, with Tesseract OCR fallback."""
 
     def __init__(self):
-        """Auto-detect and configure Tesseract path."""
+        self._anthropic: Optional[object] = None
+        self._init_tesseract()
+
+    def _init_tesseract(self):
         if not HAS_TESSERACT:
             return
-
-        # Common Tesseract installation paths
         common_paths = [
             r"C:\Program Files\Tesseract-OCR\tesseract.exe",
             r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
             "/usr/bin/tesseract",
             "/usr/local/bin/tesseract",
         ]
-
-        # Check environment variable first
         env_path = os.environ.get('TESSERACT_CMD')
         if env_path and os.path.exists(env_path):
             pytesseract.pytesseract.tesseract_cmd = env_path
             return
-
-        # Auto-detect
         for path in common_paths:
             if os.path.exists(path):
                 pytesseract.pytesseract.tesseract_cmd = path
                 break
 
+    def _get_client(self):
+        if not HAS_ANTHROPIC:
+            return None
+        if self._anthropic is None:
+            api_key = os.environ.get('ANTHROPIC_API_KEY')
+            if not api_key:
+                return None
+            self._anthropic = anthropic.Anthropic(api_key=api_key)
+        return self._anthropic
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def identify_card(self, front_img: np.ndarray,
+                      back_img: Optional[np.ndarray] = None) -> Dict:
+        """Identify a card using Claude vision, falling back to OCR."""
+        result = self._identify_with_claude(front_img, back_img)
+        if result and result.get('name'):
+            return result
+
+        # OCR fallback
+        front_text = self.extract_text(front_img)
+        back_text = self.extract_text(back_img) if back_img is not None else ""
+        header_text = self.extract_header_text(back_img) if back_img is not None else ""
+        return self.parse_card_info(front_text, back_text, header_text)
+
+    # ------------------------------------------------------------------
+    # Claude vision
+    # ------------------------------------------------------------------
+
+    def _identify_with_claude(self, front_img: np.ndarray,
+                               back_img: Optional[np.ndarray] = None) -> Optional[Dict]:
+        client = self._get_client()
+        if client is None:
+            return None
+        try:
+            content = []
+            for img in ([front_img] if back_img is None else [front_img, back_img]):
+                b64 = self._img_to_base64(img)
+                if b64:
+                    content.append({
+                        "type": "image",
+                        "source": {"type": "base64", "media_type": "image/jpeg", "data": b64}
+                    })
+            if not content:
+                return None
+            content.append({"type": "text", "text": VISION_PROMPT})
+
+            response = client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=256,
+                messages=[{"role": "user", "content": content}]
+            )
+            raw = response.content[0].text.strip()
+            # Strip markdown code fences if present
+            raw = re.sub(r'^```[a-z]*\n?', '', raw)
+            raw = re.sub(r'\n?```$', '', raw)
+            data = json.loads(raw)
+            # Normalise keys
+            return {
+                'name': data.get('name') or None,
+                'set_name': data.get('set_name') or None,
+                'card_number': str(data['card_number']) if data.get('card_number') else None,
+                'rarity': data.get('rarity') or None,
+                'year': int(data['year']) if data.get('year') else None,
+                'game': data.get('game') or None,
+            }
+        except Exception as e:
+            print(f"Claude vision error: {e}")
+            return None
+
+    def _img_to_base64(self, img: np.ndarray) -> Optional[str]:
+        if img is None or img.size == 0:
+            return None
+        try:
+            bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+            # Resize if very large to keep API payload reasonable
+            h, w = bgr.shape[:2]
+            if max(h, w) > 1600:
+                scale = 1600 / max(h, w)
+                bgr = cv2.resize(bgr, None, fx=scale, fy=scale,
+                                 interpolation=cv2.INTER_AREA)
+            ok, buf = cv2.imencode('.jpg', bgr, [cv2.IMWRITE_JPEG_QUALITY, 85])
+            if not ok:
+                return None
+            return base64.standard_b64encode(buf.tobytes()).decode('ascii')
+        except Exception as e:
+            print(f"Image encode error: {e}")
+            return None
+
+    # ------------------------------------------------------------------
+    # OCR fallback (Tesseract)
+    # ------------------------------------------------------------------
+
     def extract_text(self, img: np.ndarray) -> str:
-        """Extract text from card image using multiple preprocessing strategies."""
         if not HAS_TESSERACT or img is None or img.size == 0:
             return ""
-
         try:
             if len(img.shape) == 3:
                 gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
             else:
                 gray = img.copy()
 
-            height, width = gray.shape
-            scale = max(1.5, 800 / width)
+            h, w = gray.shape
+            scale = max(1.5, 800 / w)
             gray = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
 
-            results = []
             config = r'--oem 3 --psm 6'
+            results = []
 
-            # Strategy 1: adaptive threshold (handles colored backgrounds)
             adapt = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
                                           cv2.THRESH_BINARY, 31, 10)
             results.append(pytesseract.image_to_string(adapt, config=config).strip())
 
-            # Strategy 2: Otsu on denoised
             blur = cv2.GaussianBlur(gray, (3, 3), 0)
             _, otsu = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
             results.append(pytesseract.image_to_string(otsu, config=config).strip())
 
-            # Strategy 3: inverted adaptive
             adapt_inv = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
                                               cv2.THRESH_BINARY_INV, 31, 10)
             results.append(pytesseract.image_to_string(adapt_inv, config=config).strip())
 
-            best = max(results, key=lambda t: sum(1 for w in t.split() if len(w) >= 3 and w.isalpha()))
-            return best
-
+            return max(results, key=lambda t: sum(1 for w in t.split() if len(w) >= 3 and w.isalpha()))
         except Exception as e:
             print(f"OCR Error: {e}")
             return ""
 
     def extract_header_text(self, img: np.ndarray) -> str:
-        """Extract text from the colored header band of a card back (player name area).
-
-        Automatically locates the saturated header strip using HSV, then picks the
-        color channel with maximum contrast (std dev) so white-on-red / white-on-dark
-        text survives thresholding without guessing which channel to use.
-        """
         if not HAS_TESSERACT or img is None or img.size == 0:
             return ""
-
         try:
             h, w = img.shape[:2]
-
-            # --- Find the colored header band via HSV saturation ---
             hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
-            sat = hsv[:, :, 1]  # saturation channel
-
-            # Row-wise mean saturation; the header band will be highly saturated
-            row_sat = sat.mean(axis=1)
-            # Look only in the top 40% of the image
+            row_sat = hsv[:, :, 1].mean(axis=1)
             top = int(h * 0.40)
             top_sat = row_sat[:top]
-
-            threshold = max(top_sat.mean() + top_sat.std(), 60)
-            saturated_rows = np.where(top_sat > threshold)[0]
+            thresh = max(top_sat.mean() + top_sat.std(), 60)
+            saturated_rows = np.where(top_sat > thresh)[0]
 
             if len(saturated_rows) >= 4:
-                r0 = int(saturated_rows[0])
-                r1 = int(saturated_rows[-1]) + 1
-                # Add a small margin
-                r0 = max(0, r0 - 4)
-                r1 = min(h, r1 + 8)
+                r0 = max(0, int(saturated_rows[0]) - 4)
+                r1 = min(h, int(saturated_rows[-1]) + 9)
                 header = img[r0:r1, :]
             else:
-                # Fallback: top 20%
                 header = img[:max(h // 5, 40), :]
 
             if header.shape[0] < 8:
                 header = img[:max(h // 5, 40), :]
 
-            # --- Scale up aggressively for large-print text ---
             scale = max(3.0, 1200 / w)
             header_big = cv2.resize(header, None, fx=scale, fy=scale,
                                     interpolation=cv2.INTER_CUBIC)
 
-            # --- Pick the channel with the highest contrast (std dev) ---
             channels = [header_big[:, :, i] for i in range(3)]
             channels.append(cv2.cvtColor(header_big, cv2.COLOR_RGB2GRAY))
             best_ch = max(channels, key=lambda c: float(c.std()))
 
             results = []
-            # Try both normal and inverted Otsu on the best channel
             for inv in (False, True):
                 mode = cv2.THRESH_BINARY_INV if inv else cv2.THRESH_BINARY
                 blurred = cv2.GaussianBlur(best_ch, (3, 3), 0)
-                _, thresh = cv2.threshold(blurred, 0, 255, mode | cv2.THRESH_OTSU)
-                # Morphological close to join broken strokes
+                _, thr = cv2.threshold(blurred, 0, 255, mode | cv2.THRESH_OTSU)
                 kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
-                thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+                thr = cv2.morphologyEx(thr, cv2.MORPH_CLOSE, kernel)
                 for psm in ('7', '6'):
-                    cfg = f'--oem 3 --psm {psm}'
-                    t = pytesseract.image_to_string(thresh, config=cfg).strip()
+                    t = pytesseract.image_to_string(thr, config=f'--oem 3 --psm {psm}').strip()
                     if t:
                         results.append(t)
 
@@ -148,131 +233,101 @@ class CardIdentifier:
                 return ""
             return max(results, key=lambda t: sum(
                 1 for word in t.split() if len(word) >= 2 and word.isalpha()))
-
         except Exception as e:
             print(f"Header OCR Error: {e}")
             return ""
 
     def parse_card_info(self, front_text: str = "", back_text: str = "",
                         header_text: str = "") -> Dict:
-        """Parse card details from OCR text (supports front + back)."""
+        """Parse card details from OCR text. Used as fallback when vision API unavailable."""
         info = {
-            'name': None,
-            'set_name': None,
-            'card_number': None,
-            'rarity': None,
-            'year': None,
-            'game': None,
+            'name': None, 'set_name': None, 'card_number': None,
+            'rarity': None, 'year': None, 'game': None,
         }
 
         combined = (front_text + "\n" + back_text).strip()
         if not combined:
             return info
 
-        lines = [line.strip() for line in combined.split('\n') if line.strip()]
+        lines = [ln.strip() for ln in combined.split('\n') if ln.strip()]
 
-        # --- Year extraction ---
-        year_match = re.search(r'\b(19[5-9]\d|20[0-3]\d)\b', combined)
-        if year_match:
-            info['year'] = int(year_match.group(1))
+        year_m = re.search(r'\b(19[5-9]\d|20[0-3]\d)\b', combined)
+        if year_m:
+            info['year'] = int(year_m.group(1))
 
-        # --- Game detection ---
         lower = combined.lower()
         sports_signals = ['batting avg', 'slugging', 'strikeout', 'innings', 'touchdowns',
-                          'rebounds', 'assists', 'goals', 'pts.', 'g ab r h', 'era',
-                          'bats both', 'bats right', 'bats left', 'throws right', 'throws left',
-                          'born ', 'ht.', 'wt.', 'height', 'weight']
-        tcg_signals = ['energy', 'trainer', 'item', 'mana cost', 'converted mana',
-                       'flying', 'trample', 'haste', 'summon', 'destroy target',
-                       'hp ', 'weakness', 'resistance', 'retreat', 'life points']
+                          'rebounds', 'assists', 'goals', 'g ab r h', 'era',
+                          'bats both', 'bats right', 'bats left', 'throws right', 'throws left']
+        tcg_signals = ['energy', 'trainer', 'mana cost', 'flying', 'trample', 'haste',
+                       'summon', 'destroy target', 'weakness', 'resistance', 'retreat', 'life points']
         sports_score = sum(1 for s in sports_signals if s in lower)
         tcg_score = sum(1 for s in tcg_signals if s in lower)
         if sports_score > tcg_score:
-            # Distinguish sport type
-            if any(x in lower for x in ['batting', 'strikeout', 'rbi', 'innings', 'era', 'g ab']):
+            if any(x in lower for x in ['batting', 'strikeout', 'rbi', 'era', 'g ab']):
                 info['game'] = 'Baseball'
-            elif any(x in lower for x in ['rebounds', 'assists', 'field goal', 'three-point']):
+            elif any(x in lower for x in ['rebounds', 'assists', 'field goal']):
                 info['game'] = 'Basketball'
-            elif any(x in lower for x in ['touchdowns', 'rushing', 'receiving', 'quarterback']):
+            elif any(x in lower for x in ['touchdowns', 'rushing', 'quarterback']):
                 info['game'] = 'Football'
-            elif any(x in lower for x in ['goals', 'penalty', 'power play', 'goalie']):
+            elif any(x in lower for x in ['goals', 'penalty', 'power play']):
                 info['game'] = 'Hockey'
             else:
                 info['game'] = 'Sports Cards'
         elif tcg_score > 0:
-            if any(x in lower for x in ['mana', 'summon', 'enchantment', 'artifact', 'sorcery', 'instant']):
+            if any(x in lower for x in ['mana', 'summon', 'enchantment', 'sorcery', 'instant']):
                 info['game'] = 'Magic: The Gathering'
-            elif any(x in lower for x in ['hp', 'pokemon', 'pokémon', 'trainer', 'energy']):
+            elif any(x in lower for x in ['pokemon', 'pokémon', 'trainer', 'weakness']):
                 info['game'] = 'Pokémon'
             elif any(x in lower for x in ['life points', 'atk/', 'def/', 'tribute']):
                 info['game'] = 'Yu-Gi-Oh!'
 
-        # --- Card number ---
         for line in lines:
-            num_match = re.search(r'(?:No\.|#|Card\s*#?)\s*(\d{1,4})', line, re.I)
-            if num_match and not info['card_number']:
-                info['card_number'] = num_match.group(1)
+            m = re.search(r'(?:No\.|#|Card\s*#?)\s*(\d{1,4})', line, re.I)
+            if m and not info['card_number']:
+                info['card_number'] = m.group(1)
                 break
         if not info['card_number']:
-            # Standalone number on its own line
             for line in lines:
-                if re.fullmatch(r'\d{1,4}', line) and not info['card_number']:
+                if re.fullmatch(r'\d{1,4}', line):
                     info['card_number'] = line
                     break
         if not info['card_number'] and header_text:
-            # Number in header (e.g. Fleer set number in logo circle)
             m = re.search(r'\b(\d{1,4})\b', header_text)
             if m:
                 info['card_number'] = m.group(1)
 
-        # --- Rarity (require multi-char tokens to avoid noise) ---
-        rarity_pattern = r'\b(SR|UR|SEC|PR|SP|RR|CHR|Rare|Common|Uncommon)\b'
-        for line in lines:
-            m = re.search(rarity_pattern, line, re.I)
-            if m:
-                info['rarity'] = m.group(1)
-                break
+        rarity_m = re.search(r'\b(SR|UR|SEC|PR|SP|RR|CHR|Rare|Common|Uncommon)\b', combined, re.I)
+        if rarity_m:
+            info['rarity'] = rarity_m.group(1)
 
-        # --- Name: header text takes highest priority (dedicated region OCR) ---
         header_lines = [ln.strip() for ln in header_text.split('\n') if ln.strip()] if header_text else []
-        header_caps = [
-            ln for ln in header_lines
-            if 1 <= len(ln.split()) <= 5
-            and all(c.isalpha() or c.isspace() for c in ln)
-            and len(ln) >= 4
-        ]
+        header_caps = [ln for ln in header_lines
+                       if 1 <= len(ln.split()) <= 5
+                       and all(c.isalpha() or c.isspace() for c in ln)
+                       and len(ln) >= 4]
         if header_caps:
-            # Prefer all-caps; otherwise take first clean alpha line
             all_caps = [ln for ln in header_caps if ln.isupper()]
             info['name'] = (all_caps or header_caps)[0]
 
-        # Fallback: all-caps line from combined body text
         if not info['name']:
-            caps_candidates = [
-                ln for ln in lines
-                if 2 <= len(ln.split()) <= 5
-                and ln.isupper()
-                and all(c.isalpha() or c.isspace() for c in ln)
-                and len(ln) >= 5
-            ]
-            if caps_candidates:
-                info['name'] = caps_candidates[0]
+            caps = [ln for ln in lines
+                    if 2 <= len(ln.split()) <= 5 and ln.isupper()
+                    and all(c.isalpha() or c.isspace() for c in ln) and len(ln) >= 5]
+            if caps:
+                info['name'] = caps[0]
 
-        # Last resort: title-case short line
         if not info['name']:
             for line in lines:
                 words = line.split()
                 if 2 <= len(words) <= 6 and not re.search(r'^\d', line):
-                    alpha_ratio = sum(1 for c in line if c.isalpha()) / max(len(line), 1)
-                    if alpha_ratio > 0.7:
+                    if sum(1 for c in line if c.isalpha()) / max(len(line), 1) > 0.7:
                         info['name'] = line[:80]
                         break
 
-        # --- Set name ---
         set_exclude = ['copyright', '©', 'illustration', 'artist', 'tm', 'printed', 'corp']
         for line in lines[:25]:
-            if (4 <= len(line) <= 40
-                    and re.search(r'[A-Za-z]{3,}', line)
+            if (4 <= len(line) <= 40 and re.search(r'[A-Za-z]{3,}', line)
                     and not any(x in line.lower() for x in set_exclude)
                     and line != info.get('name')):
                 info['set_name'] = line[:40]
