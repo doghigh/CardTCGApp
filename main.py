@@ -8,6 +8,26 @@ from pathlib import Path
 from PyQt6.QtCore import Qt
 
 
+def _load_dotenv():
+    """Load .env file from the project root into os.environ (no dependencies)."""
+    env_path = Path(__file__).parent / ".env"
+    if not env_path.exists():
+        return
+    with open(env_path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#') or '=' not in line:
+                continue
+            key, _, value = line.partition('=')
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key and key not in os.environ:
+                os.environ[key] = value
+
+
+_load_dotenv()
+
+
 try:
     from PyQt6.QtWidgets import (
         QApplication, 
