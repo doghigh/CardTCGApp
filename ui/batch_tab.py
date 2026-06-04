@@ -1,6 +1,5 @@
 """
-Batch Import Tab - Full implementation with image folder + CSV support.
-Fixed: Better error handling, input validation, and CSV mapping integration.
+Batch Import Tab
 """
 
 import csv
@@ -12,7 +11,7 @@ from typing import Dict
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QComboBox,
-    QCheckBox, QProgressBar, QTextEdit, QFileDialog, QMessageBox
+    QCheckBox, QProgressBar, QTextEdit, QFileDialog, QMessageBox, QGroupBox
 )
 from PyQt6.QtCore import QThread, pyqtSignal
 
@@ -60,8 +59,7 @@ class ImageBatchWorker(QThread):
                 if img is None:
                     continue
 
-                text = self.identifier.extract_text(img)
-                info = self.identifier.parse_card_info(text)
+                info = self.identifier.identify_card(img)
                 inspection = self.inspector.inspect(img)
 
                 estimate = 0.0
@@ -70,7 +68,6 @@ class ImageBatchWorker(QThread):
                     if vals:
                         estimate = self.valuator.compute_estimate(vals, inspection['score'])
 
-                # Save image
                 ts = datetime.now().strftime('%Y%m%d_%H%M%S')
                 scan_path = str(SCANS_DIR / f"batch_{ts}_{img_path.stem}.png")
                 cv2.imwrite(scan_path, cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
@@ -80,8 +77,8 @@ class ImageBatchWorker(QThread):
                     'set_name': info.get('set_name'),
                     'card_number': info.get('card_number'),
                     'rarity': info.get('rarity'),
-                    'game': 'Other',
-                    'year': datetime.now().year,
+                    'game': info.get('game') or 'Other',
+                    'year': info.get('year') or datetime.now().year,
                     'front_scan_path': scan_path,
                     'condition_grade': inspection['grade'],
                     'condition_score': inspection['score'],
@@ -122,7 +119,6 @@ class CsvBatchWorker(QThread):
                 for i, row in enumerate(rows):
                     try:
                         progress_pct = int((i + 1) / total * 100)
-
                         card_data = {
                             'name': row.get(self.mapping.get('name')) or row.get('name', 'Unknown Card'),
                             'set_name': row.get(self.mapping.get('set_name')),
@@ -172,64 +168,94 @@ class BatchTab(QWidget):
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(12)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(14)
 
+        # Header
+        header = QHBoxLayout()
         title = QLabel("📦 Batch Import")
-        title.setStyleSheet("font-size: 18px; font-weight: 600; color: #e8eaf0;")
-        layout.addWidget(title)
+        title.setStyleSheet("font-size: 20px; font-weight: 600; color: #e8eaf0;")
+        header.addWidget(title)
+        header.addStretch()
+        layout.addLayout(header)
 
-        # Mode selector
-        mode_layout = QHBoxLayout()
+        # Source group
+        source_group = QGroupBox("Import Source")
+        sg = QVBoxLayout(source_group)
+        sg.setContentsMargins(12, 24, 12, 12)
+        sg.setSpacing(10)
+
+        mode_row = QHBoxLayout()
+        mode_row.addWidget(QLabel("Mode:"))
         self.mode_combo = QComboBox()
-        self.mode_combo.addItems(["📷 Image Folder (Auto OCR + Grade)", "📊 CSV Import"])
+        self.mode_combo.addItems(["📷 Image Folder (Auto Identify + Grade)", "📊 CSV Import"])
+        self.mode_combo.setMinimumWidth(280)
         self.mode_combo.currentIndexChanged.connect(self._switch_mode)
-        mode_layout.addWidget(QLabel("Import Mode:"))
-        mode_layout.addWidget(self.mode_combo)
-        mode_layout.addStretch()
-        layout.addLayout(mode_layout)
+        mode_row.addWidget(self.mode_combo)
+        mode_row.addStretch()
+        sg.addLayout(mode_row)
 
-        # Image Folder
+        # Image folder widgets
         self.image_widget = QWidget()
         iw = QVBoxLayout(self.image_widget)
+        iw.setContentsMargins(0, 0, 0, 0)
+        iw.setSpacing(8)
         self.folder_btn = QPushButton("📁 Select Folder with Card Images")
+        self.folder_btn.setMinimumHeight(38)
         self.folder_btn.clicked.connect(self._select_folder)
+        self.auto_value_check = QCheckBox("Auto-fetch online values after import")
         iw.addWidget(self.folder_btn)
-
-        self.auto_value_check = QCheckBox("Auto-fetch online values")
         iw.addWidget(self.auto_value_check)
-        layout.addWidget(self.image_widget)
+        sg.addWidget(self.image_widget)
 
-        # CSV
+        # CSV widgets
         self.csv_widget = QWidget()
         cw = QVBoxLayout(self.csv_widget)
+        cw.setContentsMargins(0, 0, 0, 0)
+        cw.setSpacing(8)
+        csv_btns = QHBoxLayout()
         self.csv_btn = QPushButton("📄 Select CSV File")
+        self.csv_btn.setMinimumHeight(38)
         self.csv_btn.clicked.connect(self._select_csv)
-        cw.addWidget(self.csv_btn)
-
-        self.template_btn = QPushButton("📥 Download CSV Template")
+        self.template_btn = QPushButton("📥 Download Template")
+        self.template_btn.setMinimumHeight(38)
         self.template_btn.clicked.connect(self._create_csv_template)
-        cw.addWidget(self.template_btn)
-        layout.addWidget(self.csv_widget)
+        csv_btns.addWidget(self.csv_btn)
+        csv_btns.addWidget(self.template_btn)
+        cw.addLayout(csv_btns)
+        sg.addWidget(self.csv_widget)
         self.csv_widget.hide()
 
-        # Process button
+        layout.addWidget(source_group)
+
+        # Action row
+        action_row = QHBoxLayout()
         self.process_btn = QPushButton("🚀 Start Batch Import")
-        self.process_btn.setMinimumHeight(48)
+        self.process_btn.setMinimumHeight(44)
+        self.process_btn.setProperty("primary", True)
         self.process_btn.clicked.connect(self._start_import)
         self.process_btn.setEnabled(False)
-        layout.addWidget(self.process_btn)
+        action_row.addWidget(self.process_btn)
+        layout.addLayout(action_row)
 
+        # Progress
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
+        self.progress_bar.setMinimumHeight(8)
         layout.addWidget(self.progress_bar)
 
+        # Log
+        log_group = QGroupBox("Import Log")
+        lg = QVBoxLayout(log_group)
+        lg.setContentsMargins(10, 24, 10, 10)
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
-        layout.addWidget(QLabel("Log:"))
-        layout.addWidget(self.log_text)
+        self.log_text.setMinimumHeight(200)
+        lg.addWidget(self.log_text)
+        layout.addWidget(log_group, 1)
 
         self.status_label = QLabel("Select a folder or CSV file to begin.")
+        self.status_label.setStyleSheet("color: #8b8fa8; font-size: 12px;")
         layout.addWidget(self.status_label)
 
     def _switch_mode(self, index):
@@ -242,37 +268,37 @@ class BatchTab(QWidget):
         folder = QFileDialog.getExistingDirectory(self, "Select Folder with Card Images")
         if folder:
             self.current_path = Path(folder)
-            self.log_text.append(f"📁 Selected: {self.current_path.name}")
+            self.log_text.append(f"📁 Selected folder: {self.current_path}")
             self.process_btn.setEnabled(True)
+            self.status_label.setText(f"Ready — {self.current_path.name}")
 
     def _select_csv(self):
         path, _ = QFileDialog.getOpenFileName(self, "Select CSV", "", "CSV (*.csv)")
         if path:
             self.current_path = Path(path)
-            self.log_text.append(f"📄 Selected: {self.current_path.name}")
+            self.log_text.append(f"📄 Selected file: {self.current_path}")
             self.process_btn.setEnabled(True)
+            self.status_label.setText(f"Ready — {self.current_path.name}")
 
     def _start_import(self):
         if not self.current_path:
             return
-
         self.process_btn.setEnabled(False)
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
         self.log_text.clear()
 
-        if self.mode_combo.currentIndex() == 0:  # Image Folder
+        if self.mode_combo.currentIndex() == 0:
             self._batch_worker = ImageBatchWorker(
                 self.current_path, self.db, self.scanner, self.inspector,
                 self.identifier, self.valuator, self.auto_value_check.isChecked()
             )
-        else:  # CSV
+        else:
             dialog = CsvMappingDialog(self.current_path, self)
-            if dialog.exec() != 1:   # Accepted
+            if dialog.exec() != 1:
                 self.process_btn.setEnabled(True)
                 return
-            mapping = dialog.mapping
-            self._batch_worker = CsvBatchWorker(self.current_path, self.db, mapping)
+            self._batch_worker = CsvBatchWorker(self.current_path, self.db, dialog.mapping)
 
         self._batch_worker.progress.connect(self._on_progress)
         self._batch_worker.finished.connect(self._on_finished)
@@ -286,7 +312,8 @@ class BatchTab(QWidget):
     def _on_finished(self, count: int):
         self.process_btn.setEnabled(True)
         self.progress_bar.setVisible(False)
-        self.log_text.append(f"✅ Batch complete! {count} cards imported.")
+        self.log_text.append(f"\n✅ Batch complete — {count} cards imported.")
+        self.status_label.setText(f"Done — {count} cards imported.")
         self.cards_added.emit(count)
 
     def _create_csv_template(self):
@@ -294,13 +321,11 @@ class BatchTab(QWidget):
         headers = ["name", "set_name", "card_number", "rarity", "game", "year",
                    "condition_grade", "condition_score", "estimated_value",
                    "purchase_price", "quantity", "foil", "notes"]
-
         with open(template_path, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
             writer.writerow(headers)
             writer.writerow(["Charizard VMAX", "Brilliant Stars", "74/172", "Ultra Rare",
                             "Pokémon", "2022", "Near Mint", "92", "245.50", "120.00",
                             "1", "Yes", "Pulled from booster"])
-
         QMessageBox.information(self, "Template Created",
-            f"Template saved to:\n{template_path}\n\nFill it in Excel and import.")
+            f"Template saved to:\n{template_path}\n\nFill it in and import.")
