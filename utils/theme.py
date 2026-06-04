@@ -425,6 +425,8 @@ def apply_dark_theme(app: QApplication):
     else:
         palette = QPalette()
         c = lambda h: QColor(h)
+
+        # Core roles
         palette.setColor(QPalette.ColorRole.Window,          c(BG_DEEP))
         palette.setColor(QPalette.ColorRole.WindowText,      c(TEXT_PRI))
         palette.setColor(QPalette.ColorRole.Base,            c(BG_BASE))
@@ -440,11 +442,21 @@ def apply_dark_theme(app: QApplication):
         palette.setColor(QPalette.ColorRole.ToolTipBase,     c(BG_RAISED))
         palette.setColor(QPalette.ColorRole.ToolTipText,     c(TEXT_PRI))
 
+        # Neutral grey roles — Fusion derives border/shadow colors from these.
+        # Without explicit values it auto-calculates from blue-tinted base → cyan borders.
+        palette.setColor(QPalette.ColorRole.Light,           QColor(60,  62,  72))
+        palette.setColor(QPalette.ColorRole.Midlight,        QColor(45,  47,  56))
+        palette.setColor(QPalette.ColorRole.Mid,             QColor(35,  37,  45))
+        palette.setColor(QPalette.ColorRole.Dark,            QColor(22,  24,  30))
+        palette.setColor(QPalette.ColorRole.Shadow,          QColor(10,  11,  15))
+
         # Disabled
         palette.setColor(QPalette.ColorGroup.Disabled,
                          QPalette.ColorRole.Text,       c(TEXT_DIS))
         palette.setColor(QPalette.ColorGroup.Disabled,
                          QPalette.ColorRole.ButtonText, c(TEXT_DIS))
+        palette.setColor(QPalette.ColorGroup.Disabled,
+                         QPalette.ColorRole.WindowText, c(TEXT_DIS))
 
         app.setPalette(palette)
         app.setStyleSheet(STYLESHEET)
