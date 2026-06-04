@@ -99,8 +99,7 @@ class ScanTab(QWidget):
         self.current_inspection = None
         self.current_valuations = []
 
-        self._continuous_mode = False   # True while auto-scanning from feeder
-        self._scan_queue = []           # list of image lists pending review
+        self._scan_queue = []
 
         self._build_ui()
 
@@ -127,19 +126,14 @@ class ScanTab(QWidget):
         self.scan_card_btn = QPushButton("📷 Scan Card")
         self.scan_card_btn.setMinimumHeight(36)
         self.scan_card_btn.setProperty("primary", True)
-        self.scan_card_btn.clicked.connect(self._scan_or_stop)
-        self._scanning = False
+        self.scan_card_btn.clicked.connect(self._scan_card)
 
         self.load_front_btn = QPushButton("📂 Load Front")
         self.load_back_btn = QPushButton("📂 Load Back")
-        self.continuous_btn = QPushButton("🔄 Continuous Scan")
-
-        for btn in [self.load_front_btn, self.load_back_btn, self.continuous_btn]:
+        for btn in [self.load_front_btn, self.load_back_btn]:
             btn.setMinimumHeight(36)
-
         self.load_front_btn.clicked.connect(lambda: self._load_file('front'))
         self.load_back_btn.clicked.connect(lambda: self._load_file('back'))
-        self.continuous_btn.clicked.connect(self._start_continuous_scan)
 
         bar.addWidget(QLabel("Scanner:"))
         bar.addWidget(self.source_combo)
@@ -148,7 +142,6 @@ class ScanTab(QWidget):
         bar.addWidget(self.scan_card_btn)
         bar.addWidget(self.load_front_btn)
         bar.addWidget(self.load_back_btn)
-        bar.addWidget(self.continuous_btn)
         bar.addStretch()
         layout.addLayout(bar)
 
@@ -274,12 +267,6 @@ class ScanTab(QWidget):
         self.status_label = QLabel("Ready.")
         layout.addWidget(self.status_label)
 
-    def _scan_or_stop(self):
-        if self._scanning:
-            self._cancel_scan()
-        else:
-            self._scan_card()
-
     def _scan_card(self):
         source = self.source_combo.currentText()
         if "no TWAIN" in source.lower():
@@ -287,8 +274,8 @@ class ScanTab(QWidget):
             return
 
         duplex = self.duplex_check.isChecked()
-        self._set_scanning(True)
-        self.status_label.setText(f"Scanning... {'(Duplex)' if duplex else ''}")
+        self.scan_card_btn.setEnabled(False)
+        self.status_label.setText(f"Scanning{'  (Duplex)' if duplex else ''}...")
 
         self._worker = ScanWorker(
             self.scanner, source_name=source, dpi=self.dpi_spin.value(), duplex=duplex
@@ -297,28 +284,8 @@ class ScanTab(QWidget):
         self._worker.error.connect(self._scan_error)
         self._worker.start()
 
-    def _cancel_scan(self):
-        self.scanner.cancel()
-        self.status_label.setText("⏹ Scan cancelled.")
-        self._set_scanning(False)
-
-    def _set_scanning(self, active: bool):
-        self._scanning = active
-        if active:
-            self.scan_card_btn.setText("⏹ Stop Scanning")
-            self.scan_card_btn.setProperty("primary", False)
-            self.scan_card_btn.setStyleSheet(
-                "background-color: #ed4245; border: none; color: white; font-weight: 600;"
-            )
-        else:
-            self.scan_card_btn.setText("📷 Scan Card")
-            self.scan_card_btn.setProperty("primary", True)
-            self.scan_card_btn.setStyleSheet("")
-        self.scan_card_btn.style().unpolish(self.scan_card_btn)
-        self.scan_card_btn.style().polish(self.scan_card_btn)
-
     def _scan_done(self, result):
-        self._set_scanning(False)
+        self.scan_card_btn.setEnabled(True)
 
         images = result if isinstance(result, list) else ([result] if result is not None else [])
         if not images:
@@ -420,24 +387,9 @@ class ScanTab(QWidget):
         self._auto_identify()
 
     def _scan_error(self, msg: str):
-        self._set_scanning(False)
+        self.scan_card_btn.setEnabled(True)
         self.status_label.setText(f"Error: {msg}")
         QMessageBox.critical(self, "Scan Error", msg)
-
-    def _start_continuous_scan(self):
-        """Trigger a scan with feeder — multiple pages will be auto-routed to the queue."""
-        source = self.source_combo.currentText()
-        if "no TWAIN" in source.lower():
-            QMessageBox.warning(self, "No Scanner", "Connect a TWAIN scanner with a document feeder.")
-            return
-        self._set_scanning(True)
-        self.status_label.setText("🔄 Continuous scan started — feed cards into the scanner...")
-        self._worker = ScanWorker(
-            self.scanner, source_name=source, dpi=self.dpi_spin.value(), duplex=self.duplex_check.isChecked()
-        )
-        self._worker.finished.connect(self._scan_done)
-        self._worker.error.connect(self._scan_error)
-        self._worker.start()
 
     def _auto_identify(self):
         if self.current_front_img is None:
