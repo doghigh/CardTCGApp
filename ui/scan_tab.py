@@ -12,7 +12,7 @@ from typing import Optional
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit,
     QTextEdit, QComboBox, QSpinBox, QDoubleSpinBox, QCheckBox, QGroupBox,
-    QFormLayout, QSplitter, QMessageBox, QFileDialog
+    QFormLayout, QSplitter, QMessageBox, QFileDialog, QDialog, QDialogButtonBox
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QPixmap, QImage
@@ -98,6 +98,9 @@ class ScanTab(QWidget):
         self.current_back_img = None
         self.current_inspection = None
         self.current_valuations = []
+
+        self._continuous_mode = False   # True while auto-scanning from feeder
+        self._scan_queue = []           # list of image lists pending review
 
         self._build_ui()
 
@@ -316,23 +319,72 @@ class ScanTab(QWidget):
 
     def _scan_done(self, result):
         self._set_scanning(False)
-        if isinstance(result, list) and len(result) >= 2:
-            self.current_front_img = result[0]
-            self.current_back_img = result[1]
-            self.front_view.set_image(result[0])
-            self.back_view.set_image(result[1])
-            self.status_label.setText("✅ Both sides scanned successfully!")
-        elif isinstance(result, list) and len(result) == 1:
-            self.current_front_img = result[0]
-            self.front_view.set_image(result[0])
-            self.status_label.setText("✅ Front scanned")
-        else:
-            self.current_front_img = result
-            self.front_view.set_image(result)
-            self.status_label.setText("✅ Card scanned")
 
-        self._auto_identify()
-        self._inspect()
+        images = result if isinstance(result, list) else ([result] if result is not None else [])
+        if not images:
+            self.status_label.setText("No images received from scanner.")
+            return
+
+        duplex = self.duplex_check.isChecked()
+        pages_per_card = 2 if duplex else 1
+
+        # More pages than a single card → multiple cards in the feeder
+        if len(images) > pages_per_card:
+            self.status_label.setText(
+                f"📚 {len(images)} pages detected — routing to continuous scan..."
+            )
+            # Split into per-card chunks and process as a queue
+            chunks = [images[i:i + pages_per_card]
+                      for i in range(0, len(images), pages_per_card)]
+            self._process_continuous_queue(chunks)
+        else:
+            # Single card — load normally
+            self._load_card_images(images)
+            self._auto_identify()
+            self._inspect()
+
+    def _load_card_images(self, images: list):
+        """Load a front (and optionally back) image into the viewer."""
+        if len(images) >= 2:
+            self.current_front_img = images[0]
+            self.current_back_img = images[1]
+            self.front_view.set_image(images[0])
+            self.back_view.set_image(images[1])
+            self.status_label.setText("✅ Both sides scanned.")
+        elif len(images) == 1:
+            self.current_front_img = images[0]
+            self.current_back_img = None
+            self.front_view.set_image(images[0])
+            self.back_view.set_image(None)
+            self.status_label.setText("✅ Front scanned.")
+
+    def _process_continuous_queue(self, chunks: list):
+        """Step through a list of per-card image chunks, reviewing each one."""
+        total = len(chunks)
+        saved = 0
+
+        for i, chunk in enumerate(chunks):
+            self._reset_form()
+            self._load_card_images(chunk)
+            self._auto_identify()
+            self._inspect()
+
+            # Ask user what to do with this card
+            dlg = _ContinuousScanDialog(i + 1, total, self)
+            choice = dlg.exec()
+
+            if choice == _ContinuousScanDialog.SAVE:
+                self._save_card()
+                saved += 1
+            elif choice == _ContinuousScanDialog.SKIP:
+                continue
+            else:  # Stop
+                break
+
+        self.status_label.setText(
+            f"✅ Continuous scan complete — {saved} of {total} card(s) saved."
+        )
+        self.card_added.emit()
 
     def _rotate_front(self):
         if self.current_front_img is not None:
@@ -373,7 +425,19 @@ class ScanTab(QWidget):
         QMessageBox.critical(self, "Scan Error", msg)
 
     def _start_continuous_scan(self):
-        QMessageBox.information(self, "Continuous Scan", "Coming soon!")
+        """Trigger a scan with feeder — multiple pages will be auto-routed to the queue."""
+        source = self.source_combo.currentText()
+        if "no TWAIN" in source.lower():
+            QMessageBox.warning(self, "No Scanner", "Connect a TWAIN scanner with a document feeder.")
+            return
+        self._set_scanning(True)
+        self.status_label.setText("🔄 Continuous scan started — feed cards into the scanner...")
+        self._worker = ScanWorker(
+            self.scanner, source_name=source, dpi=self.dpi_spin.value(), duplex=self.duplex_check.isChecked()
+        )
+        self._worker.finished.connect(self._scan_done)
+        self._worker.error.connect(self._scan_error)
+        self._worker.start()
 
     def _auto_identify(self):
         if self.current_front_img is None:
@@ -500,3 +564,45 @@ class ScanTab(QWidget):
         self.back_view.set_image(None)
         self.defects_text.setPlainText("No inspection yet")
         self.status_label.setText("Ready.")
+
+
+class _ContinuousScanDialog(QDialog):
+    """Mini dialog shown between cards in a continuous/multi-card scan."""
+    SAVE = QDialog.DialogCode.Accepted
+    SKIP = 2
+    STOP = QDialog.DialogCode.Rejected
+
+    def __init__(self, current: int, total: int, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(f"Card {current} of {total}")
+        self.setMinimumWidth(320)
+        self.setModal(True)
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(12)
+
+        msg = QLabel(f"Card <b>{current} of {total}</b> identified and inspected.<br>"
+                     "Review the details on the left, then choose an action.")
+        msg.setWordWrap(True)
+        layout.addWidget(msg)
+
+        btn_layout = QHBoxLayout()
+
+        save_btn = QPushButton("💾 Save & Next")
+        save_btn.setProperty("primary", True)
+        save_btn.setMinimumHeight(38)
+        save_btn.clicked.connect(self.accept)
+
+        skip_btn = QPushButton("⏭ Skip")
+        skip_btn.setMinimumHeight(38)
+        skip_btn.clicked.connect(lambda: self.done(self.SKIP))
+
+        stop_btn = QPushButton("⏹ Stop")
+        stop_btn.setMinimumHeight(38)
+        stop_btn.setStyleSheet("color: #ed4245;")
+        stop_btn.clicked.connect(self.reject)
+
+        btn_layout.addWidget(save_btn)
+        btn_layout.addWidget(skip_btn)
+        btn_layout.addWidget(stop_btn)
+        layout.addLayout(btn_layout)
