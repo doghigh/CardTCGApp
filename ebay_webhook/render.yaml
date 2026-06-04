@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: tcm-ebay-webhook
+    runtime: python
+    rootDir: ebay_webhook
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn main:app
+    plan: free
+    envVars:
+      - key: EBAY_VERIFICATION_TOKEN
+        sync: false          # set manually in Render dashboard
+      - key: EBAY_ENDPOINT_URL
+        sync: false          # set manually after deploy (your Render URL + /ebay/deletion)
