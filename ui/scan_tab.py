@@ -123,6 +123,7 @@ class ScanTab(QWidget):
 
         self.scan_card_btn = QPushButton("📷 Scan Card")
         self.scan_card_btn.setMinimumHeight(36)
+        self.scan_card_btn.setProperty("primary", True)
         self.scan_card_btn.clicked.connect(self._scan_card)
 
         self.load_front_btn = QPushButton("📂 Load Front")
@@ -238,6 +239,8 @@ class ScanTab(QWidget):
         right_layout.addWidget(defects_group)
 
         save_btn = QPushButton("💾 Save Card")
+        save_btn.setProperty("primary", True)
+        save_btn.setMinimumHeight(40)
         save_btn.clicked.connect(self._save_card)
         right_layout.addWidget(save_btn)
 
