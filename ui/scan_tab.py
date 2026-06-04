@@ -484,12 +484,30 @@ class ScanTab(QWidget):
                 cv2.imwrite(back_path, cv2.cvtColor(self.current_back_img, cv2.COLOR_RGB2BGR))
 
             # Prepare card data
+            name      = self.name_edit.text().strip()
+            set_name  = self.set_edit.text().strip()
+            game      = self.game_combo.currentText().strip()
+            grade     = self.current_inspection['grade'] if self.current_inspection else None
+            score     = self.current_inspection['score'] if self.current_inspection else 85.0
+
+            # Fetch value from eBay before saving
+            self.status_label.setText("💰 Fetching market value...")
+            try:
+                valuation = self.valuator.value_summary(name, set_name, game, grade, score)
+                estimated = valuation.get('estimated', 0.0)
+                val_source = valuation.get('source', '')
+                val_sample = valuation.get('sample', 0)
+            except Exception:
+                estimated = 0.0
+                val_source = ''
+                val_sample = 0
+
             card_data = {
-                'name': self.name_edit.text().strip(),
-                'set_name': self.set_edit.text().strip(),
+                'name': name,
+                'set_name': set_name,
                 'card_number': self.number_edit.text().strip(),
                 'rarity': self.rarity_edit.text().strip(),
-                'game': self.game_combo.currentText().strip(),
+                'game': game,
                 'year': self.year_spin.value(),
                 'language': self.lang_edit.text().strip() or "English",
                 'foil': 1 if self.foil_check.isChecked() else 0,
@@ -498,16 +516,18 @@ class ScanTab(QWidget):
                 'purchase_price': float(self.purchase_spin.value()),
                 'quantity': int(self.qty_spin.value()),
                 'notes': self.notes_edit.toPlainText().strip(),
-                'condition_grade': self.current_inspection['grade'] if self.current_inspection else None,
-                'condition_score': self.current_inspection['score'] if self.current_inspection else None,
+                'condition_grade': grade,
+                'condition_score': score,
                 'defects': self.current_inspection.get('defects', []) if self.current_inspection else [],
-                'estimated_value': 0.0,
+                'estimated_value': estimated,
             }
 
             card_id = self.db.add_card(card_data)
 
-            QMessageBox.information(self, "Success", 
-                f"✅ Card saved successfully!\nID: {card_id}\nName: {card_data['name']}")
+            val_msg = (f"\n💰 Est. value: ${estimated:.2f} ({val_source}, {val_sample} sales)"
+                       if estimated > 0 else "\n💰 No market data found")
+            QMessageBox.information(self, "Success",
+                f"✅ Card saved!\nID: {card_id}  •  {name}{val_msg}")
 
             # Clear form for next card
             self._reset_form()

@@ -64,9 +64,12 @@ class ImageBatchWorker(QThread):
 
                 estimate = 0.0
                 if self.auto_value and info.get('name'):
-                    vals = self.valuator.fetch_all_values(info.get('name'), info.get('set_name'))
-                    if vals:
-                        estimate = self.valuator.compute_estimate(vals, inspection['score'])
+                    summary = self.valuator.value_summary(
+                        info.get('name', ''), info.get('set_name'),
+                        info.get('game'), inspection.get('grade'),
+                        inspection.get('score', 85.0)
+                    )
+                    estimate = summary.get('estimated', 0.0)
 
                 ts = datetime.now().strftime('%Y%m%d_%H%M%S')
                 scan_path = str(SCANS_DIR / f"batch_{ts}_{img_path.stem}.png")
