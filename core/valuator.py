@@ -14,8 +14,9 @@ from xml.etree import ElementTree as ET
 
 logger = logging.getLogger(__name__)
 
-# eBay Finding API endpoint
-FINDING_API_URL = "https://svcs.ebay.com/services/search/FindingService/v1"
+# eBay Finding API endpoints
+FINDING_API_PROD    = "https://svcs.ebay.com/services/search/FindingService/v1"
+FINDING_API_SANDBOX = "https://svcs.sandbox.ebay.com/services/search/FindingService/v1"
 
 # Condition multipliers keyed on grade letter
 CONDITION_MULTIPLIERS = {
@@ -36,6 +37,13 @@ class CardValuator:
 
     def __init__(self):
         self._app_id = os.environ.get("EBAY_APP_ID", "").strip()
+        # Sandbox App IDs contain "-SBX-"; route to the right endpoint
+        self._sandbox = "SBX" in self._app_id.upper()
+        self._api_url = FINDING_API_SANDBOX if self._sandbox else FINDING_API_PROD
+        if self._sandbox:
+            logger.info("eBay Valuator: using SANDBOX endpoint — "
+                        "results are test data only. "
+                        "Get a Production App ID at developer.ebay.com to see real prices.")
         self.session = requests.Session()
         self.session.headers.update({
             "User-Agent": "TradingCardManager/1.1 (+https://github.com/doghigh/CardTCGApp)"
@@ -80,7 +88,7 @@ class CardValuator:
             params["categoryId"] = "213"  # Sports Trading Cards
 
         try:
-            r = self.session.get(FINDING_API_URL, params=params, timeout=self.timeout)
+            r = self.session.get(self._api_url, params=params, timeout=self.timeout)
             r.raise_for_status()
             return self._parse_finding_response(r.text, keywords)
         except requests.RequestException as exc:
