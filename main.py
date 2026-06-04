@@ -58,9 +58,9 @@ def main():
     # Apply beautiful dark theme with accessibility support
     apply_dark_theme(app)
 
-    # Create and show main window
+    # Create and show main window maximized
     window = MainWindow()
-    window.show()
+    window.showMaximized()
 
     print(f"{APP_NAME} v{APP_VERSION} started successfully!")
     sys.exit(app.exec())
