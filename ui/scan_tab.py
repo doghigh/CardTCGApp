@@ -12,7 +12,7 @@ from typing import Optional
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit,
     QTextEdit, QComboBox, QSpinBox, QDoubleSpinBox, QCheckBox, QGroupBox,
-    QFormLayout, QSplitter, QMessageBox, QFileDialog, QDialog, QDialogButtonBox
+    QFormLayout, QSplitter, QMessageBox, QFileDialog, QDialog, QScrollArea, QFrame
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QPixmap, QImage
@@ -167,7 +167,7 @@ class ScanTab(QWidget):
         # BACK
         back_box = QGroupBox("Back")
         bl = QVBoxLayout(back_box)
-        bl.setContentsMargins(8, 20, 8, 8)
+        bl.setContentsMargins(8, 8, 8, 8)
         bl.setSpacing(6)
         self.back_view = ImageViewer("Back side\nNot scanned yet")
         self.back_rotate_btn = QPushButton("↻ Rotate 180°")
@@ -180,7 +180,6 @@ class ScanTab(QWidget):
         splitter.addWidget(img_widget)
 
         # Right panel — scrollable so nothing clips on smaller screens
-        from PyQt6.QtWidgets import QScrollArea
         right_panel = QWidget()
         right_panel.setMinimumWidth(340)
         right_outer = QVBoxLayout(right_panel)
@@ -189,7 +188,7 @@ class ScanTab(QWidget):
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setFrameShape(scroll.Shape.NoFrame)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll_content = QWidget()
         right_layout = QVBoxLayout(scroll_content)
         right_layout.setContentsMargins(8, 8, 8, 8)
@@ -569,9 +568,9 @@ class _ScanMoreDialog(QDialog):
 
 class _ContinuousScanDialog(QDialog):
     """Mini dialog shown between cards in a continuous/multi-card scan."""
-    SAVE = QDialog.DialogCode.Accepted
-    SKIP = 2
-    STOP = QDialog.DialogCode.Rejected
+    SAVE = QDialog.DialogCode.Accepted   # 1
+    SKIP = 10                            # custom code outside Qt's 0/1 range
+    STOP = QDialog.DialogCode.Rejected   # 0
 
     def __init__(self, current: int, total: int, parent=None):
         super().__init__(parent)
@@ -596,7 +595,7 @@ class _ContinuousScanDialog(QDialog):
 
         skip_btn = QPushButton("⏭ Skip")
         skip_btn.setMinimumHeight(38)
-        skip_btn.clicked.connect(lambda: self.done(self.SKIP))
+        skip_btn.clicked.connect(lambda: self.done(_ContinuousScanDialog.SKIP))
 
         stop_btn = QPushButton("⏹ Stop")
         stop_btn.setMinimumHeight(38)
