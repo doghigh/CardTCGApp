@@ -355,20 +355,16 @@ QProgressBar::chunk {{
 
 
 def apply_dark_theme(app: QApplication):
-    """Apply modern dark theme. High-contrast mode falls back to accessible variant."""
+    """Apply modern dark theme."""
     app.setStyle("Fusion")
 
-    # Set a modern font
     font = QFont("Segoe UI", 10)
     app.setFont(font)
 
-    high_contrast = _is_high_contrast()
+    palette = QPalette()
+    c = lambda h: QColor(h)
 
-    if high_contrast:
-        _apply_high_contrast(app)
-    else:
-        palette = QPalette()
-        c = lambda h: QColor(h)
+    if True:  # always modern theme; HC detection removed until needed
 
         # Core roles
         palette.setColor(QPalette.ColorRole.Window,          c(BG_DEEP))
@@ -402,41 +398,5 @@ def apply_dark_theme(app: QApplication):
         palette.setColor(QPalette.ColorGroup.Disabled,
                          QPalette.ColorRole.WindowText, c(TEXT_DIS))
 
-        app.setPalette(palette)
-        app.setStyleSheet(STYLESHEET)
-
-
-def _is_high_contrast() -> bool:
-    """Detect Windows High Contrast accessibility mode (NOT just dark mode)."""
-    try:
-        import ctypes
-        hcf = ctypes.windll.user32.SystemParametersInfoW
-        class HIGHCONTRAST(ctypes.Structure):
-            _fields_ = [("cbSize", ctypes.c_uint),
-                        ("dwFlags", ctypes.c_uint),
-                        ("lpszDefaultScheme", ctypes.c_wchar_p)]
-        hc = HIGHCONTRAST()
-        hc.cbSize = ctypes.sizeof(hc)
-        hcf(0x0042, 0, ctypes.byref(hc), 0)  # SPI_GETHIGHCONTRAST
-        return bool(hc.dwFlags & 0x1)  # HCF_HIGHCONTRASTON
-    except Exception:
-        return False
-
-
-def _apply_high_contrast(app: QApplication):
-    palette = QPalette()
-    palette.setColor(QPalette.ColorRole.Window,     QColor(0, 0, 0))
-    palette.setColor(QPalette.ColorRole.WindowText, QColor(255, 255, 255))
-    palette.setColor(QPalette.ColorRole.Base,       QColor(0, 0, 0))
-    palette.setColor(QPalette.ColorRole.Text,       QColor(255, 255, 255))
-    palette.setColor(QPalette.ColorRole.Button,     QColor(64, 64, 64))
-    palette.setColor(QPalette.ColorRole.ButtonText, QColor(255, 255, 255))
-    palette.setColor(QPalette.ColorRole.Highlight,  QColor(0, 128, 255))
     app.setPalette(palette)
-    app.setStyleSheet("""
-        * { font-size: 14px; }
-        QGroupBox, QLineEdit, QTextEdit, QPushButton, QTableWidget {
-            border: 2px solid #00aaff;
-        }
-        QPushButton:focus, QLineEdit:focus { border: 3px solid #ffff00; }
-    """)
+    app.setStyleSheet(STYLESHEET)
