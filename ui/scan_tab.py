@@ -159,7 +159,7 @@ class ScanTab(QWidget):
         # FRONT
         front_box = QGroupBox("Front")
         fl = QVBoxLayout(front_box)
-        fl.setContentsMargins(8, 20, 8, 8)
+        fl.setContentsMargins(8, 8, 8, 8)
         fl.setSpacing(6)
         self.front_view = ImageViewer("Front side\nNot scanned yet")
         self.front_rotate_btn = QPushButton("↻ Rotate 180°")
@@ -202,7 +202,7 @@ class ScanTab(QWidget):
 
         details_group = QGroupBox("Card Details")
         form = QFormLayout(details_group)
-        form.setContentsMargins(10, 24, 10, 10)
+        form.setContentsMargins(10, 8, 10, 10)
         form.setSpacing(8)
         form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
@@ -246,7 +246,7 @@ class ScanTab(QWidget):
         # Defects panel
         defects_group = QGroupBox("Defects Found")
         defects_layout = QVBoxLayout(defects_group)
-        defects_layout.setContentsMargins(10, 24, 10, 10)
+        defects_layout.setContentsMargins(10, 8, 10, 10)
         self.defects_text = QTextEdit()
         self.defects_text.setReadOnly(True)
         self.defects_text.setMinimumHeight(90)
