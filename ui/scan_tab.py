@@ -99,7 +99,7 @@ class ScanTab(QWidget):
         self.current_inspection = None
         self.current_valuations = []
 
-        self._scan_queue = []
+        self._accumulated_images = []   # pages collected across multiple scan runs
 
         self._build_ui()
 
@@ -292,51 +292,64 @@ class ScanTab(QWidget):
             self.status_label.setText("No images received from scanner.")
             return
 
+        self._accumulated_images.extend(images)
+
         duplex = self.duplex_check.isChecked()
         pages_per_card = 2 if duplex else 1
+        card_count = len(self._accumulated_images) // pages_per_card
 
-        # More pages than a single card → multiple cards in the feeder
-        if len(images) > pages_per_card:
-            self.status_label.setText(
-                f"📚 {len(images)} pages detected — routing to continuous scan..."
-            )
-            # Split into per-card chunks and process as a queue
-            chunks = [images[i:i + pages_per_card]
-                      for i in range(0, len(images), pages_per_card)]
-            self._process_continuous_queue(chunks)
+        self.status_label.setText(
+            f"✅ {len(images)} page(s) scanned — {card_count} card(s) total so far."
+        )
+
+        # Ask whether to scan more or process what we have
+        dlg = _ScanMoreDialog(card_count, self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            # Scan more — trigger another scan run
+            self._scan_card()
         else:
-            # Single card — load normally
-            self._load_card_images(images)
-            self._auto_identify()
-            self._inspect()
+            # Done — process everything accumulated
+            self._finish_scanning()
 
     def _load_card_images(self, images: list):
-        """Load a front (and optionally back) image into the viewer."""
         if len(images) >= 2:
             self.current_front_img = images[0]
             self.current_back_img = images[1]
             self.front_view.set_image(images[0])
             self.back_view.set_image(images[1])
-            self.status_label.setText("✅ Both sides scanned.")
         elif len(images) == 1:
             self.current_front_img = images[0]
             self.current_back_img = None
             self.front_view.set_image(images[0])
             self.back_view.set_image(None)
-            self.status_label.setText("✅ Front scanned.")
 
-    def _process_continuous_queue(self, chunks: list):
-        """Step through a list of per-card image chunks, reviewing each one."""
+    def _finish_scanning(self):
+        """Process all accumulated pages as individual cards."""
+        images = self._accumulated_images
+        self._accumulated_images = []
+
+        duplex = self.duplex_check.isChecked()
+        pages_per_card = 2 if duplex else 1
+        chunks = [images[i:i + pages_per_card]
+                  for i in range(0, len(images), pages_per_card)]
+
+        if len(chunks) == 1:
+            # Single card — load straight into viewer, no dialog
+            self._load_card_images(chunks[0])
+            self._auto_identify()
+            self._inspect()
+            self.status_label.setText("✅ Card ready — review and save.")
+            return
+
+        # Multiple cards — step through review queue
         total = len(chunks)
         saved = 0
-
         for i, chunk in enumerate(chunks):
             self._reset_form()
             self._load_card_images(chunk)
             self._auto_identify()
             self._inspect()
 
-            # Ask user what to do with this card
             dlg = _ContinuousScanDialog(i + 1, total, self)
             choice = dlg.exec()
 
@@ -345,11 +358,11 @@ class ScanTab(QWidget):
                 saved += 1
             elif choice == _ContinuousScanDialog.SKIP:
                 continue
-            else:  # Stop
+            else:
                 break
 
         self.status_label.setText(
-            f"✅ Continuous scan complete — {saved} of {total} card(s) saved."
+            f"✅ Done — {saved} of {total} card(s) saved."
         )
         self.card_added.emit()
 
@@ -516,6 +529,42 @@ class ScanTab(QWidget):
         self.back_view.set_image(None)
         self.defects_text.setPlainText("No inspection yet")
         self.status_label.setText("Ready.")
+
+
+class _ScanMoreDialog(QDialog):
+    """After each scan run: Scan More Cards or End Scanning."""
+
+    def __init__(self, card_count: int, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Scan Complete")
+        self.setMinimumWidth(340)
+        self.setModal(True)
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(14)
+
+        msg = QLabel(
+            f"<b>{card_count} card(s)</b> scanned so far.<br><br>"
+            "Add more cards to the feeder and scan again,<br>"
+            "or end scanning to review and save."
+        )
+        msg.setWordWrap(True)
+        layout.addWidget(msg)
+
+        btn_row = QHBoxLayout()
+
+        more_btn = QPushButton("📷 Scan More Cards")
+        more_btn.setProperty("primary", True)
+        more_btn.setMinimumHeight(40)
+        more_btn.clicked.connect(self.accept)
+
+        end_btn = QPushButton("✅ End Scanning")
+        end_btn.setMinimumHeight(40)
+        end_btn.clicked.connect(self.reject)
+
+        btn_row.addWidget(more_btn)
+        btn_row.addWidget(end_btn)
+        layout.addLayout(btn_row)
 
 
 class _ContinuousScanDialog(QDialog):
