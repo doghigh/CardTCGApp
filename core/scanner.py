@@ -14,6 +14,12 @@ except ImportError:
 
 
 class ScannerInterface:
+    def __init__(self):
+        self._cancel_requested = False
+
+    def cancel(self):
+        self._cancel_requested = True
+
     def list_sources(self) -> List[str]:
         if not HAS_TWAIN:
             return []
@@ -88,9 +94,10 @@ class ScannerInterface:
                 except (AttributeError, Exception) as e:
                     print(f"Duplex not available: {e}")
 
+            self._cancel_requested = False
             src.RequestAcquire(0, 0)
 
-            while True:
+            while not self._cancel_requested:
                 try:
                     rv = src.XferImageNatively()
                     if not rv:
@@ -101,7 +108,6 @@ class ScannerInterface:
                     img_pil = Image.open(io.BytesIO(bmp_bytes))
                     arr = np.array(img_pil.convert('RGB'))
 
-                    # Apply quality enhancement
                     arr = self._enhance_image(arr)
                     images.append(arr)
 
@@ -112,6 +118,9 @@ class ScannerInterface:
                     break
 
                 time.sleep(0.1)
+
+            if self._cancel_requested:
+                print("⏹ Scan cancelled by user")
 
             src.destroy()
             sm.destroy()

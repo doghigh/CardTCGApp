@@ -124,7 +124,8 @@ class ScanTab(QWidget):
         self.scan_card_btn = QPushButton("📷 Scan Card")
         self.scan_card_btn.setMinimumHeight(36)
         self.scan_card_btn.setProperty("primary", True)
-        self.scan_card_btn.clicked.connect(self._scan_card)
+        self.scan_card_btn.clicked.connect(self._scan_or_stop)
+        self._scanning = False
 
         self.load_front_btn = QPushButton("📂 Load Front")
         self.load_back_btn = QPushButton("📂 Load Back")
@@ -270,6 +271,12 @@ class ScanTab(QWidget):
         self.status_label = QLabel("Ready.")
         layout.addWidget(self.status_label)
 
+    def _scan_or_stop(self):
+        if self._scanning:
+            self._cancel_scan()
+        else:
+            self._scan_card()
+
     def _scan_card(self):
         source = self.source_combo.currentText()
         if "no TWAIN" in source.lower():
@@ -277,6 +284,7 @@ class ScanTab(QWidget):
             return
 
         duplex = self.duplex_check.isChecked()
+        self._set_scanning(True)
         self.status_label.setText(f"Scanning... {'(Duplex)' if duplex else ''}")
 
         self._worker = ScanWorker(
@@ -286,8 +294,28 @@ class ScanTab(QWidget):
         self._worker.error.connect(self._scan_error)
         self._worker.start()
 
+    def _cancel_scan(self):
+        self.scanner.cancel()
+        self.status_label.setText("⏹ Scan cancelled.")
+        self._set_scanning(False)
+
+    def _set_scanning(self, active: bool):
+        self._scanning = active
+        if active:
+            self.scan_card_btn.setText("⏹ Stop Scanning")
+            self.scan_card_btn.setProperty("primary", False)
+            self.scan_card_btn.setStyleSheet(
+                "background-color: #ed4245; border: none; color: white; font-weight: 600;"
+            )
+        else:
+            self.scan_card_btn.setText("📷 Scan Card")
+            self.scan_card_btn.setProperty("primary", True)
+            self.scan_card_btn.setStyleSheet("")
+        self.scan_card_btn.style().unpolish(self.scan_card_btn)
+        self.scan_card_btn.style().polish(self.scan_card_btn)
+
     def _scan_done(self, result):
-        """Handle scan result."""
+        self._set_scanning(False)
         if isinstance(result, list) and len(result) >= 2:
             self.current_front_img = result[0]
             self.current_back_img = result[1]
@@ -340,6 +368,7 @@ class ScanTab(QWidget):
         self._auto_identify()
 
     def _scan_error(self, msg: str):
+        self._set_scanning(False)
         self.status_label.setText(f"Error: {msg}")
         QMessageBox.critical(self, "Scan Error", msg)
 
