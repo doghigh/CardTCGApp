@@ -1,5 +1,22 @@
 """
 Card valuation via eBay Finding API (sold listings) with web scrape fallbacks.
+
+eBay API Compliance — Marketplace Account Deletion:
+  This application uses ONLY the eBay Finding API with an App ID (client
+  credentials). It queries PUBLIC sold listing prices and does NOT:
+    - use eBay OAuth / user tokens
+    - store any eBay user account data (usernames, IDs, feedback, etc.)
+    - access any private or user-specific eBay resources
+
+  As a result this app qualifies for the OPT-OUT path under eBay's
+  Marketplace Account Deletion/Closure notification requirement.
+
+  Action required on the eBay developer portal:
+    1. Sign in at developer.ebay.com
+    2. My Account → Application Keys → Production App
+    3. Marketplace Account Deletion section → select "I don't store eBay user data"
+
+  Reference: https://developer.ebay.com/develop/guides-v2/marketplace-user-account-deletion
 """
 
 import os
