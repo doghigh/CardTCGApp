@@ -3,11 +3,16 @@ Scan & Add Tab - Single Scan Card + Manual Rotate Buttons
 """
 
 import os
-import cv2
-import numpy as np
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+
+try:
+    import cv2
+    import numpy as np
+except ImportError:
+    cv2 = None  # type: ignore[assignment]
+    np = None   # type: ignore[assignment]
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit,
@@ -32,8 +37,8 @@ class ScanWorker(QThread):
     finished = pyqtSignal(object)
     error = pyqtSignal(str)
 
-    def __init__(self, scanner: ScannerInterface, source_name: str = None,
-                 dpi: int = 300, file_path: str = None, duplex: bool = False):
+    def __init__(self, scanner: ScannerInterface, source_name: Optional[str] = None,
+                 dpi: int = 300, file_path: Optional[str] = None, duplex: bool = False):
         super().__init__()
         self.scanner = scanner
         self.source_name = source_name
@@ -66,8 +71,8 @@ class ImageViewer(QLabel):
         self._placeholder = placeholder
         self.setText(placeholder)
 
-    def set_image(self, img: Optional[np.ndarray]):
-        if img is None:
+    def set_image(self, img: "Optional[np.ndarray]"):
+        if img is None or cv2 is None or np is None:
             self.setText(self._placeholder)
             self.setPixmap(QPixmap())
             return
