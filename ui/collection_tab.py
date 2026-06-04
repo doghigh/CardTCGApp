@@ -94,10 +94,10 @@ class CollectionTab(QWidget):
 
         # Statistics bar
         self.stats_label = QLabel()
-        self.stats_label.setStyleSheet("""
-            background: #2c5282; color: white;
-            padding: 12px; border-radius: 6px; font-size: 13px;
-        """)
+        self.stats_label.setStyleSheet(
+            "background-color: #252840; color: #e8eaf0;"
+            "padding: 10px 14px; border-radius: 6px; font-size: 13px;"
+        )
         layout.addWidget(self.stats_label)
 
         # Main table

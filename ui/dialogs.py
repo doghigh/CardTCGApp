@@ -33,7 +33,7 @@ class CardDetailDialog(QDialog):
             view = QLabel()
             view.setMinimumSize(320, 440)
             view.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            view.setStyleSheet("background: #1a202c; border: 1px solid #2d3748;")
+            view.setStyleSheet("background-color: #13151f; border: 1px solid #2a2d3e; border-radius: 6px;")
 
             path = card.get(key)
             if path and Path(path).exists():

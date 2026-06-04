@@ -176,7 +176,7 @@ class BatchTab(QWidget):
         layout.setSpacing(12)
 
         title = QLabel("📦 Batch Import")
-        title.setStyleSheet("font-size: 18px; font-weight: bold;")
+        title.setStyleSheet("font-size: 18px; font-weight: 600; color: #e8eaf0;")
         layout.addWidget(title)
 
         # Mode selector

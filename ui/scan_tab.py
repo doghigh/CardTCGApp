@@ -151,11 +151,16 @@ class ScanTab(QWidget):
         # Images with Rotate buttons
         splitter = QSplitter(Qt.Orientation.Horizontal)
         img_widget = QWidget()
+        img_widget.setContentsMargins(0, 0, 0, 0)
         img_layout = QHBoxLayout(img_widget)
+        img_layout.setSpacing(10)
+        img_layout.setContentsMargins(0, 0, 0, 0)
 
         # FRONT
         front_box = QGroupBox("Front")
         fl = QVBoxLayout(front_box)
+        fl.setContentsMargins(8, 20, 8, 8)
+        fl.setSpacing(6)
         self.front_view = ImageViewer("Front side\nNot scanned yet")
         self.front_rotate_btn = QPushButton("↻ Rotate 180°")
         self.front_rotate_btn.clicked.connect(self._rotate_front)
@@ -165,6 +170,8 @@ class ScanTab(QWidget):
         # BACK
         back_box = QGroupBox("Back")
         bl = QVBoxLayout(back_box)
+        bl.setContentsMargins(8, 20, 8, 8)
+        bl.setSpacing(6)
         self.back_view = ImageViewer("Back side\nNot scanned yet")
         self.back_rotate_btn = QPushButton("↻ Rotate 180°")
         self.back_rotate_btn.clicked.connect(self._rotate_back)
@@ -175,33 +182,40 @@ class ScanTab(QWidget):
         img_layout.addWidget(back_box)
         splitter.addWidget(img_widget)
 
-        # Right panel - Card Details
+        # Right panel — scrollable so nothing clips on smaller screens
+        from PyQt6.QtWidgets import QScrollArea
         right_panel = QWidget()
-        right_layout = QVBoxLayout(right_panel)
+        right_panel.setMinimumWidth(340)
+        right_outer = QVBoxLayout(right_panel)
+        right_outer.setContentsMargins(0, 0, 0, 0)
+        right_outer.setSpacing(0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(scroll.Shape.NoFrame)
+        scroll_content = QWidget()
+        right_layout = QVBoxLayout(scroll_content)
+        right_layout.setContentsMargins(8, 8, 8, 8)
+        right_layout.setSpacing(10)
+        scroll.setWidget(scroll_content)
+        right_outer.addWidget(scroll, 1)
 
         details_group = QGroupBox("Card Details")
         form = QFormLayout(details_group)
+        form.setContentsMargins(10, 24, 10, 10)
+        form.setSpacing(8)
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
         self.name_edit = QLineEdit()
         self.set_edit = QLineEdit()
         self.number_edit = QLineEdit()
         self.rarity_edit = QLineEdit()
-        # Inside details_group form
         self.game_combo = QComboBox()
         self.game_combo.setEditable(True)
         self.game_combo.addItems([
-            "Magic: The Gathering",
-            "Pokémon",
-            "Yu-Gi-Oh!",
-            "One Piece",
-            "Lorcana",
-            "Flesh and Blood",
-            "Baseball",
-            "Basketball",
-            "Football",
-            "Hockey",
-            "Sports Cards",
-            "Other"
+            "Magic: The Gathering", "Pokémon", "Yu-Gi-Oh!", "One Piece",
+            "Lorcana", "Flesh and Blood", "Baseball", "Basketball",
+            "Football", "Hockey", "Sports Cards", "Other"
         ])
         self.year_spin = QSpinBox()
         self.year_spin.setRange(1900, 2100)
@@ -214,7 +228,8 @@ class ScanTab(QWidget):
         self.purchase_spin.setPrefix("$")
         self.purchase_spin.setDecimals(2)
         self.notes_edit = QTextEdit()
-        self.notes_edit.setMaximumHeight(80)
+        self.notes_edit.setMinimumHeight(80)
+        self.notes_edit.setMaximumHeight(120)
 
         for label, widget in [
             ("Name:", self.name_edit), ("Set:", self.set_edit),
@@ -231,21 +246,26 @@ class ScanTab(QWidget):
         # Defects panel
         defects_group = QGroupBox("Defects Found")
         defects_layout = QVBoxLayout(defects_group)
+        defects_layout.setContentsMargins(10, 24, 10, 10)
         self.defects_text = QTextEdit()
         self.defects_text.setReadOnly(True)
-        self.defects_text.setMaximumHeight(100)
+        self.defects_text.setMinimumHeight(90)
+        self.defects_text.setMaximumHeight(140)
         self.defects_text.setPlainText("No inspection yet")
         defects_layout.addWidget(self.defects_text)
         right_layout.addWidget(defects_group)
 
+        right_layout.addStretch()
+
+        # Save button — outside scroll, always visible at the bottom
         save_btn = QPushButton("💾 Save Card")
         save_btn.setProperty("primary", True)
-        save_btn.setMinimumHeight(40)
+        save_btn.setMinimumHeight(44)
         save_btn.clicked.connect(self._save_card)
-        right_layout.addWidget(save_btn)
+        right_outer.addWidget(save_btn)
 
         splitter.addWidget(right_panel)
-        layout.addWidget(splitter)
+        layout.addWidget(splitter, 1)
 
         self.status_label = QLabel("Ready.")
         layout.addWidget(self.status_label)

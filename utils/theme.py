@@ -109,8 +109,7 @@ QGroupBox {{
     background-color: {BG_RAISED};
     border: 1px solid {BORDER};
     border-radius: 8px;
-    margin-top: 16px;
-    padding-top: 8px;
+    margin-top: 8px;
     font-weight: 600;
     font-size: 12px;
     color: {TEXT_SEC};
@@ -119,8 +118,7 @@ QGroupBox::title {{
     subcontrol-origin: margin;
     subcontrol-position: top left;
     left: 10px;
-    top: 0px;
-    padding: 0 4px;
+    padding: 2px 6px;
     background-color: {BG_RAISED};
     color: {TEXT_SEC};
 }}
