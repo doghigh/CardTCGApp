@@ -295,7 +295,6 @@ QTableWidget, QTableView {{
     alternate-background-color: {BG_RAISED};
     selection-background-color: {BG_HOVER};
     selection-color: {TEXT_PRI};
-    outline: none;
 }}
 QTableWidget::item, QTableView::item {{
     padding: 5px 8px;
@@ -410,13 +409,18 @@ def apply_dark_theme(app: QApplication):
 
 
 def _is_high_contrast() -> bool:
+    """Detect Windows High Contrast accessibility mode (NOT just dark mode)."""
     try:
-        import winreg
-        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER,
-                             r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize")
-        apps_light   = winreg.QueryValueEx(key, "AppsUseLightTheme")[0]
-        system_light = winreg.QueryValueEx(key, "SystemUsesLightTheme")[0]
-        return apps_light == 0 and system_light == 0
+        import ctypes
+        hcf = ctypes.windll.user32.SystemParametersInfoW
+        class HIGHCONTRAST(ctypes.Structure):
+            _fields_ = [("cbSize", ctypes.c_uint),
+                        ("dwFlags", ctypes.c_uint),
+                        ("lpszDefaultScheme", ctypes.c_wchar_p)]
+        hc = HIGHCONTRAST()
+        hc.cbSize = ctypes.sizeof(hc)
+        hcf(0x0042, 0, ctypes.byref(hc), 0)  # SPI_GETHIGHCONTRAST
+        return bool(hc.dwFlags & 0x1)  # HCF_HIGHCONTRASTON
     except Exception:
         return False
 
