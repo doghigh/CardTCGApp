@@ -58,7 +58,8 @@ class MainWindow(QMainWindow):
 
         # Tabs
         self.tabs = QTabWidget()
-        self.tabs.setDocumentMode(True)
+        self.tabs.setDocumentMode(False)
+        self.tabs.setTabPosition(QTabWidget.TabPosition.North)
 
         self.scan_tab = ScanTab(self.db, self.scanner, self.inspector, self.identifier, self.valuator)
         self.batch_tab = BatchTab(self.db, self.scanner, self.inspector, self.identifier, self.valuator)

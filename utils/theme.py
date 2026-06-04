@@ -37,6 +37,12 @@ QWidget {{
     background: transparent;
 }}
 
+/* Tabs and top-level panels need explicit backgrounds */
+QTabWidget > QWidget,
+QTabWidget > QStackedWidget > QWidget {{
+    background: {BG_BASE};
+}}
+
 /* ── Menu bar ────────────────────────────────────────────────────────────── */
 QMenuBar {{
     background: {BG_DEEP};
@@ -72,34 +78,44 @@ QMenu::separator {{
 }}
 
 /* ── Tab bar ─────────────────────────────────────────────────────────────── */
+QTabWidget {{
+    background: {BG_BASE};
+}}
 QTabWidget::pane {{
     border: none;
+    border-top: 1px solid {BORDER};
     background: {BG_BASE};
+    top: -1px;
 }}
 QTabWidget::tab-bar {{
     alignment: left;
 }}
 QTabBar {{
     background: {BG_DEEP};
+    border-bottom: 1px solid {BORDER};
 }}
 QTabBar::tab {{
-    background: transparent;
+    background: {BG_DEEP};
     color: {TEXT_SEC};
-    padding: 10px 20px;
+    padding: 11px 22px;
     border: none;
     border-bottom: 2px solid transparent;
     font-size: 13px;
     font-weight: 500;
-    min-width: 100px;
+    min-width: 110px;
 }}
 QTabBar::tab:hover {{
     color: {TEXT_PRI};
     background: {BG_RAISED};
+    border-bottom: 2px solid {BORDER};
 }}
 QTabBar::tab:selected {{
     color: {TEXT_PRI};
-    border-bottom: 2px solid {ACCENT};
     background: {BG_BASE};
+    border-bottom: 2px solid {ACCENT};
+}}
+QTabBar::tab:!selected {{
+    margin-top: 2px;
 }}
 
 /* ── Group boxes ─────────────────────────────────────────────────────────── */

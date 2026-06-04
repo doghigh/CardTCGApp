@@ -60,8 +60,8 @@ class ImageViewer(QLabel):
         self.setMaximumSize(450, 600)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setStyleSheet("""
-            QLabel { background: #1a202c; color: #718096;
-                     border: 2px dashed #2d3748; border-radius: 8px; font-size: 13px; }
+            QLabel { background: #13151f; color: #4a4d60;
+                     border: 2px dashed #2a2d3e; border-radius: 10px; font-size: 13px; }
         """)
         self._placeholder = placeholder
         self.setText(placeholder)
