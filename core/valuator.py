@@ -1,5 +1,10 @@
 """
-Card valuation — eBay Browse API (active listings) + web scrape (sold prices).
+Card valuation — Scryfall (MTG), eBay Browse API, and PriceCharting fallback.
+
+Source priority:
+  - Magic: The Gathering → Scryfall (free official API, real USD prices)
+  - Everything else      → eBay Browse API (real sold/active data)
+  - Fallback             → PriceCharting scrape (throttled, 429-aware)
 
 eBay API Compliance — Marketplace Account Deletion:
   This app uses only public eBay data via App-level OAuth (no user tokens).
@@ -25,6 +30,9 @@ from typing import List, Dict, Optional, Tuple
 from urllib.parse import quote
 
 logger = logging.getLogger(__name__)
+
+# Scryfall — free official Magic: The Gathering card API (prices in USD)
+SCRYFALL_NAMED_URL = "https://api.scryfall.com/cards/named"
 
 # eBay OAuth token endpoint
 OAUTH_URL_PROD    = "https://api.ebay.com/identity/v1/oauth2/token"
@@ -104,6 +112,11 @@ class CardValuator:
         self._scrape_lock = threading.Lock()
         self._last_scrape = 0.0
         self.scrape_min_interval = 2.0   # seconds between scrape requests
+
+        # Scryfall throttle (its docs ask for ~100ms between requests)
+        self._scryfall_lock = threading.Lock()
+        self._last_scryfall = 0.0
+        self.scryfall_min_interval = 0.12
 
     def reload_credentials(self):
         """(Re)read eBay keys from the environment and reset the token cache."""
@@ -247,6 +260,81 @@ class CardValuator:
         }
 
     # ------------------------------------------------------------------ #
+    #  Source: Scryfall — free official MTG pricing (no key, reliable)     #
+    # ------------------------------------------------------------------ #
+
+    def _is_mtg(self, game: Optional[str]) -> bool:
+        if not game:
+            return False
+        g = game.lower()
+        return "magic" in g or "mtg" in g
+
+    def _scryfall_set_code(self, set_name: Optional[str]) -> Optional[str]:
+        """Return a Scryfall set code if set_name looks like one (e.g. AKH, W17)."""
+        if not set_name:
+            return None
+        s = set_name.strip()
+        return s.lower() if re.fullmatch(r"[A-Za-z0-9]{2,5}", s) else None
+
+    def _scryfall_throttle(self):
+        with self._scryfall_lock:
+            elapsed = time.time() - self._last_scryfall
+            if elapsed < self.scryfall_min_interval:
+                time.sleep(self.scryfall_min_interval - elapsed)
+            self._last_scryfall = time.time()
+
+    @staticmethod
+    def _scryfall_price(data: dict) -> Optional[float]:
+        prices = data.get("prices") or {}
+        for key in ("usd", "usd_foil", "usd_etched"):
+            val = prices.get(key)
+            if val:
+                try:
+                    return float(val)
+                except (ValueError, TypeError):
+                    pass
+        return None
+
+    def search_scryfall(self, card_name: str, set_name: Optional[str] = None,
+                        game: Optional[str] = None) -> Optional[Dict]:
+        """Look up a Magic card's market price from Scryfall (USD)."""
+        if not self._is_mtg(game):
+            return None
+        name = (card_name or "").strip()
+        if not name:
+            return None
+
+        # Try with a specific set code first (precise printing), then by name only
+        code = self._scryfall_set_code(set_name)
+        attempts = ([{"fuzzy": name, "set": code}] if code else []) + [{"fuzzy": name}]
+
+        for params in attempts:
+            try:
+                self._scryfall_throttle()
+                r = self.api_session.get(SCRYFALL_NAMED_URL, params=params,
+                                         timeout=self.api_timeout)
+                if r.status_code in (404, 400):
+                    continue   # not found with this set — try name-only
+                r.raise_for_status()
+                data = r.json()
+                price = self._scryfall_price(data)
+                if price is not None and price > 0:
+                    set_disp = (data.get("set") or "").upper()
+                    logger.info("Scryfall: %s (%s) = $%.2f", name, set_disp, price)
+                    return {
+                        "source": f"Scryfall ({set_disp})" if set_disp else "Scryfall",
+                        "value":  round(price, 2),
+                        "low":    round(price, 2),
+                        "high":   round(price, 2),
+                        "sample": 1,
+                        "query":  name,
+                    }
+            except Exception as exc:
+                logger.warning("Scryfall lookup failed for '%s': %s", name, exc)
+                return None
+        return None
+
+    # ------------------------------------------------------------------ #
     #  Source 2: PriceCharting — historical sold prices                    #
     # ------------------------------------------------------------------ #
 
@@ -383,6 +471,13 @@ class CardValuator:
         """
         if not card_name or not card_name.strip():
             return None
+
+        # Magic cards: use Scryfall (free official API, real USD prices, no
+        # rate-limit headaches). Avoids scraping PriceCharting entirely for MTG.
+        if self._is_mtg(game):
+            scry = self.search_scryfall(card_name, set_name, game)
+            if scry:
+                return scry
 
         # Try eBay Browse first — it's a real API with high rate limits. If it
         # returns a confident result, skip the PriceCharting scrape entirely.
