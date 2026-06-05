@@ -71,16 +71,38 @@ class CardValuator:
         self._token: Optional[str] = None
         self._token_expiry: datetime = datetime.utcnow()
 
-        self.session = requests.Session()
-        self.session.headers.update({
+        # API session — clean headers for eBay OAuth / Browse API
+        self.api_session = requests.Session()
+        self.api_session.headers.update({
+            "User-Agent": "TradingCardManager/1.1",
+            "Accept":     "application/json",
+        })
+
+        # Scrape session — full browser fingerprint to avoid 403
+        self.scrape_session = requests.Session()
+        self.scrape_session.headers.update({
             "User-Agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/124.0 Safari/537.36"
+                "Chrome/125.0.0.0 Safari/537.36"
             ),
-            "Accept-Language": "en-US,en;q=0.9",
+            "Accept": (
+                "text/html,application/xhtml+xml,application/xml;"
+                "q=0.9,image/avif,image/webp,*/*;q=0.8"
+            ),
+            "Accept-Language":    "en-US,en;q=0.9",
+            "Accept-Encoding":    "gzip, deflate, br",
+            "Connection":         "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+            "Sec-Fetch-Dest":     "document",
+            "Sec-Fetch-Mode":     "navigate",
+            "Sec-Fetch-Site":     "none",
+            "Sec-Fetch-User":     "?1",
+            "DNT":                "1",
         })
-        self.timeout = 12
+
+        self.api_timeout   = 20   # OAuth + Browse API calls
+        self.scrape_timeout = 15  # web scrape
 
         if self._sandbox:
             logger.info("eBay Valuator: SANDBOX mode — prices are test data only.")
@@ -102,7 +124,7 @@ class CardValuator:
             credentials = base64.b64encode(
                 f"{self._app_id}:{self._cert_id}".encode()
             ).decode()
-            r = self.session.post(
+            r = self.api_session.post(
                 self._oauth_url,
                 headers={
                     "Authorization": f"Basic {credentials}",
@@ -112,7 +134,7 @@ class CardValuator:
                     "grant_type": "client_credentials",
                     "scope":      BROWSE_SCOPE,
                 },
-                timeout=self.timeout,
+                timeout=self.api_timeout,
             )
             r.raise_for_status()
             data = r.json()
@@ -152,29 +174,26 @@ class CardValuator:
         }
 
         try:
-            r = self.session.get(
-                self._browse_url,
-                params=params,
-                headers={
-                    "Authorization":           f"Bearer {token}",
-                    "X-EBAY-C-MARKETPLACE-ID": "EBAY_US",
-                    "X-EBAY-C-ENDUSERCTX":     "contextualLocation=country=US",
-                },
-                timeout=self.timeout,
+            browse_headers = {
+                "Authorization":           f"Bearer {token}",
+                "X-EBAY-C-MARKETPLACE-ID": "EBAY_US",
+                "X-EBAY-C-ENDUSERCTX":     "contextualLocation=country=US",
+            }
+            r = self.api_session.get(
+                self._browse_url, params=params,
+                headers=browse_headers,
+                timeout=self.api_timeout,
             )
             if r.status_code == 401:
-                # Token may have expired mid-session — clear and retry once
                 self._token = None
                 token = self._get_token()
                 if not token:
                     return None
-                r = self.session.get(
+                browse_headers["Authorization"] = f"Bearer {token}"
+                r = self.api_session.get(
                     self._browse_url, params=params,
-                    headers={
-                        "Authorization":           f"Bearer {token}",
-                        "X-EBAY-C-MARKETPLACE-ID": "EBAY_US",
-                    },
-                    timeout=self.timeout,
+                    headers=browse_headers,
+                    timeout=self.api_timeout,
                 )
             r.raise_for_status()
             return self._parse_browse_response(r.json(), query)
@@ -230,7 +249,7 @@ class CardValuator:
                 f"?_nkw={quote(query)}"
                 f"&LH_Sold=1&LH_Complete=1&_ipg=100&_sop=13"
             )
-            r = self.session.get(url, timeout=self.timeout)
+            r = self.scrape_session.get(url, timeout=self.scrape_timeout)
             r.raise_for_status()
 
             raw_prices: List[float] = []
