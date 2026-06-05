@@ -31,9 +31,15 @@ class ImageBatchWorker(QThread):
     progress = pyqtSignal(str, int)
     finished = pyqtSignal(int)
 
+    # pairing modes
+    SINGLE     = "single"      # each image = one card
+    SEQUENTIAL = "sequential"  # files in order: 1=front, 2=back, 3=front, ...
+    FILENAME   = "filename"    # pair by *_front / *_back style names
+
     def __init__(self, folder: Path, db: Database, scanner: ScannerInterface,
                  inspector: CardInspector, identifier: CardIdentifier,
-                 valuator: CardValuator, auto_value: bool = False):
+                 valuator: CardValuator, auto_value: bool = False,
+                 pairing: str = "single"):
         super().__init__()
         self.folder = folder
         self.db = db
@@ -42,25 +48,95 @@ class ImageBatchWorker(QThread):
         self.identifier = identifier
         self.valuator = valuator
         self.auto_value = auto_value
+        self.pairing = pairing
+
+    # ── front/back pairing ────────────────────────────────────────────────────
+
+    @staticmethod
+    def _pair_images(paths, mode: str):
+        """Group image paths into (front, back|None) tuples per the chosen mode."""
+        if mode == ImageBatchWorker.SINGLE:
+            return [(p, None) for p in paths]
+
+        if mode == ImageBatchWorker.SEQUENTIAL:
+            pairs = []
+            for i in range(0, len(paths), 2):
+                front = paths[i]
+                back = paths[i + 1] if i + 1 < len(paths) else None
+                pairs.append((front, back))
+            return pairs
+
+        # FILENAME — match *_front / *_back (also f/b, front/rear, 1/2 suffixes)
+        import re
+        BACK_TOKENS  = ("back", "rear", "rev", "reverse")
+        FRONT_TOKENS = ("front", "frnt", "face", "obverse")
+
+        def classify(stem: str):
+            s = stem.lower()
+            # explicit words first
+            for t in BACK_TOKENS:
+                if t in s:
+                    return "back", re.sub(rf"[ _\-]*{t}", "", s)
+            for t in FRONT_TOKENS:
+                if t in s:
+                    return "front", re.sub(rf"[ _\-]*{t}", "", s)
+            # trailing single-letter / digit markers: _f/_b, -1/-2
+            m = re.search(r"[ _\-]([fb])$", s)
+            if m:
+                return ("front" if m.group(1) == "f" else "back"), s[:m.start()]
+            m = re.search(r"[ _\-]([12])$", s)
+            if m:
+                return ("front" if m.group(1) == "1" else "back"), s[:m.start()]
+            return None, s
+
+        groups: dict = {}
+        order = []
+        for p in paths:
+            side, base = classify(p.stem)
+            base = re.sub(r"[ _\-]+$", "", base).strip()
+            if base not in groups:
+                groups[base] = {"front": None, "back": None}
+                order.append(base)
+            slot = side or "front"
+            if groups[base][slot] is None:
+                groups[base][slot] = p
+            elif groups[base]["back"] is None:
+                groups[base]["back"] = p
+        return [(groups[b]["front"] or groups[b]["back"], groups[b]["back"]
+                 if groups[b]["front"] else None) for b in order]
+
+    def _load(self, path):
+        if path is None:
+            return None
+        img = self.scanner.scan_from_file(str(path))
+        if img is None:
+            return None
+        try:
+            from utils.image_ops import deskew
+            return deskew(img)
+        except Exception:
+            return img
 
     def run(self):
         images = sorted(list(self.folder.glob("*.png")) +
-                       list(self.folder.glob("*.jpg")) +
-                       list(self.folder.glob("*.jpeg")))
+                        list(self.folder.glob("*.jpg")) +
+                        list(self.folder.glob("*.jpeg")))
+        pairs = self._pair_images(images, self.pairing)
         added = 0
-        total = len(images)
+        total = max(1, len(pairs))
 
-        for i, img_path in enumerate(images):
+        for i, (front_path, back_path) in enumerate(pairs):
+            progress_pct = int((i + 1) / total * 100)
             try:
-                progress_pct = int((i + 1) / total * 100)
-                self.progress.emit(f"Processing {img_path.name}...", progress_pct)
+                self.progress.emit(f"Processing {front_path.name}…", progress_pct)
 
-                img = self.scanner.scan_from_file(str(img_path))
-                if img is None:
+                front = self._load(front_path)
+                if front is None:
                     continue
+                back = self._load(back_path)
 
-                info = self.identifier.identify_card(img)
-                inspection = self.inspector.inspect(img)
+                info = self.identifier.identify_card(front, back)
+                inspection = self.inspector.inspect(front)
 
                 estimate = 0.0
                 if self.auto_value and info.get('name'):
@@ -72,31 +148,38 @@ class ImageBatchWorker(QThread):
                     estimate = summary.get('estimated', 0.0)
 
                 ts = datetime.now().strftime('%Y%m%d_%H%M%S')
-                scan_path = str(SCANS_DIR / f"batch_{ts}_{img_path.stem}.png")
-                cv2.imwrite(scan_path, cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
+                front_scan = str(SCANS_DIR / f"batch_{ts}_{i:03d}_front.png")
+                cv2.imwrite(front_scan, cv2.cvtColor(front, cv2.COLOR_RGB2BGR))
+                back_scan = None
+                if back is not None:
+                    back_scan = str(SCANS_DIR / f"batch_{ts}_{i:03d}_back.png")
+                    cv2.imwrite(back_scan, cv2.cvtColor(back, cv2.COLOR_RGB2BGR))
 
                 card_data = {
-                    'name': info.get('name') or img_path.stem,
+                    'name': info.get('name') or front_path.stem,
                     'set_name': info.get('set_name'),
                     'card_number': info.get('card_number'),
                     'rarity': info.get('rarity'),
                     'game': info.get('game') or 'Other',
                     'year': info.get('year') or datetime.now().year,
-                    'front_scan_path': scan_path,
+                    'front_scan_path': front_scan,
+                    'back_scan_path': back_scan,
                     'condition_grade': inspection['grade'],
                     'condition_score': inspection['score'],
                     'defects': inspection['defects'],
                     'estimated_value': estimate,
                     'quantity': 1,
-                    'notes': f"Batch import from {img_path.name}",
+                    'notes': f"Batch import from {front_path.name}",
                 }
 
                 self.db.add_card(card_data)
                 added += 1
-                self.progress.emit(f"✅ Saved: {card_data['name']}", progress_pct)
+                sides = "front+back" if back is not None else "front"
+                self.progress.emit(f"✅ Saved: {card_data['name']} ({sides})", progress_pct)
 
             except Exception as e:
-                self.progress.emit(f"❌ Error on {img_path.name}: {str(e)[:80]}", progress_pct)
+                nm = front_path.name if front_path else "?"
+                self.progress.emit(f"❌ Error on {nm}: {str(e)[:80]}", progress_pct)
 
         self.finished.emit(added)
 
@@ -213,8 +296,27 @@ class BatchTab(QWidget):
         folder_row.addWidget(self.folder_btn)
         folder_row.addWidget(self.folder_label)
         folder_row.addStretch()
-        self.auto_value_check = QCheckBox("Auto-fetch online values after import")
         iw.addLayout(folder_row)
+
+        # Front/back pairing mode
+        pair_row = QHBoxLayout()
+        pair_row.addWidget(QLabel("Images:"))
+        self.pairing_combo = QComboBox()
+        self.pairing_combo.addItems([
+            "One image = one card",
+            "Front/back pairs — sequential (1=front, 2=back)",
+            "Front/back pairs — by filename (_front / _back)",
+        ])
+        self.pairing_combo.setMinimumWidth(320)
+        self.pairing_combo.setToolTip(
+            "How to group the files in the folder.\n"
+            "• Sequential: files in order are paired front, back, front, back…\n"
+            "• By filename: matches name_front.jpg with name_back.jpg")
+        pair_row.addWidget(self.pairing_combo)
+        pair_row.addStretch()
+        iw.addLayout(pair_row)
+
+        self.auto_value_check = QCheckBox("Auto-fetch online values after import")
         iw.addWidget(self.auto_value_check)
         sg.addWidget(self.image_widget)
 
@@ -300,9 +402,15 @@ class BatchTab(QWidget):
         self.log_text.clear()
 
         if self.mode_combo.currentIndex() == 0:
+            pairing = {
+                0: ImageBatchWorker.SINGLE,
+                1: ImageBatchWorker.SEQUENTIAL,
+                2: ImageBatchWorker.FILENAME,
+            }[self.pairing_combo.currentIndex()]
             self._batch_worker = ImageBatchWorker(
                 self.current_path, self.db, self.scanner, self.inspector,
-                self.identifier, self.valuator, self.auto_value_check.isChecked()
+                self.identifier, self.valuator, self.auto_value_check.isChecked(),
+                pairing,
             )
         else:
             dialog = CsvMappingDialog(self.current_path, self)
