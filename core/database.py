@@ -186,14 +186,19 @@ class Database:
             'quantity', 'defects',
         }
 
-        # Run through the same validation logic for the fields being updated
-        validated = self._validate_card({**updates, 'name': updates.get('name', 'Unknown')})
+        # Only touch the fields the caller actually provided. _validate_card
+        # injects defaults (foil=0, quantity=1, year=None, …); writing those
+        # for an un-passed field would clobber existing data, so we validate
+        # then emit columns strictly limited to the provided keys.
+        provided = {k for k in updates if k in allowed_fields}
+        if not provided:
+            return
+        validated = self._validate_card({**updates, 'name': updates.get('name', '')})
 
         fields = []
         values = []
-        for k, v in validated.items():
-            if k not in allowed_fields:
-                continue
+        for k in provided:
+            v = validated.get(k)
             if k == 'defects':
                 fields.append("defects_json = ?")
                 values.append(json.dumps(v))

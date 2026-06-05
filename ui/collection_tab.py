@@ -250,8 +250,9 @@ class CollectionTab(QWidget):
         card = self.db.get_card(ids[0])
         if card:
             valuations = self.db.get_valuations(card['id'])
-            dlg = CardDetailDialog(card, valuations, self)
-            dlg.exec()
+            dlg = CardDetailDialog(card, valuations, self.db, self)
+            if dlg.exec():        # Saved — reflect edits in the table
+                self.refresh()
 
     def _export_csv(self):
         path, _ = QFileDialog.getSaveFileName(
