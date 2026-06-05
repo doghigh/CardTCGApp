@@ -34,9 +34,10 @@ class ImageBatchWorker(QThread):
     finished = pyqtSignal(int)
 
     # pairing modes
-    SINGLE     = "single"      # each image = one card
-    SEQUENTIAL = "sequential"  # files in order: 1=front, 2=back, 3=front, ...
-    FILENAME   = "filename"    # pair by *_front / *_back style names
+    SINGLE      = "single"       # each image/page = one card
+    SEQUENTIAL  = "sequential"   # in order: 1=front, 2=back, 3=front, ...
+    FILENAME    = "filename"     # pair by *_front / *_back style names
+    ORIENTATION = "orientation"  # portrait=front, landscape=back; pair adjacent
 
     def __init__(self, folder: Path, db: Database, scanner: ScannerInterface,
                  inspector: CardInspector, identifier: CardIdentifier,
@@ -52,20 +53,84 @@ class ImageBatchWorker(QThread):
         self.auto_value = auto_value
         self.pairing = pairing
 
-    # ── front/back pairing ────────────────────────────────────────────────────
+    # ── page discovery (images + PDF pages) ───────────────────────────────────
 
     @staticmethod
-    def _pair_images(paths, mode: str):
-        """Group image paths into (front, back|None) tuples per the chosen mode."""
-        if mode == ImageBatchWorker.SINGLE:
-            return [(p, None) for p in paths]
+    def _image_size(path):
+        """(width, height) without fully decoding, or None."""
+        try:
+            from PIL import Image
+            with Image.open(path) as im:
+                return im.size
+        except Exception:
+            try:
+                arr = cv2.imread(str(path))
+                if arr is not None:
+                    return arr.shape[1], arr.shape[0]
+            except Exception:
+                pass
+        return None
 
-        if mode == ImageBatchWorker.SEQUENTIAL:
+    def _gather_pages(self):
+        """
+        Build a flat, ordered list of page descriptors from the folder.
+        Each descriptor: {source, page, kind, stem, side} where side is
+        'front' (portrait) or 'back' (landscape) by aspect ratio.
+        """
+        from utils import pdf_utils
+        files = sorted(
+            list(self.folder.glob("*.png")) + list(self.folder.glob("*.jpg")) +
+            list(self.folder.glob("*.jpeg")) + list(self.folder.glob("*.pdf"))
+        )
+        pages = []
+        for f in files:
+            if pdf_utils.is_pdf(f):
+                sizes = pdf_utils.page_sizes(f)
+                for idx, (w, h) in enumerate(sizes):
+                    stem = f.stem if len(sizes) == 1 else f"{f.stem}_p{idx + 1}"
+                    pages.append({"source": f, "page": idx, "kind": "pdf",
+                                  "stem": stem,
+                                  "side": "front" if h >= w else "back"})
+            else:
+                size = self._image_size(f)
+                side = "front"
+                if size:
+                    side = "front" if size[1] >= size[0] else "back"
+                pages.append({"source": f, "page": None, "kind": "image",
+                              "stem": f.stem, "side": side})
+        return pages
+
+    # ── pairing ────────────────────────────────────────────────────────────────
+
+    @classmethod
+    def _pair_pages(cls, pages, mode: str):
+        """Group page descriptors into (front, back|None) tuples."""
+        if mode == cls.SINGLE:
+            return [(p, None) for p in pages]
+
+        if mode == cls.SEQUENTIAL:
             pairs = []
-            for i in range(0, len(paths), 2):
-                front = paths[i]
-                back = paths[i + 1] if i + 1 < len(paths) else None
+            for i in range(0, len(pages), 2):
+                front = pages[i]
+                back = pages[i + 1] if i + 1 < len(pages) else None
                 pairs.append((front, back))
+            return pairs
+
+        if mode == cls.ORIENTATION:
+            # Anchor on each landscape BACK and pair it with the FOLLOWING
+            # portrait FRONT (vintage Topps order: back, then front). A leading
+            # orphan front (its back in a prior batch) becomes a single card.
+            pairs = []
+            i, n = 0, len(pages)
+            while i < n:
+                d = pages[i]
+                nxt = pages[i + 1] if i + 1 < n else None
+                if d["side"] == "back" and nxt and nxt["side"] == "front":
+                    pairs.append((nxt, d))          # (front, back)
+                    i += 2
+                else:
+                    pairs.append((d, None))          # orphan front / lone back
+                    i += 1
             return pairs
 
         # FILENAME — match *_front / *_back (also f/b, front/rear, 1/2 suffixes)
@@ -75,14 +140,12 @@ class ImageBatchWorker(QThread):
 
         def classify(stem: str):
             s = stem.lower()
-            # explicit words first
             for t in BACK_TOKENS:
                 if t in s:
                     return "back", re.sub(rf"[ _\-]*{t}", "", s)
             for t in FRONT_TOKENS:
                 if t in s:
                     return "front", re.sub(rf"[ _\-]*{t}", "", s)
-            # trailing single-letter / digit markers: _f/_b, -1/-2
             m = re.search(r"[ _\-]([fb])$", s)
             if m:
                 return ("front" if m.group(1) == "f" else "back"), s[:m.start()]
@@ -93,8 +156,8 @@ class ImageBatchWorker(QThread):
 
         groups: dict = {}
         order = []
-        for p in paths:
-            side, base = classify(p.stem)
+        for p in pages:
+            side, base = classify(p["stem"])
             base = re.sub(r"[ _\-]+$", "", base).strip()
             if base not in groups:
                 groups[base] = {"front": None, "back": None}
@@ -104,38 +167,46 @@ class ImageBatchWorker(QThread):
                 groups[base][slot] = p
             elif groups[base]["back"] is None:
                 groups[base]["back"] = p
-        return [(groups[b]["front"] or groups[b]["back"], groups[b]["back"]
-                 if groups[b]["front"] else None) for b in order]
+        return [(groups[b]["front"] or groups[b]["back"],
+                 groups[b]["back"] if groups[b]["front"] else None)
+                for b in order]
 
-    def _load(self, path):
-        if path is None:
+    # ── load a page descriptor to an RGB image ────────────────────────────────
+
+    def _load(self, desc):
+        if desc is None:
             return None
-        img = self.scanner.scan_from_file(str(path))
+        from utils import pdf_utils
+        from utils.image_ops import deskew
+        if desc["kind"] == "pdf":
+            img = pdf_utils.render_page(desc["source"], desc["page"], dpi=300)
+        else:
+            img = self.scanner.scan_from_file(str(desc["source"]))
         if img is None:
             return None
         try:
-            from utils.image_ops import deskew
             return deskew(img)
         except Exception:
             return img
 
+    # ── run ────────────────────────────────────────────────────────────────────
+
     def run(self):
-        images = sorted(list(self.folder.glob("*.png")) +
-                        list(self.folder.glob("*.jpg")) +
-                        list(self.folder.glob("*.jpeg")))
-        pairs = self._pair_images(images, self.pairing)
+        pages = self._gather_pages()
+        pairs = self._pair_pages(pages, self.pairing)
         added = 0
         total = max(1, len(pairs))
 
-        for i, (front_path, back_path) in enumerate(pairs):
+        for i, (front_desc, back_desc) in enumerate(pairs):
             progress_pct = int((i + 1) / total * 100)
+            label = front_desc["stem"] if front_desc else "?"
             try:
-                self.progress.emit(f"Processing {front_path.name}…", progress_pct)
+                self.progress.emit(f"Processing {label}…", progress_pct)
 
-                front = self._load(front_path)
+                front = self._load(front_desc)
                 if front is None:
                     continue
-                back = self._load(back_path)
+                back = self._load(back_desc)
 
                 info = self.identifier.identify_card(front, back)
                 inspection = self.inspector.inspect(front)
@@ -158,7 +229,7 @@ class ImageBatchWorker(QThread):
                     cv2.imwrite(back_scan, cv2.cvtColor(back, cv2.COLOR_RGB2BGR))
 
                 card_data = {
-                    'name': info.get('name') or front_path.stem,
+                    'name': info.get('name') or label,
                     'set_name': info.get('set_name'),
                     'card_number': info.get('card_number'),
                     'rarity': info.get('rarity'),
@@ -171,7 +242,7 @@ class ImageBatchWorker(QThread):
                     'defects': inspection['defects'],
                     'estimated_value': estimate,
                     'quantity': 1,
-                    'notes': f"Batch import from {front_path.name}",
+                    'notes': f"Batch import from {label}",
                 }
 
                 self.db.add_card(card_data)
@@ -180,8 +251,7 @@ class ImageBatchWorker(QThread):
                 self.progress.emit(f"✅ Saved: {card_data['name']} ({sides})", progress_pct)
 
             except Exception as e:
-                nm = front_path.name if front_path else "?"
-                self.progress.emit(f"❌ Error on {nm}: {str(e)[:80]}", progress_pct)
+                self.progress.emit(f"❌ Error on {label}: {str(e)[:80]}", progress_pct)
 
         self.finished.emit(added)
 
@@ -311,12 +381,15 @@ class BatchTab(QWidget):
             "One image = one card",
             "Front/back pairs — sequential (1=front, 2=back)",
             "Front/back pairs — by filename (_front / _back)",
+            "Front/back auto — by orientation (sideways backs)",
         ])
-        self.pairing_combo.setMinimumWidth(320)
+        self.pairing_combo.setMinimumWidth(340)
         self.pairing_combo.setToolTip(
-            "How to group the files in the folder.\n"
-            "• Sequential: files in order are paired front, back, front, back…\n"
-            "• By filename: matches name_front.jpg with name_back.jpg")
+            "How to group the files (images or PDFs) in the folder.\n"
+            "• Sequential: paired in order front, back, front, back…\n"
+            "• By filename: matches name_front with name_back\n"
+            "• By orientation: portrait pages are fronts, landscape pages are\n"
+            "  backs (e.g. vintage Topps); each back pairs with its front.")
         pair_row.addWidget(self.pairing_combo)
         pair_row.addStretch()
         iw.addLayout(pair_row)
@@ -437,9 +510,11 @@ class BatchTab(QWidget):
             "One image = one card",
             "Front/back pairs — sequential",
             "Front/back pairs — by filename",
+            "Front/back auto — by orientation",
         ])
         self.watch_pairing.setCurrentIndex(
-            {"single": 0, "sequential": 1, "filename": 2}.get(cfg.pairing, 0))
+            {"single": 0, "sequential": 1, "filename": 2, "orientation": 3}
+            .get(cfg.pairing, 0))
         self.watch_pairing.currentIndexChanged.connect(self._save_watch)
         p_row.addWidget(self.watch_pairing)
         self.watch_autovalue = QCheckBox("Auto-value")
@@ -482,8 +557,8 @@ class BatchTab(QWidget):
         cfg.mode = "daily" if self.watch_mode.currentIndex() == 0 else "interval"
         cfg.time = self.watch_time.time().toString("HH:mm")
         cfg.interval_min = self.watch_interval.value()
-        cfg.pairing = {0: "single", 1: "sequential", 2: "filename"}[
-            self.watch_pairing.currentIndex()]
+        cfg.pairing = {0: "single", 1: "sequential", 2: "filename",
+                       3: "orientation"}[self.watch_pairing.currentIndex()]
         cfg.auto_value = self.watch_autovalue.isChecked()
         cfg.save()
         if hasattr(self, "watch_status"):
@@ -546,6 +621,7 @@ class BatchTab(QWidget):
                 0: ImageBatchWorker.SINGLE,
                 1: ImageBatchWorker.SEQUENTIAL,
                 2: ImageBatchWorker.FILENAME,
+                3: ImageBatchWorker.ORIENTATION,
             }[self.pairing_combo.currentIndex()]
             self._batch_worker = ImageBatchWorker(
                 self.current_path, self.db, self.scanner, self.inspector,

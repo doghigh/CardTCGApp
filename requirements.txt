@@ -3,6 +3,7 @@ PyQt6==6.7.0
 opencv-python==4.10.0.84
 numpy==1.26.4
 Pillow==10.4.0
+pypdfium2==4.30.0  # PDF rendering (Apache/BSD license, no external binaries)
 requests==2.32.0
 beautifulsoup4==4.12.3
 pytesseract==0.3.13

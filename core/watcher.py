@@ -24,7 +24,7 @@ APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "TradingCardManager"
 APP_DIR.mkdir(parents=True, exist_ok=True)
 CONFIG_FILE = APP_DIR / "watch_config.json"
 
-IMAGE_EXTS = ("*.png", "*.jpg", "*.jpeg")
+IMAGE_EXTS = ("*.png", "*.jpg", "*.jpeg", "*.pdf")
 IMPORTED_SUBDIR = "imported"
 
 
