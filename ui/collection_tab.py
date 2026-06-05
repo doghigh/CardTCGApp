@@ -5,9 +5,11 @@ Fixed: Input validation, safe operations, better error handling.
 
 import csv
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 import os
+
+import cv2
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit,
@@ -74,14 +76,82 @@ class RevalueWorker(QThread):
         self.finished.emit()
 
 
+class ReidentifyWorker(QThread):
+    """Re-run vision identification on saved scans, then re-value."""
+    progress = pyqtSignal(int, int)   # (done, total)
+    finished = pyqtSignal(int)        # number of cards updated
+
+    def __init__(self, db: Database, identifier, valuator: CardValuator,
+                 ids: List[int]):
+        super().__init__()
+        self.db = db
+        self.identifier = identifier
+        self.valuator = valuator
+        self.ids = ids
+
+    @staticmethod
+    def _load(path: Optional[str]):
+        if not path or not Path(path).exists():
+            return None
+        img = cv2.imread(path)
+        return cv2.cvtColor(img, cv2.COLOR_BGR2RGB) if img is not None else None
+
+    def run(self):
+        updated = 0
+        total = len(self.ids)
+        for i, cid in enumerate(self.ids):
+            card = self.db.get_card(cid)
+            if not card:
+                self.progress.emit(i + 1, total)
+                continue
+
+            front = self._load(card.get('front_scan_path'))
+            back = self._load(card.get('back_scan_path'))
+            if front is None:
+                self.progress.emit(i + 1, total)
+                continue
+
+            try:
+                info = self.identifier.identify_card(front, back)
+                # Only overwrite fields the model actually returned
+                updates = {}
+                for key in ('name', 'set_name', 'card_number', 'rarity', 'game'):
+                    if info.get(key):
+                        updates[key] = info[key]
+                if info.get('year'):
+                    updates['year'] = info['year']
+                if updates:
+                    self.db.update_card(cid, updates)
+                    updated += 1
+
+                # Re-value with the (possibly corrected) identity
+                summary = self.valuator.value_summary(
+                    updates.get('name', card.get('name')),
+                    updates.get('set_name', card.get('set_name')),
+                    updates.get('game', card.get('game')),
+                    card.get('condition_grade'),
+                    card.get('condition_score') or 85.0,
+                )
+                est = summary.get('estimated', 0.0)
+                if est > 0:
+                    self.db.update_card(cid, {'estimated_value': est})
+            except Exception as e:
+                print(f"Re-identify error for card {cid}: {e}")
+
+            self.progress.emit(i + 1, total)
+        self.finished.emit(updated)
+
+
 class CollectionTab(QWidget):
     """Collection browser tab."""
 
-    def __init__(self, db: Database, valuator: CardValuator):
+    def __init__(self, db: Database, valuator: CardValuator, identifier=None):
         super().__init__()
         self.db = db
         self.valuator = valuator
+        self.identifier = identifier
         self._revalue_worker = None
+        self._reid_worker = None
         self._build_ui()
         self.refresh()
 
@@ -102,6 +172,10 @@ class CollectionTab(QWidget):
         self.revalue_btn = QPushButton("💰 Re-value Selected")
         self.revalue_btn.clicked.connect(self._revalue_selected)
 
+        self.reid_btn = QPushButton("🔍 Re-identify Selected")
+        self.reid_btn.setToolTip("Re-read name/set from the saved scans (uses the AI vision API), then re-value")
+        self.reid_btn.clicked.connect(self._reidentify_selected)
+
         self.merge_btn = QPushButton("🔁 Merge Duplicates")
         self.merge_btn.setToolTip("Combine duplicate cards into one row with summed quantity")
         self.merge_btn.clicked.connect(self._merge_duplicates)
@@ -115,6 +189,7 @@ class CollectionTab(QWidget):
         bar.addWidget(self.search_edit)
         bar.addWidget(self.refresh_btn)
         bar.addWidget(self.revalue_btn)
+        bar.addWidget(self.reid_btn)
         bar.addWidget(self.merge_btn)
         bar.addWidget(self.delete_btn)
         bar.addWidget(self.export_btn)
@@ -230,6 +305,48 @@ class CollectionTab(QWidget):
             for cid in ids:
                 self.db.delete_card(cid)
             self.refresh()
+
+    def _reidentify_selected(self):
+        """Re-run vision identification on the selected cards' saved scans."""
+        ids = self._selected_ids()
+        if not ids:
+            return
+        if self.identifier is None:
+            QMessageBox.warning(self, "Unavailable",
+                                "Identifier is not available.")
+            return
+        if self._reid_worker and self._reid_worker.isRunning():
+            QMessageBox.warning(self, "In Progress", "Re-identification already running.")
+            return
+
+        reply = QMessageBox.question(
+            self, "Re-identify Cards",
+            f"Re-read name, set and details for {len(ids)} card(s) from their "
+            f"saved scans, then re-value them?\n\n"
+            f"This uses the AI vision API (~$0.006 per card) and will overwrite "
+            f"the current text fields with what it reads.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        self.reid_btn.setEnabled(False)
+        self.reid_btn.setText("⏳ Re-identifying…")
+        self._reid_worker = ReidentifyWorker(self.db, self.identifier, self.valuator, ids)
+        self._reid_worker.progress.connect(self._on_reid_progress)
+        self._reid_worker.finished.connect(self._on_reid_finished)
+        self._reid_worker.start()
+
+    def _on_reid_progress(self, done: int, total: int):
+        self.reid_btn.setText(f"⏳ Re-identifying… {done}/{total}")
+
+    def _on_reid_finished(self, updated: int):
+        self.reid_btn.setEnabled(True)
+        self.reid_btn.setText("🔍 Re-identify Selected")
+        self.refresh()
+        QMessageBox.information(self, "Re-identify Complete",
+                               f"Updated {updated} card(s) from their scans.")
 
     def _merge_duplicates(self):
         """Consolidate existing duplicate rows into single rows with summed qty."""

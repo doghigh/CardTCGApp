@@ -63,7 +63,7 @@ class MainWindow(QMainWindow):
 
         self.scan_tab = ScanTab(self.db, self.scanner, self.inspector, self.identifier, self.valuator)
         self.batch_tab = BatchTab(self.db, self.scanner, self.inspector, self.identifier, self.valuator)
-        self.collection_tab = CollectionTab(self.db, self.valuator)
+        self.collection_tab = CollectionTab(self.db, self.valuator, self.identifier)
         self.reports_tab = ReportsTab(self.db)
 
         # Connect signals

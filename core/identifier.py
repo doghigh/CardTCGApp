@@ -19,19 +19,37 @@ except ImportError:
     HAS_TESSERACT = False
 
 
-VISION_PROMPT = """You are a trading card expert. Examine this card image and extract the following fields.
-Respond with ONLY a JSON object — no markdown, no explanation.
+VISION_PROMPT = """You are a trading card expert. Examine this card image and extract the fields below.
+Respond with ONLY a JSON object — no markdown, no commentary.
 
 Fields:
-- name: player name or card name (string)
-- set_name: the set or brand name (e.g. "Fleer", "Topps", "Base Set") (string)
-- card_number: card number as printed (string)
-- rarity: rarity if present, else null
-- year: 4-digit year as integer, or null
-- game: one of "Baseball", "Basketball", "Football", "Hockey", "Magic: The Gathering", "Pokémon", "Yu-Gi-Oh!", "One Piece", "Lorcana", "Sports Cards", or "Other"
+- name: the card's TITLE — the text in the title bar at the very TOP of the card.
+    * Magic cards: the card name printed at the top. Do NOT use the type line
+      (e.g. "Summon Creature", "Summon Elf", "Summon Wall", "Creature — Elf",
+      "Artifact", "Instant"). The type line sits in the MIDDLE of the card,
+      below the art, and is NEVER the name.
+    * Sports cards: the player's name.
+- set_name: the specific set / expansion name or set code (e.g. "Tempest",
+    "Fallen Empires", "FEM", "Topps", "Fleer"). If you cannot clearly identify
+    the set, use null. NEVER put the game's name (e.g. "Magic: The Gathering")
+    in this field.
+- card_number: the collector number exactly as printed (often a bottom corner,
+    e.g. "86", "011/011", "4/5"), else null.
+- rarity: rarity if shown (Common / Uncommon / Rare / Mythic, or a sports
+    insert label), else null.
+- year: 4-digit year as an integer if visible (often in the bottom copyright
+    line), else null.
+- game: one of "Baseball", "Basketball", "Football", "Hockey",
+    "Magic: The Gathering", "Pokémon", "Yu-Gi-Oh!", "One Piece", "Lorcana",
+    "Sports Cards", or "Other".
 
-Example response:
-{"name": "Manny Lee", "set_name": "Fleer", "card_number": "86", "rarity": null, "year": 1990, "game": "Baseball"}"""
+Important:
+- Older Magic cards (pre-2003) print the type as "Summon <type>". Ignore that
+  line completely when choosing the name — read the title bar at the top.
+- A token's name is its creature/permanent name at the top (e.g. "Plant").
+- If a field is unreadable or absent, use null rather than guessing.
+
+Example: {"name": "Elvish Farmer", "set_name": "Fallen Empires", "card_number": null, "rarity": "Common", "year": 1994, "game": "Magic: The Gathering"}"""
 
 
 class CardIdentifier:
@@ -122,10 +140,18 @@ class CardIdentifier:
             raw = re.sub(r'^```[a-z]*\n?', '', raw)
             raw = re.sub(r'\n?```$', '', raw)
             data = json.loads(raw)
-            # Normalise keys
+
+            # Defensive cleanup: never let the game name leak into set_name
+            set_name = data.get('set_name') or None
+            if set_name and set_name.strip().lower() in {
+                "magic: the gathering", "magic the gathering", "magic", "mtg",
+                "pokemon", "pokémon", "yu-gi-oh!", "yugioh",
+            }:
+                set_name = None
+
             return {
                 'name': data.get('name') or None,
-                'set_name': data.get('set_name') or None,
+                'set_name': set_name,
                 'card_number': str(data['card_number']) if data.get('card_number') else None,
                 'rarity': data.get('rarity') or None,
                 'year': int(data['year']) if data.get('year') else None,
