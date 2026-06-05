@@ -24,6 +24,24 @@ from ui.dialogs import CardDetailDialog
 APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "TradingCardManager"
 
 
+class _SortItem(QTableWidgetItem):
+    """Table item that sorts by an underlying value, not its display text.
+
+    Lets numeric/date columns (price, score, qty, added) sort correctly
+    instead of lexicographically (e.g. so $9 < $10, and 2 < 100).
+    """
+    def __init__(self, text: str, sort_key=None):
+        super().__init__(text)
+        self._sort_key = text if sort_key is None else sort_key
+
+    def __lt__(self, other):
+        if isinstance(other, _SortItem):
+            try:
+                return self._sort_key < other._sort_key
+            except TypeError:
+                return str(self._sort_key) < str(other._sort_key)
+        return super().__lt__(other)
+
 
 class RevalueWorker(QThread):
     """Background thread for re-valuating cards."""
@@ -112,6 +130,9 @@ class CollectionTab(QWidget):
         self.table.setAlternatingRowColors(True)
         self.table.horizontalHeader().setStretchLastSection(True)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        # Click a column header to sort by it (toggles asc/desc)
+        self.table.setSortingEnabled(True)
+        self.table.horizontalHeader().setSortIndicatorShown(True)
         self.table.doubleClicked.connect(self._show_detail)
         layout.addWidget(self.table)
 
@@ -128,45 +149,53 @@ class CollectionTab(QWidget):
             f"Net: <b>${stats.get('total_value', 0) - stats.get('total_cost', 0):+,.2f}</b>"
         )
 
+        # Disable sorting while repopulating, otherwise rows shuffle mid-insert
+        self.table.setSortingEnabled(False)
         self.table.setRowCount(len(cards))
         for i, c in enumerate(cards):
+            try:
+                cid = int(c.get('id', 0) or 0)
+            except (ValueError, TypeError):
+                cid = 0
             qty = int(c.get('quantity', 1) or 1)
             val = float(c.get('estimated_value', 0) or 0)
-            
-            # Safe condition score handling
-            score = c.get('condition_score')
-            score_display = f"{float(score):.1f}" if score is not None else "—"
 
+            score = c.get('condition_score')
+            try:
+                score_val = float(score) if score is not None else -1.0
+            except (ValueError, TypeError):
+                score_val = -1.0
+            score_display = f"{score_val:.1f}" if score_val >= 0 else "—"
+
+            created = str(c.get('created_at', '') or '')
+
+            # (display_text, sort_key) per column
             cells = [
-                str(c.get('id', '')),
-                c.get('name', ''),
-                c.get('set_name', ''),
-                c.get('card_number', ''),
-                c.get('game', ''),
-                c.get('condition_grade', '') or "—",
-                score_display,                    # Fixed here
-                str(qty),
-                f"${val:.2f}",
-                f"${val * qty:.2f}",
-                str(c.get('created_at', ''))[:10]
+                (str(cid),                          cid),
+                (c.get('name', '') or '',           (c.get('name', '') or '').lower()),
+                (c.get('set_name', '') or '',       (c.get('set_name', '') or '').lower()),
+                (c.get('card_number', '') or '',    c.get('card_number', '') or ''),
+                (c.get('game', '') or '',           (c.get('game', '') or '').lower()),
+                (c.get('condition_grade', '') or "—", score_val),  # grade sorts by score
+                (score_display,                     score_val),
+                (str(qty),                          qty),
+                (f"${val:.2f}",                     val),
+                (f"${val * qty:.2f}",               val * qty),
+                (created[:10],                      created),
             ]
 
-            for j, text in enumerate(cells):
-                item = QTableWidgetItem(text)
-                # Color coding for score
-                if j == 6 and score is not None:   # Score column
-                    try:
-                        s = float(score)
-                        if s >= 90:
-                            item.setForeground(QColor("#38a169"))
-                        elif s >= 70:
-                            item.setForeground(QColor("#d69e2e"))
-                        else:
-                            item.setForeground(QColor("#e53e3e"))
-                    except (ValueError, TypeError):
-                        # Score not convertible to float
-                        pass
+            for j, (text, key) in enumerate(cells):
+                item = _SortItem(text, key)
+                if j == 6 and score_val >= 0:   # Score column colour coding
+                    if score_val >= 90:
+                        item.setForeground(QColor("#38a169"))
+                    elif score_val >= 70:
+                        item.setForeground(QColor("#d69e2e"))
+                    else:
+                        item.setForeground(QColor("#e53e3e"))
                 self.table.setItem(i, j, item)
+
+        self.table.setSortingEnabled(True)
                 
     def _selected_ids(self) -> List[int]:
         """Get selected card IDs."""
