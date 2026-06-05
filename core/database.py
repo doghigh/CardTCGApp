@@ -145,9 +145,53 @@ class Database:
 
         return v
 
-    def add_card(self, card: Dict) -> int:
-        """Add a new card to the database after input validation."""
+    def find_duplicate(self, card: Dict) -> Optional[int]:
+        """
+        Return the id of an existing card that is the same printing, or None.
+
+        Match key: name (case-insensitive) + set + card number + game + foil.
+        Condition is intentionally excluded so multiple copies of the same card
+        combine into one quantity even if the grader scored them slightly
+        differently.
+        """
+        with self._lock, self._conn() as conn:
+            row = conn.execute("""
+                SELECT id FROM cards
+                WHERE LOWER(IFNULL(name,'')) = LOWER(IFNULL(?,''))
+                  AND IFNULL(set_name,'')    = IFNULL(?,'')
+                  AND IFNULL(card_number,'') = IFNULL(?,'')
+                  AND IFNULL(game,'')        = IFNULL(?,'')
+                  AND IFNULL(foil,0)         = IFNULL(?,0)
+                ORDER BY id ASC LIMIT 1
+            """, (
+                card.get('name'), card.get('set_name'),
+                card.get('card_number'), card.get('game'),
+                int(card.get('foil', 0)),
+            )).fetchone()
+            return int(row['id']) if row else None
+
+    def add_card(self, card: Dict, merge_duplicates: bool = True) -> int:
+        """
+        Add a card after validation.
+
+        If merge_duplicates is True (default) and a matching card already
+        exists, its quantity is increased instead of inserting a new row;
+        the existing card's id is returned.
+        """
         card = self._validate_card(card)
+
+        if merge_duplicates:
+            dup_id = self.find_duplicate(card)
+            if dup_id is not None:
+                add_qty = int(card.get('quantity', 1) or 1)
+                with self._lock, self._conn() as conn:
+                    conn.execute(
+                        "UPDATE cards SET quantity = quantity + ?, "
+                        "updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                        (add_qty, dup_id),
+                    )
+                return dup_id
+
         with self._lock, self._conn() as conn:
             cursor = conn.execute("""
                 INSERT INTO cards (

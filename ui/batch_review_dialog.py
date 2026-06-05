@@ -435,6 +435,7 @@ class BatchReviewDialog(QDialog):
 
     def _save_selected(self):
         saved = 0
+        merged = 0
         errors = 0
         timestamp_base = datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -447,18 +448,6 @@ class BatchReviewDialog(QDialog):
             images = result.get('images', [])
 
             try:
-                # Save scan images to disk
-                front_path = back_path = None
-                if images:
-                    ts = f"{timestamp_base}_{row:03d}"
-                    front_path = str(SCANS_DIR / f"{ts}_front.png")
-                    cv2.imwrite(front_path,
-                                cv2.cvtColor(images[0], cv2.COLOR_RGB2BGR))
-                    if len(images) > 1:
-                        back_path = str(SCANS_DIR / f"{ts}_back.png")
-                        cv2.imwrite(back_path,
-                                    cv2.cvtColor(images[1], cv2.COLOR_RGB2BGR))
-
                 # Read current field values from table
                 name  = (self._table.item(row, COL_NAME)  or QTableWidgetItem('')).text().strip()
                 set_n = (self._table.item(row, COL_SET)   or QTableWidgetItem('')).text().strip()
@@ -481,8 +470,6 @@ class BatchReviewDialog(QDialog):
                     'year':            year,
                     'language':        'English',
                     'foil':            0,
-                    'front_scan_path': front_path,
-                    'back_scan_path':  back_path,
                     'condition_grade': result.get('grade'),
                     'condition_score': result.get('score'),
                     'defects':         result.get('defects', []),
@@ -490,10 +477,27 @@ class BatchReviewDialog(QDialog):
                     'purchase_price':  0.0,
                     'quantity':        1,
                 }
-                self.db.add_card(card_data)
-                saved += 1
 
-                # Dim the row to show it's been saved
+                # If this merges into an existing card, skip writing image files
+                # (they'd be orphaned — the original card keeps its scans).
+                is_dup = self.db.find_duplicate(card_data) is not None
+                if not is_dup and images:
+                    ts = f"{timestamp_base}_{row:03d}"
+                    front_path = str(SCANS_DIR / f"{ts}_front.png")
+                    cv2.imwrite(front_path, cv2.cvtColor(images[0], cv2.COLOR_RGB2BGR))
+                    card_data['front_scan_path'] = front_path
+                    if len(images) > 1:
+                        back_path = str(SCANS_DIR / f"{ts}_back.png")
+                        cv2.imwrite(back_path, cv2.cvtColor(images[1], cv2.COLOR_RGB2BGR))
+                        card_data['back_scan_path'] = back_path
+
+                self.db.add_card(card_data)
+                if is_dup:
+                    merged += 1
+                else:
+                    saved += 1
+
+                # Dim the row to show it's been handled
                 for col in range(NCOLS):
                     item = self._table.item(row, col)
                     if item:
@@ -505,8 +509,10 @@ class BatchReviewDialog(QDialog):
                 errors += 1
                 print(f"Save error row {row}: {exc}")
 
-        msg = f"✅ Saved {saved} card(s)."
+        msg = f"✅ Saved {saved} new card(s)."
+        if merged:
+            msg += f"\n🔁 {merged} duplicate(s) merged into existing cards (quantity increased)."
         if errors:
-            msg += f"  ⚠ {errors} error(s) — check console."
+            msg += f"\n⚠ {errors} error(s) — check console."
         QMessageBox.information(self, "Batch Save Complete", msg)
         self.accept()

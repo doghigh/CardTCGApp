@@ -535,12 +535,21 @@ class ScanTab(QWidget):
                 'estimated_value': estimated,
             }
 
+            # Detect whether this will merge into an existing card
+            existing_id = self.db.find_duplicate(card_data)
             card_id = self.db.add_card(card_data)
 
             val_msg = (f"\n💰 Est. value: ${estimated:.2f} ({val_source}, {val_sample} sales)"
                        if estimated > 0 else "\n💰 No market data found")
-            QMessageBox.information(self, "Success",
-                f"✅ Card saved!\nID: {card_id}  •  {name}{val_msg}")
+            if existing_id is not None:
+                merged = self.db.get_card(card_id)
+                qty = merged.get('quantity', '?') if merged else '?'
+                QMessageBox.information(self, "Quantity Updated",
+                    f"🔁 Duplicate of an existing card — quantity is now {qty}.\n"
+                    f"{name}{val_msg}")
+            else:
+                QMessageBox.information(self, "Success",
+                    f"✅ Card saved!\nID: {card_id}  •  {name}{val_msg}")
 
             # Clear form for next card
             self._reset_form()
