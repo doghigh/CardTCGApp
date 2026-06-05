@@ -94,98 +94,108 @@ class CardInspector:
         rather than a large quadrant, to avoid false positives from card borders.
         """
         h, w = img.shape[:2]
-        # Small tip region — at 400 DPI a real corner fray is tiny
+        gray_full = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY) if len(img.shape) == 3 else img
         tip = max(6, min(h, w) // 20)   # ~50-70px at 400 DPI
 
+        # Border baseline: how white is the *undamaged* border? Sample the
+        # mid-points of each edge (away from corners). A white-bordered card
+        # has a high baseline, so a white corner is NOT a defect; only a corner
+        # that is whiter than this baseline indicates real wear.
+        baseline = self._border_white_baseline(gray_full, tip)
+
         corners = {
-            'top_left':     img[0:tip, 0:tip],
-            'top_right':    img[0:tip, max(0, w - tip):w],
-            'bottom_left':  img[max(0, h - tip):h, 0:tip],
-            'bottom_right': img[max(0, h - tip):h, max(0, w - tip):w],
+            'top_left':     gray_full[0:tip, 0:tip],
+            'top_right':    gray_full[0:tip, max(0, w - tip):w],
+            'bottom_left':  gray_full[max(0, h - tip):h, 0:tip],
+            'bottom_right': gray_full[max(0, h - tip):h, max(0, w - tip):w],
         }
 
         defects = []
         for name, region in corners.items():
             if region.size == 0:
                 continue
-            gray = (cv2.cvtColor(region, cv2.COLOR_RGB2GRAY)
-                    if len(region.shape) == 3 else region)
 
-            # White ratio — true corner damage shows significantly elevated whites
-            white_ratio = np.sum(gray > 230) / gray.size
+            white_ratio = np.sum(region > 230) / region.size
+            # Excess whiteness vs the pristine border (negative ⇒ not damaged)
+            excess = white_ratio - baseline
 
-            # Edge roughness — fraying produces irregular high-frequency edges
-            edges = cv2.Canny(gray, 40, 120)
-            edge_density = np.sum(edges > 0) / max(edges.size, 1)
-
-            # Calibrated thresholds (scanner corners are naturally bright)
-            if white_ratio > 0.72:
-                severity = 'severe' if white_ratio > 0.88 else 'moderate'
+            if excess > 0.35:
+                severity = 'severe' if excess > 0.55 else 'moderate'
                 defects.append({
-                    'type': 'corner_whitening',
-                    'location': name,
-                    'severity': severity,
-                    'metric': round(float(white_ratio), 3),
+                    'type': 'corner_whitening', 'location': name,
+                    'severity': severity, 'metric': round(float(excess), 3),
                 })
-            elif white_ratio > 0.58:
+            elif excess > 0.22:
                 defects.append({
-                    'type': 'corner_whitening',
-                    'location': name,
-                    'severity': 'minor',
-                    'metric': round(float(white_ratio), 3),
+                    'type': 'corner_whitening', 'location': name,
+                    'severity': 'minor', 'metric': round(float(excess), 3),
                 })
 
-            if edge_density > 0.45:
+            # Fraying = high-frequency roughness at the tip (rounded/chewed corner)
+            edge_density = np.sum(cv2.Canny(region, 40, 120) > 0) / max(region.size, 1)
+            if edge_density > 0.55:
                 defects.append({
-                    'type': 'corner_fraying',
-                    'location': name,
-                    'severity': 'moderate' if edge_density > 0.60 else 'minor',
+                    'type': 'corner_fraying', 'location': name,
+                    'severity': 'moderate' if edge_density > 0.70 else 'minor',
                     'metric': round(float(edge_density), 3),
                 })
 
         return defects
+
+    def _border_white_baseline(self, gray: np.ndarray, tip: int) -> float:
+        """Median white-ratio of the four edge mid-sections (the pristine border)."""
+        h, w = gray.shape[:2]
+        t = max(4, min(h, w) // 50)
+        mids = [
+            gray[0:t, w // 4: 3 * w // 4],          # top mid
+            gray[h - t:h, w // 4: 3 * w // 4],      # bottom mid
+            gray[h // 4: 3 * h // 4, 0:t],          # left mid
+            gray[h // 4: 3 * h // 4, w - t:w],      # right mid
+        ]
+        ratios = [np.sum(m > 230) / m.size for m in mids if m.size > 0]
+        return float(np.median(ratios)) if ratios else 0.0
 
     # ------------------------------------------------------------------ #
     #  Edge analysis                                                       #
     # ------------------------------------------------------------------ #
 
     def _detect_edge_wear(self, img: np.ndarray) -> List[Dict]:
-        """Detect edge whitening along the four sides."""
-        h, w = img.shape[:2]
-        # Thin strip — scanner border is already excluded by inset in crop step
-        thickness = max(4, min(h, w) // 50)
+        """
+        Detect edge whitening by comparing the extreme edge strip to a strip
+        just inside it. Real edge wear makes the very edge whiter than the
+        material right behind it. On a white-bordered card both strips are
+        white (≈equal) → no false positive.
+        """
+        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY) if len(img.shape) == 3 else img
+        h, w = gray.shape
+        t = max(3, min(h, w) // 60)   # edge strip thickness
 
+        # (edge strip, reference strip just inside it)
         regions = {
-            'top':    img[0:thickness, :],
-            'bottom': img[max(0, h - thickness):h, :],
-            'left':   img[:, 0:thickness],
-            'right':  img[:, max(0, w - thickness):w],
+            'top':    (gray[0:t, :],                gray[t:2 * t, :]),
+            'bottom': (gray[h - t:h, :],            gray[h - 2 * t:h - t, :]),
+            'left':   (gray[:, 0:t],                gray[:, t:2 * t]),
+            'right':  (gray[:, w - t:w],            gray[:, w - 2 * t:w - t]),
         }
 
         defects = []
-        for name, region in regions.items():
-            if region.size == 0:
+        for name, (edge, ref) in regions.items():
+            if edge.size == 0 or ref.size == 0:
                 continue
-            gray = (cv2.cvtColor(region, cv2.COLOR_RGB2GRAY)
-                    if len(region.shape) == 3 else region)
+            edge_white = np.sum(edge > 230) / edge.size
+            ref_white  = np.sum(ref  > 230) / ref.size
+            excess = edge_white - ref_white
 
-            white_ratio = np.sum(gray > 230) / gray.size
-
-            # Higher threshold than corners — edges are naturally brighter on cards
-            if white_ratio > 0.65:
-                severity = 'severe' if white_ratio > 0.82 else 'moderate'
+            if excess > 0.30:
+                severity = 'severe' if excess > 0.50 else 'moderate'
                 defects.append({
-                    'type': 'edge_whitening',
-                    'location': name,
-                    'severity': severity,
-                    'metric': round(float(white_ratio), 3),
+                    'type': 'edge_whitening', 'location': name,
+                    'severity': severity, 'metric': round(float(excess), 3),
                 })
-            elif white_ratio > 0.50:
+            elif excess > 0.18:
                 defects.append({
-                    'type': 'edge_whitening',
-                    'location': name,
-                    'severity': 'minor',
-                    'metric': round(float(white_ratio), 3),
+                    'type': 'edge_whitening', 'location': name,
+                    'severity': 'minor', 'metric': round(float(excess), 3),
                 })
 
         return defects
@@ -195,52 +205,57 @@ class CardInspector:
     # ------------------------------------------------------------------ #
 
     def _detect_surface_defects(self, img: np.ndarray) -> List[Dict]:
-        """Detect creases, scratches, and significant staining."""
+        """Detect creases/scratches and localized staining (conservative)."""
         defects = []
         gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY) if len(img.shape) == 3 else img
         h, w = gray.shape
 
-        # Crop inset to avoid card border lines triggering crease detection
-        inset = max(10, min(h, w) // 12)
-        center = gray[inset:h - inset, inset:w - inset]
-        if center.size == 0:
+        # Inset 22% on each side — keeps the analysis well clear of the card's
+        # printed frame/border lines that previously triggered false creases.
+        inset_x = max(15, int(w * 0.22))
+        inset_y = max(15, int(h * 0.22))
+        center = gray[inset_y:h - inset_y, inset_x:w - inset_x]
+        if center.size == 0 or min(center.shape[:2]) < 40:
             return defects
 
-        # Crease / scratch detection — long straight lines through the card face
-        edges = cv2.Canny(center, 50, 150)
         min_dim = min(center.shape[:2])
+        edges = cv2.Canny(center, 60, 180)
         lines = cv2.HoughLinesP(
             edges, 1, np.pi / 180,
-            threshold=60,
-            minLineLength=min_dim // 3,
-            maxLineGap=15,
+            threshold=90,
+            minLineLength=int(min_dim * 0.55),   # a crease spans most of the face
+            maxLineGap=8,
         )
         if lines is not None:
+            # A real crease is a long, near-perfectly straight line. Photo content
+            # (bats, shoulders, text) rarely produces multiple such lines.
             long_lines = [
                 l for l in lines
-                if np.hypot(l[0][2] - l[0][0], l[0][3] - l[0][1]) > min_dim // 2.5
+                if np.hypot(l[0][2] - l[0][0], l[0][3] - l[0][1]) > min_dim * 0.7
             ]
-            if len(long_lines) >= 2:
-                severity = 'severe' if len(long_lines) > 5 else 'moderate'
+            if len(long_lines) >= 3:   # require several (was 2) to flag
                 defects.append({
-                    'type': 'surface_crease',
-                    'location': 'center',
-                    'severity': severity,
+                    'type': 'surface_crease', 'location': 'center',
+                    'severity': 'severe' if len(long_lines) > 6 else 'moderate',
                     'metric': len(long_lines),
                 })
 
-        # Staining — large dark patches on the card face
+        # Staining — only flag a LOCALIZED abnormally-dark blob, not overall dark
+        # photo content. Compare the darkest local region to the median brightness.
         if len(img.shape) == 3:
-            hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
-            val = hsv[:, :, 2]
-            dark_ratio = np.sum(val < 40) / val.size
-            if dark_ratio > 0.12:
-                defects.append({
-                    'type': 'surface_staining',
-                    'location': 'center',
-                    'severity': 'severe' if dark_ratio > 0.22 else 'moderate',
-                    'metric': round(float(dark_ratio), 3),
-                })
+            small = cv2.resize(center, (64, 64), interpolation=cv2.INTER_AREA)
+            blurred = cv2.GaussianBlur(small, (0, 0), sigmaX=3)
+            med = float(np.median(blurred))
+            darkest = float(np.min(blurred))
+            # Stain = a soft dark patch much darker than the typical surface,
+            # but not pure black (which would be photo shadow/ink).
+            if med > 60 and 20 < darkest < med - 70:
+                very_dark = np.sum(blurred < (med - 70)) / blurred.size
+                if 0.02 < very_dark < 0.25:   # localized, not the whole image
+                    defects.append({
+                        'type': 'surface_staining', 'location': 'center',
+                        'severity': 'minor', 'metric': round(very_dark, 3),
+                    })
 
         return defects
 
@@ -249,31 +264,47 @@ class CardInspector:
     # ------------------------------------------------------------------ #
 
     def _detect_centering(self, img: np.ndarray) -> Tuple[List[Dict], float]:
-        """Calculate left/right and top/bottom centering."""
+        """
+        Measure border symmetry. Returns (defects, score).
+
+        If a clear white border can't be measured on all four sides (e.g. a
+        full-bleed card, or detection failed), centering is treated as
+        UNMEASURABLE — score 100, no penalty — instead of the old behaviour
+        that reported 'off_centering @ h:0.00 v:0.00' as a severe defect.
+        """
         h, w = img.shape[:2]
         gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY) if len(img.shape) == 3 else img
 
-        # Look for the card image area (darker than the white border)
         _, thresh = cv2.threshold(gray, 220, 255, cv2.THRESH_BINARY_INV)
-
         col_proj = np.sum(thresh, axis=0).astype(float)
         row_proj = np.sum(thresh, axis=1).astype(float)
 
-        def border_span(proj: np.ndarray):
+        def border_span(proj):
             mx = proj.max()
             if mx < 1:
-                return 0, len(proj)
+                return None
             cutoff = mx * 0.25
             idx = np.where(proj > cutoff)[0]
-            return int(idx[0]), int(idx[-1]) if len(idx) else (0, len(proj))
+            if len(idx) == 0:
+                return None
+            return int(idx[0]), int(idx[-1])
 
-        l_inner, r_inner = border_span(col_proj)
-        t_inner, b_inner = border_span(row_proj)
+        col = border_span(col_proj)
+        row = border_span(row_proj)
+        if col is None or row is None:
+            return [], 100.0
 
-        l_border = l_inner
-        r_border = w - r_inner
-        t_border = t_inner
-        b_border = h - b_inner
+        l_border, r_border = col[0], w - col[1]
+        t_border, b_border = row[0], h - row[1]
+
+        # Borders must be real but reasonable (1%–35% of the dimension). Outside
+        # that range the measurement isn't trustworthy → treat as unmeasurable.
+        def plausible(a, b, dim):
+            lo, hi = dim * 0.01, dim * 0.35
+            return lo <= a <= hi and lo <= b <= hi
+
+        if not (plausible(l_border, r_border, w) and plausible(t_border, b_border, h)):
+            return [], 100.0
 
         def ratio(a, b):
             return min(a, b) / max(a, b) if max(a, b) > 0 else 1.0
@@ -283,8 +314,8 @@ class CardInspector:
         center_score = (h_ratio + v_ratio) / 2 * 100
 
         defects = []
-        if center_score < 65:
-            severity = 'severe' if center_score < 45 else 'moderate' if center_score < 55 else 'minor'
+        if center_score < 60:
+            severity = 'severe' if center_score < 40 else 'moderate' if center_score < 52 else 'minor'
             defects.append({
                 'type': 'off_centering',
                 'location': f'h:{h_ratio:.2f} v:{v_ratio:.2f}',
