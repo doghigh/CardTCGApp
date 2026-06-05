@@ -33,29 +33,40 @@ class ScannerInterface:
             return []
 
     def _enhance_image(self, img: np.ndarray) -> np.ndarray:
-        """Post-process scan for better card quality."""
+        """
+        Gently clean up a scan.
+
+        Correct order matters: DENOISE first, then a mild sharpen. The previous
+        version sharpened with a harsh kernel (center=9) and ran CLAHE *before*
+        denoising, which amplified sensor noise into the heavy grain you saw.
+        """
         if img is None or img.size == 0:
             return img
 
         try:
-            # Convert to float for better math
-            img_float = img.astype(np.float32) / 255.0
+            # 1) Denoise first — removes scanner sensor grain before anything
+            #    amplifies it. Moderate strength, edge-preserving.
+            denoised = cv2.fastNlMeansDenoisingColored(
+                img, None,
+                h=7,            # luminance filter strength
+                hColor=7,       # colour filter strength
+                templateWindowSize=7,
+                searchWindowSize=21,
+            )
 
-            # Sharpen
-            kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
-            sharpened = cv2.filter2D(img, -1, kernel)
+            # 2) Gentle unsharp mask — adds crispness without amplifying noise.
+            #    sharpened = img*(1+amount) - blurred*amount
+            blur = cv2.GaussianBlur(denoised, (0, 0), sigmaX=3)
+            amount = 0.6
+            sharpened = cv2.addWeighted(denoised, 1 + amount, blur, -amount, 0)
 
-            # Increase contrast + slight saturation
+            # 3) Very mild local contrast (low clip so it doesn't re-introduce noise)
             lab = cv2.cvtColor(sharpened, cv2.COLOR_RGB2LAB)
             l, a, b = cv2.split(lab)
-            clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8,8))
+            clahe = cv2.createCLAHE(clipLimit=1.2, tileGridSize=(8, 8))
             l = clahe.apply(l)
             enhanced = cv2.cvtColor(cv2.merge([l, a, b]), cv2.COLOR_LAB2RGB)
 
-            # Light noise reduction
-            enhanced = cv2.fastNlMeansDenoisingColored(enhanced, None, 10, 10, 7, 21)
-
-            print("✅ Image enhancement applied (sharpen + contrast)")
             return enhanced
 
         except Exception as e:
