@@ -59,10 +59,15 @@ class RevalueWorker(QThread):
             if not card or not card.get('name'):
                 continue
             try:
-                results = self.valuator.fetch_all_values(card['name'], card.get('set_name'))
-                if results:
-                    score = card.get('condition_score') or 85.0
-                    estimate = self.valuator.compute_estimate(results, score)
+                summary = self.valuator.value_summary(
+                    card['name'],
+                    card.get('set_name'),
+                    card.get('game'),
+                    card.get('condition_grade'),
+                    card.get('condition_score') or 85.0,
+                )
+                estimate = summary.get('estimated', 0.0)
+                if estimate > 0:
                     self.db.update_card(cid, {'estimated_value': estimate})
             except Exception as e:
                 print(f"Error re-valuing card {cid}: {e}")

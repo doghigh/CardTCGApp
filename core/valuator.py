@@ -17,6 +17,7 @@ import os
 import re
 import time
 import logging
+import threading
 import requests
 from datetime import datetime, timedelta
 from statistics import median
@@ -97,6 +98,12 @@ class CardValuator:
 
         self.api_timeout   = 20   # OAuth + Browse API calls
         self.scrape_timeout = 15  # web scrape
+
+        # Thread-safe scrape throttle — PriceCharting returns 429 if hammered.
+        # Shared across the batch-import worker threads (one valuator instance).
+        self._scrape_lock = threading.Lock()
+        self._last_scrape = 0.0
+        self.scrape_min_interval = 2.0   # seconds between scrape requests
 
     def reload_credentials(self):
         """(Re)read eBay keys from the environment and reset the token cache."""
@@ -243,6 +250,43 @@ class CardValuator:
     #  Source 2: PriceCharting — historical sold prices                    #
     # ------------------------------------------------------------------ #
 
+    def _scrape_get(self, url: str, max_retries: int = 3):
+        """
+        Thread-safe, rate-limited GET for scrape targets.
+
+        Enforces a minimum interval between requests (shared across threads)
+        and backs off on HTTP 429, honouring Retry-After. Returns the Response
+        or None if it kept being rate-limited.
+        """
+        for attempt in range(max_retries + 1):
+            with self._scrape_lock:
+                elapsed = time.time() - self._last_scrape
+                if elapsed < self.scrape_min_interval:
+                    time.sleep(self.scrape_min_interval - elapsed)
+                try:
+                    r = self.scrape_session.get(url, timeout=self.scrape_timeout)
+                finally:
+                    self._last_scrape = time.time()
+
+                if r.status_code != 429:
+                    r.raise_for_status()
+                    return r
+
+                # Rate limited — pause everyone (still holding the lock) then retry
+                retry_after = r.headers.get("Retry-After", "")
+                if retry_after.isdigit():
+                    delay = min(float(retry_after), 30.0)
+                else:
+                    delay = min(self.scrape_min_interval * (2 ** (attempt + 1)), 30.0)
+                logger.warning("Scrape 429 — backing off %.1fs (attempt %d/%d)",
+                               delay, attempt + 1, max_retries)
+                time.sleep(delay)
+                self._last_scrape = time.time()
+
+        logger.warning("Scrape gave up after %d retries (still 429): %s",
+                       max_retries, url)
+        return None
+
     def search_pricecharting(self, card_name: str, set_name: Optional[str] = None,
                              game: Optional[str] = None) -> Optional[Dict]:
         """Scrape PriceCharting for sold/historical card prices."""
@@ -255,8 +299,9 @@ class CardValuator:
                 f"https://www.pricecharting.com/search-products"
                 f"?q={quote(query)}&type=prices"
             )
-            r = self.scrape_session.get(url, timeout=self.scrape_timeout)
-            r.raise_for_status()
+            r = self._scrape_get(url)
+            if r is None:
+                return None
 
             # Extract prices from the results table
             prices: List[float] = []
@@ -339,8 +384,16 @@ class CardValuator:
         if not card_name or not card_name.strip():
             return None
 
-        sold   = self.search_pricecharting(card_name, set_name, game)
+        # Try eBay Browse first — it's a real API with high rate limits. If it
+        # returns a confident result, skip the PriceCharting scrape entirely.
+        # This keeps large batch/re-value runs from tripping PriceCharting 429s.
         active = self.search_browse_api(card_name, set_name, game)
+        if active and active.get("sample", 0) >= 5:
+            return {**active,
+                    "value":  round(active["value"] * 0.85, 2),
+                    "source": "eBay Browse (active, est.)"}
+
+        sold = self.search_pricecharting(card_name, set_name, game)
 
         if sold and active:
             blended = round(sold["value"] * 0.70 + active["value"] * 0.30, 2)
