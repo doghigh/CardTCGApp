@@ -236,55 +236,59 @@ class CardValuator:
         }
 
     # ------------------------------------------------------------------ #
-    #  Source 2: eBay web scrape — completed/sold prices                   #
+    #  Source 2: PriceCharting — historical sold prices                    #
     # ------------------------------------------------------------------ #
 
-    def search_ebay_web(self, card_name: str, set_name: Optional[str] = None,
-                        game: Optional[str] = None) -> Optional[Dict]:
-        """Scrape eBay completed/sold listings for real transaction prices."""
+    def search_pricecharting(self, card_name: str, set_name: Optional[str] = None,
+                             game: Optional[str] = None) -> Optional[Dict]:
+        """Scrape PriceCharting for sold/historical card prices."""
         try:
-            query = self._build_query(card_name, set_name, game)
+            query = card_name
+            if set_name:
+                query += f" {set_name}"
+
             url = (
-                f"https://www.ebay.com/sch/i.html"
-                f"?_nkw={quote(query)}"
-                f"&LH_Sold=1&LH_Complete=1&_ipg=100&_sop=13"
+                f"https://www.pricecharting.com/search-products"
+                f"?q={quote(query)}&type=prices"
             )
             r = self.scrape_session.get(url, timeout=self.scrape_timeout)
             r.raise_for_status()
 
-            raw_prices: List[float] = []
-
-            # Primary: target the s-item__price span
+            # Extract prices from the results table
+            prices: List[float] = []
             for m in re.finditer(
-                r'class="[^"]*s-item__price[^"]*"[^>]*>\s*\$?([\d,]+\.?\d*)',
-                r.text, re.S
+                r'<td[^>]*class="[^"]*price[^"]*"[^>]*>\s*\$?([\d,]+\.?\d{0,2})',
+                r.text, re.I
             ):
                 try:
-                    raw_prices.append(float(m.group(1).replace(",", "")))
+                    v = float(m.group(1).replace(",", ""))
+                    if 0.25 < v < 50_000:
+                        prices.append(v)
                 except ValueError:
                     pass
 
-            # Fallback: any $X.XX pattern
-            if not raw_prices:
+            # Wider fallback
+            if not prices:
                 for m in re.finditer(r'\$([\d,]+\.\d{2})', r.text):
                     try:
-                        raw_prices.append(float(m.group(1).replace(",", "")))
+                        v = float(m.group(1).replace(",", ""))
+                        if 0.25 < v < 50_000:
+                            prices.append(v)
                     except ValueError:
                         pass
 
-            prices = [p for p in raw_prices if 0.25 < p < 50_000]
             if not prices:
-                logger.debug("eBay web scrape: no prices found for '%s'", query)
+                logger.debug("PriceCharting: no prices for '%s'", query)
                 return None
 
             prices.sort()
             trim = max(1, len(prices) // 10)
             trimmed = prices[trim: len(prices) - trim] or prices
 
-            logger.info("eBay web scrape: %d sold prices for '%s', median=$%.2f",
+            logger.info("PriceCharting: %d prices for '%s', median=$%.2f",
                         len(trimmed), query, median(trimmed))
             return {
-                "source":  "eBay (sold)",
+                "source":  "PriceCharting",
                 "value":   round(median(trimmed), 2),
                 "low":     round(min(trimmed), 2),
                 "high":    round(max(trimmed), 2),
@@ -292,7 +296,7 @@ class CardValuator:
                 "query":   query,
             }
         except Exception as exc:
-            logger.warning("eBay web scrape failed: %s", exc)
+            logger.warning("PriceCharting scrape failed: %s", exc)
             return None
 
     # ------------------------------------------------------------------ #
@@ -320,24 +324,24 @@ class CardValuator:
     def fetch_value(self, card_name: str, set_name: Optional[str] = None,
                     game: Optional[str] = None) -> Optional[Dict]:
         """
-        Fetch best valuation from both sources.
+        Fetch best valuation from available sources.
 
         Priority:
-          1. Sold prices (web scrape) — actual transaction data, most accurate
-          2. Active listing prices (Browse API) — market asking prices
-          3. Blend of both — if both available, weight sold 70% / active 30%
+          1. PriceCharting  — historical sold prices (most accurate)
+          2. eBay Browse API — active listing prices (official API)
+          3. Blend if both available: 70% PriceCharting + 30% Browse
+          4. Browse-only: apply 15% discount (cards sell below asking)
         """
         if not card_name or not card_name.strip():
             return None
 
-        sold   = self.search_ebay_web(card_name, set_name, game)
+        sold   = self.search_pricecharting(card_name, set_name, game)
         active = self.search_browse_api(card_name, set_name, game)
 
         if sold and active:
-            # Blend: sold prices weighted 70%, active listings 30%
             blended = round(sold["value"] * 0.70 + active["value"] * 0.30, 2)
             return {
-                "source":  f"eBay blended (sold + active, n={sold['sample']+active['sample']})",
+                "source":  f"Blended (PriceCharting + eBay, n={sold['sample'] + active['sample']})",
                 "value":   blended,
                 "low":     min(sold["low"],  active["low"]),
                 "high":    max(sold["high"], active["high"]),
@@ -347,9 +351,8 @@ class CardValuator:
 
         if sold:
             return sold
+
         if active:
-            # Active-only: apply a ~15% discount vs. listing price
-            # (cards typically sell for less than asking)
             return {**active,
                     "value":  round(active["value"] * 0.85, 2),
                     "source": "eBay Browse (active, est.)"}
