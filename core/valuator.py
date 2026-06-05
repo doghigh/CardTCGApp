@@ -80,40 +80,53 @@ class CardValuator:
 
         keywords = self._build_query(card_name, set_name, game)
 
-        params = {
-            "OPERATION-NAME":        "findCompletedItems",
-            "SERVICE-VERSION":       "1.13.0",
-            "SECURITY-APPNAME":      self._app_id,
-            "RESPONSE-DATA-FORMAT":  "XML",
-            "REST-PAYLOAD":          "",
-            "keywords":              keywords,
-            "categoryId":            "183454",  # Non-Sport Trading Card Games
-            "itemFilter(0).name":    "SoldItemsOnly",
-            "itemFilter(0).value":   "true",
-            "itemFilter(1).name":    "ListingType",
-            "itemFilter(1).value":   "AuctionWithBIN",
-            "itemFilter(2).name":    "ListingType",
-            "itemFilter(2).value":   "FixedPrice",
-            "itemFilter(2).value":   "Auction",
-            "sortOrder":             "EndTimeSoonest",
-            "paginationInput.entriesPerPage": "100",
-        }
+        # Build params as a list of tuples so duplicate keys are handled correctly
+        params = [
+            ("OPERATION-NAME",               "findCompletedItems"),
+            ("SERVICE-VERSION",              "1.13.0"),
+            ("SECURITY-APPNAME",             self._app_id),
+            ("RESPONSE-DATA-FORMAT",         "XML"),
+            ("REST-PAYLOAD",                 ""),
+            ("keywords",                     keywords),
+            ("sortOrder",                    "EndTimeSoonest"),
+            ("paginationInput.entriesPerPage", "100"),
+            # Filter 0: sold items only
+            ("itemFilter(0).name",           "SoldItemsOnly"),
+            ("itemFilter(0).value",          "true"),
+            # Filter 1: listing types — use indexed values for multiple
+            ("itemFilter(1).name",           "ListingType"),
+            ("itemFilter(1).value(0)",       "FixedPrice"),
+            ("itemFilter(1).value(1)",       "Auction"),
+            ("itemFilter(1).value(2)",       "AuctionWithBIN"),
+        ]
 
-        # Also try Sports Trading Cards category if game looks like a sport
+        # Add category hint (optional — improves relevance but not required)
         sports = {"baseball", "basketball", "football", "hockey", "sports cards"}
         if game and game.lower() in sports:
-            params["categoryId"] = "213"  # Sports Trading Cards
+            params.append(("categoryId", "213"))     # Sports Trading Cards
+        else:
+            params.append(("categoryId", "183454"))  # Non-Sport TCG
 
-        try:
-            r = self.session.get(self._api_url, params=params, timeout=self.timeout)
-            r.raise_for_status()
-            return self._parse_finding_response(r.text, keywords)
-        except requests.RequestException as exc:
-            logger.warning("eBay API request failed: %s", exc)
-            return None
-        except Exception as exc:
-            logger.warning("eBay API parse error: %s", exc)
-            return None
+        import time
+        last_exc = None
+        for attempt in range(3):
+            try:
+                r = self.session.get(self._api_url, params=params, timeout=self.timeout)
+                if r.status_code == 503 and attempt < 2:
+                    time.sleep(2 ** attempt)   # 1s, 2s backoff
+                    continue
+                r.raise_for_status()
+                return self._parse_finding_response(r.text, keywords)
+            except requests.RequestException as exc:
+                last_exc = exc
+                if attempt < 2:
+                    time.sleep(2 ** attempt)
+                continue
+            except Exception as exc:
+                logger.warning("eBay API parse error: %s", exc)
+                return None
+        logger.warning("eBay API request failed after 3 attempts: %s", last_exc)
+        return None
 
     def _build_query(self, card_name: str, set_name: Optional[str],
                      game: Optional[str]) -> str:
