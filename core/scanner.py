@@ -44,28 +44,18 @@ class ScannerInterface:
             return img
 
         try:
-            # 1) Denoise first — removes scanner sensor grain before anything
-            #    amplifies it. Moderate strength, edge-preserving.
-            denoised = cv2.fastNlMeansDenoisingColored(
-                img, None,
-                h=7,            # luminance filter strength
-                hColor=7,       # colour filter strength
-                templateWindowSize=7,
-                searchWindowSize=21,
+            # 1) Edge-preserving denoise. Bilateral keeps fine text/edges sharp
+            #    while smoothing flat noise — fastNlMeans was over-smoothing text.
+            denoised = cv2.bilateralFilter(
+                img, d=5,
+                sigmaColor=40,   # how much colour difference is "noise"
+                sigmaSpace=40,   # spatial reach
             )
 
-            # 2) Gentle unsharp mask — adds crispness without amplifying noise.
-            #    sharpened = img*(1+amount) - blurred*amount
-            blur = cv2.GaussianBlur(denoised, (0, 0), sigmaX=3)
-            amount = 0.6
-            sharpened = cv2.addWeighted(denoised, 1 + amount, blur, -amount, 0)
-
-            # 3) Very mild local contrast (low clip so it doesn't re-introduce noise)
-            lab = cv2.cvtColor(sharpened, cv2.COLOR_RGB2LAB)
-            l, a, b = cv2.split(lab)
-            clahe = cv2.createCLAHE(clipLimit=1.2, tileGridSize=(8, 8))
-            l = clahe.apply(l)
-            enhanced = cv2.cvtColor(cv2.merge([l, a, b]), cv2.COLOR_LAB2RGB)
+            # 2) Subtle unsharp mask for crispness (low amount → no halos/grain)
+            blur = cv2.GaussianBlur(denoised, (0, 0), sigmaX=1.5)
+            amount = 0.4
+            enhanced = cv2.addWeighted(denoised, 1 + amount, blur, -amount, 0)
 
             return enhanced
 
@@ -96,6 +86,27 @@ class ScannerInterface:
                 src.SetCapability(twain.ICAP_BITDEPTH, twain.TWTY_UINT16, 24)  # 24-bit color
             except Exception as e:
                 print(f"Setting warning: {e}")
+
+            # Disable in-transfer compression — JPEG compression is a major
+            # source of the blocky colour artefacts/grain on card scans.
+            try:
+                src.SetCapability(twain.ICAP_COMPRESSION, twain.TWTY_UINT16, twain.TWCP_NONE)
+            except Exception as e:
+                print(f"Compression setting skipped: {e}")
+
+            # Ask the scanner NOT to apply its own auto image processing where
+            # the driver exposes it (keeps the capture faithful/sharp).
+            for cap_name, value in (
+                ("ICAP_AUTODISCARDBLANKPAGES", None),   # leave blanks (we handle)
+                ("ICAP_NOISEFILTER", "TWNF_NONE"),      # no driver noise filter
+            ):
+                try:
+                    cap = getattr(twain, cap_name, None)
+                    val = getattr(twain, value) if isinstance(value, str) else value
+                    if cap is not None and val is not None:
+                        src.SetCapability(cap, twain.TWTY_UINT16, val)
+                except Exception:
+                    pass
 
             if duplex:
                 try:
