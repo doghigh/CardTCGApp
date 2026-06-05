@@ -21,17 +21,18 @@ class CardDetailDialog(QDialog):
     def __init__(self, card: Dict, valuations: List[Dict], parent=None):
         super().__init__(parent)
         self.setWindowTitle(f"Card #{card.get('id')} - {card.get('name', 'Unknown')}")
-        self.resize(940, 700)
+        self.resize(900, 560)
 
         layout = QHBoxLayout(self)
 
-        # Images
-        img_panel = QVBoxLayout()
+        # Images — front and back SIDE BY SIDE so both are visible at once
+        img_panel = QHBoxLayout()
+        img_panel.setSpacing(8)
         for label, key in [("Front", 'front_scan_path'), ("Back", 'back_scan_path')]:
             grp = QGroupBox(label)
             gl = QVBoxLayout(grp)
             view = QLabel()
-            view.setMinimumSize(320, 440)
+            view.setMinimumSize(230, 320)
             view.setAlignment(Qt.AlignmentFlag.AlignCenter)
             view.setStyleSheet("background-color: #13151f; border: 1px solid #2a2d3e; border-radius: 6px;")
 
@@ -42,8 +43,14 @@ class CardDetailDialog(QDialog):
                     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                     h, w = img.shape[:2]
                     qimg = QImage(img.data, w, h, 3 * w, QImage.Format.Format_RGB888)
-                    pixmap = QPixmap.fromImage(qimg).scaled(320, 440, Qt.AspectRatioMode.KeepAspectRatio)
+                    pixmap = QPixmap.fromImage(qimg).scaled(
+                        230, 320,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation,
+                    )
                     view.setPixmap(pixmap)
+            else:
+                view.setText("No image")
 
             gl.addWidget(view)
             img_panel.addWidget(grp)
