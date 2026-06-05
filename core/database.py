@@ -223,15 +223,20 @@ class Database:
 
     def get_all_cards(self, search: str = None) -> List[Dict]:
         with self._lock, self._conn() as conn:
+            # Tiebreak on id (ascending) so cards saved in the same second —
+            # e.g. a 30-card batch — keep their scan/insertion order instead of
+            # appearing scrambled (CURRENT_TIMESTAMP only has 1-second resolution).
             if search and search.strip():
                 term = f"%{search.strip()}%"
                 rows = conn.execute("""
-                    SELECT * FROM cards 
+                    SELECT * FROM cards
                     WHERE name LIKE ? OR set_name LIKE ? OR game LIKE ? OR card_number LIKE ?
-                    ORDER BY updated_at DESC
+                    ORDER BY updated_at DESC, id ASC
                 """, (term, term, term, term)).fetchall()
             else:
-                rows = conn.execute("SELECT * FROM cards ORDER BY updated_at DESC").fetchall()
+                rows = conn.execute(
+                    "SELECT * FROM cards ORDER BY updated_at DESC, id ASC"
+                ).fetchall()
             return [dict(r) for r in rows]
 
     def add_valuation(self, card_id: int, source: str, value: float, url: Optional[str] = None):
