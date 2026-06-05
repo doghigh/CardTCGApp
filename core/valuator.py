@@ -60,16 +60,10 @@ class CardValuator:
     """
 
     def __init__(self):
-        self._app_id  = os.environ.get("EBAY_APP_ID",  "").strip()
-        self._cert_id = os.environ.get("EBAY_CERT_ID", "").strip()
-        self._sandbox = "SBX" in self._app_id.upper()
-
-        self._oauth_url  = OAUTH_URL_SANDBOX  if self._sandbox else OAUTH_URL_PROD
-        self._browse_url = BROWSE_URL_SANDBOX if self._sandbox else BROWSE_URL_PROD
-
         # OAuth token cache
         self._token: Optional[str] = None
         self._token_expiry: datetime = datetime.utcnow()
+        self.reload_credentials()
 
         # API session — clean headers for eBay OAuth / Browse API
         self.api_session = requests.Session()
@@ -103,6 +97,16 @@ class CardValuator:
 
         self.api_timeout   = 20   # OAuth + Browse API calls
         self.scrape_timeout = 15  # web scrape
+
+    def reload_credentials(self):
+        """(Re)read eBay keys from the environment and reset the token cache."""
+        self._app_id  = os.environ.get("EBAY_APP_ID",  "").strip()
+        self._cert_id = os.environ.get("EBAY_CERT_ID", "").strip()
+        self._sandbox = "SBX" in self._app_id.upper()
+        self._oauth_url  = OAUTH_URL_SANDBOX  if self._sandbox else OAUTH_URL_PROD
+        self._browse_url = BROWSE_URL_SANDBOX if self._sandbox else BROWSE_URL_PROD
+        self._token = None
+        self._token_expiry = datetime.utcnow()
 
         if self._sandbox:
             logger.info("eBay Valuator: SANDBOX mode — prices are test data only.")

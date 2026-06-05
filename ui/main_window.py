@@ -89,6 +89,25 @@ class MainWindow(QMainWindow):
         self.setStatusBar(sb)
         sb.showMessage("Ready • Press F1 for keyboard shortcuts")
 
+        # First-run: if no Anthropic key is configured, guide the user to Settings
+        self._prompt_for_keys_if_needed()
+
+    def _prompt_for_keys_if_needed(self):
+        """On first run (no API key), offer to open Settings."""
+        from core.config import config
+        if config.has_anthropic_key():
+            return
+        reply = QMessageBox.question(
+            self, "Welcome to Trading Card Manager",
+            "To identify cards you'll need a free Anthropic API key "
+            "(card scanning costs about $0.006 per card).\n\n"
+            "Would you like to enter your API keys now?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self._open_settings()
+
     def _setup_shortcuts(self):
         """Setup global keyboard shortcuts."""
         # Tab switching
@@ -124,6 +143,12 @@ class MainWindow(QMainWindow):
 
         # File menu
         file_menu = menubar.addMenu("&File")
+        settings_action = QAction("⚙ Settings (API Keys)…", self)
+        settings_action.setShortcut("Ctrl+,")
+        settings_action.triggered.connect(self._open_settings)
+        file_menu.addAction(settings_action)
+        file_menu.addSeparator()
+
         open_data = QAction("Open Data Folder", self)
         open_data.triggered.connect(lambda: os.startfile(str(APP_DIR)) if hasattr(os, 'startfile') else None)
         file_menu.addAction(open_data)
@@ -142,6 +167,16 @@ class MainWindow(QMainWindow):
         shortcuts_action = QAction("Keyboard Shortcuts", self)
         shortcuts_action.triggered.connect(self._show_help)
         help_menu.addAction(shortcuts_action)
+
+    def _open_settings(self):
+        """Open the API-keys settings dialog and apply changes live."""
+        from ui.settings_dialog import SettingsDialog
+        dlg = SettingsDialog(self)
+        if dlg.exec():
+            # New keys are already in os.environ — refresh the live components
+            self.identifier.reload_credentials()
+            self.valuator.reload_credentials()
+            self.statusBar().showMessage("✅ API keys updated", 3000)
 
     def _new_card(self):
         """Ctrl+N - New card."""

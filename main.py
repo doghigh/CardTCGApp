@@ -27,6 +27,14 @@ def _load_dotenv():
 
 _load_dotenv()
 
+# Apply user-saved API keys (Settings screen). .env / real env vars take
+# precedence so developers can still override locally.
+try:
+    from core.config import config as _app_config
+    _app_config.apply_to_env(override=False)
+except Exception as _exc:  # noqa: BLE001 — config is best-effort at startup
+    print(f"Config load skipped: {_exc}")
+
 
 try:
     from PyQt6.QtWidgets import (

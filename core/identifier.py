@@ -69,6 +69,10 @@ class CardIdentifier:
             self._anthropic = anthropic.Anthropic(api_key=api_key)
         return self._anthropic
 
+    def reload_credentials(self):
+        """Drop the cached client so the next call picks up a new API key."""
+        self._anthropic = None
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
