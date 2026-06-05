@@ -109,23 +109,32 @@ class CardValuator:
 
         import time
         last_exc = None
-        for attempt in range(3):
+        for attempt in range(2):  # max 2 attempts — don't block the UI too long
             try:
                 r = self.session.get(self._api_url, params=params, timeout=self.timeout)
-                if r.status_code == 503 and attempt < 2:
-                    time.sleep(2 ** attempt)   # 1s, 2s backoff
-                    continue
+                if r.status_code == 503:
+                    if attempt == 0:
+                        time.sleep(1)
+                        continue
+                    logger.warning(
+                        "eBay Finding API returned 503. "
+                        "If this persists, the API may need enabling: "
+                        "developer.ebay.com → Production App → APIs → Finding API → Enable. "
+                        "Falling back to web scrape."
+                    )
+                    return None
                 r.raise_for_status()
                 return self._parse_finding_response(r.text, keywords)
             except requests.RequestException as exc:
                 last_exc = exc
-                if attempt < 2:
-                    time.sleep(2 ** attempt)
+                if attempt == 0:
+                    time.sleep(1)
                 continue
             except Exception as exc:
                 logger.warning("eBay API parse error: %s", exc)
                 return None
-        logger.warning("eBay API request failed after 3 attempts: %s", last_exc)
+        if last_exc:
+            logger.warning("eBay Finding API unavailable (%s) — falling back to web scrape.", last_exc)
         return None
 
     def _build_query(self, card_name: str, set_name: Optional[str],
@@ -207,36 +216,67 @@ class CardValuator:
     #  Fallback: eBay web scrape (no API key needed)                       #
     # ------------------------------------------------------------------ #
 
-    def search_ebay_web(self, card_name: str,
-                        set_name: Optional[str] = None) -> Optional[Dict]:
-        """Scrape eBay sold listings as a fallback when API key unavailable."""
+    def search_ebay_web(self, card_name: str, set_name: Optional[str] = None,
+                        game: Optional[str] = None) -> Optional[Dict]:
+        """Scrape eBay completed/sold listings page as fallback."""
         try:
-            query = self._build_query(card_name, set_name, None)
-            url = (f"https://www.ebay.com/sch/i.html"
-                   f"?_nkw={quote(query)}&LH_Sold=1&LH_Complete=1&_ipg=100")
-            r = self.session.get(url, timeout=self.timeout)
+            query = self._build_query(card_name, set_name, game)
+            url = (
+                f"https://www.ebay.com/sch/i.html"
+                f"?_nkw={quote(query)}"
+                f"&LH_Sold=1&LH_Complete=1&_ipg=100&_sop=13"  # sort by most recent
+            )
+            headers = {
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/124.0 Safari/537.36"
+                ),
+                "Accept-Language": "en-US,en;q=0.9",
+            }
+            r = self.session.get(url, headers=headers, timeout=self.timeout)
             r.raise_for_status()
 
-            prices = [
-                float(m.group(1).replace(",", ""))
-                for m in re.finditer(r'\$([\d,]+\.\d{2})', r.text)
-                if 0.50 < float(m.group(1).replace(",", "")) < 50_000
-            ]
+            # Extract prices — eBay sold price spans use class s-item__price
+            raw_prices: List[float] = []
+            for m in re.finditer(
+                r'class="[^"]*s-item__price[^"]*"[^>]*>.*?\$([\d,]+\.?\d*)',
+                r.text, re.S
+            ):
+                try:
+                    raw_prices.append(float(m.group(1).replace(",", "")))
+                except ValueError:
+                    pass
+
+            # Also catch plain $X.XX patterns as a wider net
+            if not raw_prices:
+                for m in re.finditer(r'\$([\d,]+\.\d{2})', r.text):
+                    try:
+                        v = float(m.group(1).replace(",", ""))
+                        if 0.25 < v < 50_000:
+                            raw_prices.append(v)
+                    except ValueError:
+                        pass
+
+            prices = [p for p in raw_prices if 0.25 < p < 50_000]
             if not prices:
+                logger.debug("eBay web scrape returned no prices for: %s", query)
                 return None
 
             prices.sort()
-            trim = max(1, len(prices) // 4)
+            trim = max(1, len(prices) // 10)
             trimmed = prices[trim: len(prices) - trim] or prices
+            logger.info("eBay web scrape: %d prices for '%s', median=$%.2f",
+                        len(trimmed), query, median(trimmed))
             return {
-                "source":  "eBay (scrape)",
+                "source":  "eBay (web)",
                 "value":   round(median(trimmed), 2),
                 "low":     round(min(trimmed), 2),
                 "high":    round(max(trimmed), 2),
                 "sample":  len(trimmed),
             }
         except Exception as exc:
-            logger.debug("eBay scrape failed: %s", exc)
+            logger.warning("eBay web scrape failed: %s", exc)
             return None
 
     # ------------------------------------------------------------------ #
@@ -253,8 +293,8 @@ class CardValuator:
         if result and result.get("value", 0) > 0:
             return result
 
-        # API unavailable or no results — fall back to scrape
-        result = self.search_ebay_web(card_name, set_name)
+        # API unavailable or no results — fall back to web scrape
+        result = self.search_ebay_web(card_name, set_name, game)
         return result if result and result.get("value", 0) > 0 else None
 
     # Keep old method name so existing callers don't break
