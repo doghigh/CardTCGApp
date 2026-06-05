@@ -45,7 +45,9 @@ BROWSE_URL_SANDBOX = "https://api.sandbox.ebay.com/buy/browse/v1/item_summary/se
 # Scope needed for public/app-level Browse API access
 BROWSE_SCOPE = "https://api.ebay.com/oauth/api_scope"
 
-# Condition multipliers keyed on grade letter
+# Condition multipliers keyed on grade. Must cover every grade the inspector
+# emits (Gem Mint, Mint, Near Mint, Excellent, Very Good, Good, Played, Poor)
+# plus the legacy Pristine/Fair labels.
 CONDITION_MULTIPLIERS = {
     "Gem Mint":  1.50,
     "Pristine":  1.40,
@@ -55,6 +57,7 @@ CONDITION_MULTIPLIERS = {
     "Very Good": 0.75,
     "Good":      0.55,
     "Fair":      0.40,
+    "Played":    0.40,
     "Poor":      0.25,
 }
 
@@ -523,11 +526,17 @@ class CardValuator:
         if not values:
             return 0.0
         base = median(sorted(v["value"] for v in values))
+        if base <= 0:
+            return 0.0
         if grade and grade in CONDITION_MULTIPLIERS:
             multiplier = CONDITION_MULTIPLIERS[grade]
         else:
             multiplier = max(0.25, min(1.50, condition_score / 85.0))
-        return round(base * multiplier, 2)
+        est = round(base * multiplier, 2)
+        # A card with a real market price should never display as $0.00 —
+        # floor cheap commons at a penny so "found" is distinguishable from
+        # "no data" (which legitimately stays $0.00).
+        return max(est, 0.01)
 
     def value_summary(self, card_name: str, set_name: Optional[str] = None,
                       game: Optional[str] = None,
