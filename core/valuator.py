@@ -1,196 +1,199 @@
 """
-Card valuation via eBay Finding API (sold listings) with web scrape fallbacks.
+Card valuation — eBay Browse API (active listings) + web scrape (sold prices).
 
 eBay API Compliance — Marketplace Account Deletion:
-  This application uses ONLY the eBay Finding API with an App ID (client
-  credentials). It queries PUBLIC sold listing prices and does NOT:
-    - use eBay OAuth / user tokens
-    - store any eBay user account data (usernames, IDs, feedback, etc.)
-    - access any private or user-specific eBay resources
-
-  As a result this app qualifies for the OPT-OUT path under eBay's
-  Marketplace Account Deletion/Closure notification requirement.
-
-  Action required on the eBay developer portal:
-    1. Sign in at developer.ebay.com
-    2. My Account → Application Keys → Production App
-    3. Marketplace Account Deletion section → select "I don't store eBay user data"
-
+  This app uses only public eBay data via App-level OAuth (no user tokens).
+  It does NOT store any eBay user account data and qualifies for opt-out.
+  Endpoint registered at: https://cardtcgapp.onrender.com/ebay/deletion
   Reference: https://developer.ebay.com/develop/guides-v2/marketplace-user-account-deletion
+
+Environment variables:
+  EBAY_APP_ID   — Client ID from developer.ebay.com (required)
+  EBAY_CERT_ID  — Client Secret from developer.ebay.com (required for Browse API)
 """
 
+import base64
 import os
 import re
+import time
 import logging
 import requests
 from datetime import datetime, timedelta
 from statistics import median
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 from urllib.parse import quote
-from xml.etree import ElementTree as ET
 
 logger = logging.getLogger(__name__)
 
-# eBay Finding API endpoints
-FINDING_API_PROD    = "https://svcs.ebay.com/services/search/FindingService/v1"
-FINDING_API_SANDBOX = "https://svcs.sandbox.ebay.com/services/search/FindingService/v1"
+# eBay OAuth token endpoint
+OAUTH_URL_PROD    = "https://api.ebay.com/identity/v1/oauth2/token"
+OAUTH_URL_SANDBOX = "https://api.sandbox.ebay.com/identity/v1/oauth2/token"
+
+# eBay Browse API
+BROWSE_URL_PROD    = "https://api.ebay.com/buy/browse/v1/item_summary/search"
+BROWSE_URL_SANDBOX = "https://api.sandbox.ebay.com/buy/browse/v1/item_summary/search"
+
+# Scope needed for public/app-level Browse API access
+BROWSE_SCOPE = "https://api.ebay.com/oauth/api_scope"
 
 # Condition multipliers keyed on grade letter
 CONDITION_MULTIPLIERS = {
-    "Gem Mint":     1.50,
-    "Pristine":     1.40,
-    "Mint":         1.25,
-    "Near Mint":    1.10,
-    "Excellent":    0.90,
-    "Very Good":    0.75,
-    "Good":         0.55,
-    "Fair":         0.40,
-    "Poor":         0.25,
+    "Gem Mint":  1.50,
+    "Pristine":  1.40,
+    "Mint":      1.25,
+    "Near Mint": 1.10,
+    "Excellent": 0.90,
+    "Very Good": 0.75,
+    "Good":      0.55,
+    "Fair":      0.40,
+    "Poor":      0.25,
 }
 
 
 class CardValuator:
-    """Fetches real sold-listing prices from eBay API with web-scrape fallbacks."""
+    """
+    Two-source valuation:
+      1. eBay Browse API  — active listing prices (requires App ID + Cert ID)
+      2. eBay web scrape  — completed/sold prices  (no API key needed)
+
+    Both are attempted; sold prices are weighted more heavily in the estimate.
+    """
 
     def __init__(self):
-        self._app_id = os.environ.get("EBAY_APP_ID", "").strip()
-        # Sandbox App IDs contain "-SBX-"; route to the right endpoint
+        self._app_id  = os.environ.get("EBAY_APP_ID",  "").strip()
+        self._cert_id = os.environ.get("EBAY_CERT_ID", "").strip()
         self._sandbox = "SBX" in self._app_id.upper()
-        self._api_url = FINDING_API_SANDBOX if self._sandbox else FINDING_API_PROD
-        if self._sandbox:
-            logger.info("eBay Valuator: using SANDBOX endpoint — "
-                        "results are test data only. "
-                        "Get a Production App ID at developer.ebay.com to see real prices.")
+
+        self._oauth_url  = OAUTH_URL_SANDBOX  if self._sandbox else OAUTH_URL_PROD
+        self._browse_url = BROWSE_URL_SANDBOX if self._sandbox else BROWSE_URL_PROD
+
+        # OAuth token cache
+        self._token: Optional[str] = None
+        self._token_expiry: datetime = datetime.utcnow()
+
         self.session = requests.Session()
         self.session.headers.update({
-            "User-Agent": "TradingCardManager/1.1 (+https://github.com/doghigh/CardTCGApp)"
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0 Safari/537.36"
+            ),
+            "Accept-Language": "en-US,en;q=0.9",
         })
         self.timeout = 12
 
+        if self._sandbox:
+            logger.info("eBay Valuator: SANDBOX mode — prices are test data only.")
+        if not self._cert_id:
+            logger.info("EBAY_CERT_ID not set — Browse API disabled, using web scrape only.")
+
     # ------------------------------------------------------------------ #
-    #  Primary: eBay Finding API                                           #
+    #  OAuth token (Client Credentials — app-level, no user login needed)  #
     # ------------------------------------------------------------------ #
 
-    def search_ebay_api(self, card_name: str, set_name: Optional[str] = None,
-                        game: Optional[str] = None) -> Optional[Dict]:
-        """Query eBay Finding API for completed (sold) listings."""
-        if not self._app_id:
-            logger.debug("EBAY_APP_ID not set — skipping API search")
+    def _get_token(self) -> Optional[str]:
+        """Return a cached or freshly fetched OAuth access token."""
+        if not self._app_id or not self._cert_id:
+            return None
+        if self._token and datetime.utcnow() < self._token_expiry:
+            return self._token
+
+        try:
+            credentials = base64.b64encode(
+                f"{self._app_id}:{self._cert_id}".encode()
+            ).decode()
+            r = self.session.post(
+                self._oauth_url,
+                headers={
+                    "Authorization": f"Basic {credentials}",
+                    "Content-Type":  "application/x-www-form-urlencoded",
+                },
+                data={
+                    "grant_type": "client_credentials",
+                    "scope":      BROWSE_SCOPE,
+                },
+                timeout=self.timeout,
+            )
+            r.raise_for_status()
+            data = r.json()
+            self._token = data["access_token"]
+            # Expire 5 minutes early to avoid edge cases
+            self._token_expiry = (datetime.utcnow()
+                                  + timedelta(seconds=data.get("expires_in", 7200) - 300))
+            logger.debug("eBay OAuth token obtained (expires %s)", self._token_expiry)
+            return self._token
+        except Exception as exc:
+            logger.warning("eBay OAuth token request failed: %s", exc)
             return None
 
-        keywords = self._build_query(card_name, set_name, game)
+    # ------------------------------------------------------------------ #
+    #  Source 1: eBay Browse API — active listings                         #
+    # ------------------------------------------------------------------ #
 
-        # Build params as a list of tuples so duplicate keys are handled correctly
-        params = [
-            ("OPERATION-NAME",               "findCompletedItems"),
-            ("SERVICE-VERSION",              "1.13.0"),
-            ("SECURITY-APPNAME",             self._app_id),
-            ("RESPONSE-DATA-FORMAT",         "XML"),
-            ("REST-PAYLOAD",                 ""),
-            ("keywords",                     keywords),
-            ("sortOrder",                    "EndTimeSoonest"),
-            ("paginationInput.entriesPerPage", "100"),
-            # Filter 0: sold items only
-            ("itemFilter(0).name",           "SoldItemsOnly"),
-            ("itemFilter(0).value",          "true"),
-            # Filter 1: listing types — use indexed values for multiple
-            ("itemFilter(1).name",           "ListingType"),
-            ("itemFilter(1).value(0)",       "FixedPrice"),
-            ("itemFilter(1).value(1)",       "Auction"),
-            ("itemFilter(1).value(2)",       "AuctionWithBIN"),
-        ]
+    def search_browse_api(self, card_name: str, set_name: Optional[str] = None,
+                          game: Optional[str] = None) -> Optional[Dict]:
+        """Search eBay Browse API for current active listing prices."""
+        token = self._get_token()
+        if not token:
+            return None
 
-        # Add category hint (optional — improves relevance but not required)
+        query = self._build_query(card_name, set_name, game)
+
+        # Category filter
         sports = {"baseball", "basketball", "football", "hockey", "sports cards"}
-        if game and game.lower() in sports:
-            params.append(("categoryId", "213"))     # Sports Trading Cards
-        else:
-            params.append(("categoryId", "183454"))  # Non-Sport TCG
+        category = "213" if (game and game.lower() in sports) else "183454"
 
-        import time
-        last_exc = None
-        for attempt in range(2):  # max 2 attempts — don't block the UI too long
-            try:
-                r = self.session.get(self._api_url, params=params, timeout=self.timeout)
-                if r.status_code == 503:
-                    if attempt == 0:
-                        time.sleep(1)
-                        continue
-                    logger.warning(
-                        "eBay Finding API returned 503. "
-                        "If this persists, the API may need enabling: "
-                        "developer.ebay.com → Production App → APIs → Finding API → Enable. "
-                        "Falling back to web scrape."
-                    )
+        params = {
+            "q":               query,
+            "category_ids":    category,
+            "limit":           "100",
+            "sort":            "price",
+            "filter":          "buyingOptions:{FIXED_PRICE|AUCTION|AUCTION_WITH_BIN}",
+        }
+
+        try:
+            r = self.session.get(
+                self._browse_url,
+                params=params,
+                headers={
+                    "Authorization":           f"Bearer {token}",
+                    "X-EBAY-C-MARKETPLACE-ID": "EBAY_US",
+                    "X-EBAY-C-ENDUSERCTX":     "contextualLocation=country=US",
+                },
+                timeout=self.timeout,
+            )
+            if r.status_code == 401:
+                # Token may have expired mid-session — clear and retry once
+                self._token = None
+                token = self._get_token()
+                if not token:
                     return None
-                r.raise_for_status()
-                return self._parse_finding_response(r.text, keywords)
-            except requests.RequestException as exc:
-                last_exc = exc
-                if attempt == 0:
-                    time.sleep(1)
-                continue
-            except Exception as exc:
-                logger.warning("eBay API parse error: %s", exc)
-                return None
-        if last_exc:
-            logger.warning("eBay Finding API unavailable (%s) — falling back to web scrape.", last_exc)
-        return None
-
-    def _build_query(self, card_name: str, set_name: Optional[str],
-                     game: Optional[str]) -> str:
-        """Build a focused keyword string for eBay search."""
-        parts = [card_name]
-        if set_name and set_name.lower() not in card_name.lower():
-            parts.append(set_name)
-        # Add game hint for disambiguation
-        if game:
-            for keyword in ["Pokémon", "Pokemon", "Magic", "Yu-Gi-Oh", "Baseball",
-                            "Basketball", "Football", "Hockey"]:
-                if keyword.lower() in game.lower():
-                    parts.append(keyword)
-                    break
-        parts.append("card")
-        return " ".join(parts)
-
-    def _parse_finding_response(self, xml_text: str, query: str) -> Optional[Dict]:
-        """Extract sold prices from eBay Finding API XML response."""
-        ns = {"ns": "http://www.notifications.ebay.com/v1"}
-        # eBay uses a dynamic namespace — strip it for simple parsing
-        xml_text = re.sub(r' xmlns[^"]*"[^"]*"', '', xml_text)
-        root = ET.fromstring(xml_text)
-
-        ack = root.findtext(".//ack") or ""
-        if "Success" not in ack and "Warning" not in ack:
-            logger.debug("eBay API ack: %s", ack)
+                r = self.session.get(
+                    self._browse_url, params=params,
+                    headers={
+                        "Authorization":           f"Bearer {token}",
+                        "X-EBAY-C-MARKETPLACE-ID": "EBAY_US",
+                    },
+                    timeout=self.timeout,
+                )
+            r.raise_for_status()
+            return self._parse_browse_response(r.json(), query)
+        except Exception as exc:
+            logger.warning("eBay Browse API error: %s", exc)
             return None
 
-        # Collect sellingStatus/currentPrice for sold items
+    def _parse_browse_response(self, data: dict, query: str) -> Optional[Dict]:
+        """Extract prices from Browse API JSON response."""
+        items = data.get("itemSummaries", [])
+        if not items:
+            return None
+
         prices: List[float] = []
-        cutoff = datetime.utcnow() - timedelta(days=90)
-
-        for item in root.findall(".//item"):
-            # Only include items that actually sold
-            selling_state = item.findtext(".//sellingStatus/sellingState") or ""
-            if "EndedWithSales" not in selling_state and "Sold" not in selling_state:
-                # findCompletedItems with SoldItemsOnly=true should only return sold,
-                # but double-check
-                pass
-
-            # End time filter — last 90 days
-            end_time_str = item.findtext(".//listingInfo/endTime") or ""
+        for item in items:
+            price_info = item.get("price", {})
             try:
-                end_time = datetime.strptime(end_time_str[:19], "%Y-%m-%dT%H:%M:%S")
-                if end_time < cutoff:
-                    continue
-            except ValueError:
-                pass
-
-            price_str = (item.findtext(".//sellingStatus/convertedCurrentPrice") or
-                         item.findtext(".//sellingStatus/currentPrice") or "")
-            try:
-                price = float(price_str)
-                if 0.50 < price < 50_000:   # sanity range
+                price = float(price_info.get("value", 0))
+                if 0.25 < price < 50_000:
                     prices.append(price)
             except (ValueError, TypeError):
                 pass
@@ -198,49 +201,43 @@ class CardValuator:
         if not prices:
             return None
 
-        # Trim top/bottom 10% to remove outliers
         prices.sort()
         trim = max(1, len(prices) // 10)
         trimmed = prices[trim: len(prices) - trim] or prices
 
+        logger.info("eBay Browse API: %d active listings for '%s', median=$%.2f",
+                    len(trimmed), query, median(trimmed))
         return {
-            "source":     "eBay (sold listings)",
-            "value":      round(median(trimmed), 2),
-            "low":        round(min(trimmed), 2),
-            "high":       round(max(trimmed), 2),
-            "sample":     len(trimmed),
-            "query":      query,
+            "source":  "eBay Browse (active)",
+            "value":   round(median(trimmed), 2),
+            "low":     round(min(trimmed), 2),
+            "high":    round(max(trimmed), 2),
+            "sample":  len(trimmed),
+            "query":   query,
         }
 
     # ------------------------------------------------------------------ #
-    #  Fallback: eBay web scrape (no API key needed)                       #
+    #  Source 2: eBay web scrape — completed/sold prices                   #
     # ------------------------------------------------------------------ #
 
     def search_ebay_web(self, card_name: str, set_name: Optional[str] = None,
                         game: Optional[str] = None) -> Optional[Dict]:
-        """Scrape eBay completed/sold listings page as fallback."""
+        """Scrape eBay completed/sold listings for real transaction prices."""
         try:
             query = self._build_query(card_name, set_name, game)
             url = (
                 f"https://www.ebay.com/sch/i.html"
                 f"?_nkw={quote(query)}"
-                f"&LH_Sold=1&LH_Complete=1&_ipg=100&_sop=13"  # sort by most recent
+                f"&LH_Sold=1&LH_Complete=1&_ipg=100&_sop=13"
             )
-            headers = {
-                "User-Agent": (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/124.0 Safari/537.36"
-                ),
-                "Accept-Language": "en-US,en;q=0.9",
-            }
-            r = self.session.get(url, headers=headers, timeout=self.timeout)
+            r = self.session.get(url, timeout=self.timeout)
             r.raise_for_status()
 
-            # Extract prices — eBay sold price spans use class s-item__price
             raw_prices: List[float] = []
+
+            # Primary: target the s-item__price span
             for m in re.finditer(
-                r'class="[^"]*s-item__price[^"]*"[^>]*>.*?\$([\d,]+\.?\d*)',
+                r'class="[^"]*s-item__price[^"]*"[^>]*>\s*\$?([\d,]+\.?\d*)',
                 r.text, re.S
             ):
                 try:
@@ -248,36 +245,54 @@ class CardValuator:
                 except ValueError:
                     pass
 
-            # Also catch plain $X.XX patterns as a wider net
+            # Fallback: any $X.XX pattern
             if not raw_prices:
                 for m in re.finditer(r'\$([\d,]+\.\d{2})', r.text):
                     try:
-                        v = float(m.group(1).replace(",", ""))
-                        if 0.25 < v < 50_000:
-                            raw_prices.append(v)
+                        raw_prices.append(float(m.group(1).replace(",", "")))
                     except ValueError:
                         pass
 
             prices = [p for p in raw_prices if 0.25 < p < 50_000]
             if not prices:
-                logger.debug("eBay web scrape returned no prices for: %s", query)
+                logger.debug("eBay web scrape: no prices found for '%s'", query)
                 return None
 
             prices.sort()
             trim = max(1, len(prices) // 10)
             trimmed = prices[trim: len(prices) - trim] or prices
-            logger.info("eBay web scrape: %d prices for '%s', median=$%.2f",
+
+            logger.info("eBay web scrape: %d sold prices for '%s', median=$%.2f",
                         len(trimmed), query, median(trimmed))
             return {
-                "source":  "eBay (web)",
+                "source":  "eBay (sold)",
                 "value":   round(median(trimmed), 2),
                 "low":     round(min(trimmed), 2),
                 "high":    round(max(trimmed), 2),
                 "sample":  len(trimmed),
+                "query":   query,
             }
         except Exception as exc:
             logger.warning("eBay web scrape failed: %s", exc)
             return None
+
+    # ------------------------------------------------------------------ #
+    #  Helpers                                                             #
+    # ------------------------------------------------------------------ #
+
+    def _build_query(self, card_name: str, set_name: Optional[str],
+                     game: Optional[str]) -> str:
+        parts = [card_name]
+        if set_name and set_name.lower() not in card_name.lower():
+            parts.append(set_name)
+        if game:
+            for kw in ["Pokémon", "Pokemon", "Magic", "Yu-Gi-Oh",
+                       "Baseball", "Basketball", "Football", "Hockey"]:
+                if kw.lower() in game.lower():
+                    parts.append(kw)
+                    break
+        parts.append("card")
+        return " ".join(parts)
 
     # ------------------------------------------------------------------ #
     #  Public interface                                                    #
@@ -285,19 +300,44 @@ class CardValuator:
 
     def fetch_value(self, card_name: str, set_name: Optional[str] = None,
                     game: Optional[str] = None) -> Optional[Dict]:
-        """Return best available valuation, preferring the official API."""
+        """
+        Fetch best valuation from both sources.
+
+        Priority:
+          1. Sold prices (web scrape) — actual transaction data, most accurate
+          2. Active listing prices (Browse API) — market asking prices
+          3. Blend of both — if both available, weight sold 70% / active 30%
+        """
         if not card_name or not card_name.strip():
             return None
 
-        result = self.search_ebay_api(card_name, set_name, game)
-        if result and result.get("value", 0) > 0:
-            return result
+        sold   = self.search_ebay_web(card_name, set_name, game)
+        active = self.search_browse_api(card_name, set_name, game)
 
-        # API unavailable or no results — fall back to web scrape
-        result = self.search_ebay_web(card_name, set_name, game)
-        return result if result and result.get("value", 0) > 0 else None
+        if sold and active:
+            # Blend: sold prices weighted 70%, active listings 30%
+            blended = round(sold["value"] * 0.70 + active["value"] * 0.30, 2)
+            return {
+                "source":  f"eBay blended (sold + active, n={sold['sample']+active['sample']})",
+                "value":   blended,
+                "low":     min(sold["low"],  active["low"]),
+                "high":    max(sold["high"], active["high"]),
+                "sample":  sold["sample"] + active["sample"],
+                "query":   sold.get("query", ""),
+            }
 
-    # Keep old method name so existing callers don't break
+        if sold:
+            return sold
+        if active:
+            # Active-only: apply a ~15% discount vs. listing price
+            # (cards typically sell for less than asking)
+            return {**active,
+                    "value":  round(active["value"] * 0.85, 2),
+                    "source": "eBay Browse (active, est.)"}
+
+        return None
+
+    # Keep old method name for existing callers
     def fetch_all_values(self, card_name: str,
                          set_name: Optional[str] = None) -> List[Dict]:
         result = self.fetch_value(card_name, set_name)
@@ -306,36 +346,29 @@ class CardValuator:
     def compute_estimate(self, values: List[Dict],
                          condition_score: float = 85.0,
                          grade: Optional[str] = None) -> float:
-        """Condition-adjusted value using grade letter if available."""
         if not values:
             return 0.0
-
         base = median(sorted(v["value"] for v in values))
-
         if grade and grade in CONDITION_MULTIPLIERS:
             multiplier = CONDITION_MULTIPLIERS[grade]
         else:
-            # Fall back to score-based multiplier (0.25 – 1.50)
             multiplier = max(0.25, min(1.50, condition_score / 85.0))
-
         return round(base * multiplier, 2)
 
     def value_summary(self, card_name: str, set_name: Optional[str] = None,
                       game: Optional[str] = None,
                       grade: Optional[str] = None,
                       condition_score: float = 85.0) -> Dict:
-        """Single call that returns a full valuation summary dict."""
         result = self.fetch_value(card_name, set_name, game)
         if not result:
-            return {"estimated": 0.0, "source": "No data", "low": 0.0,
-                    "high": 0.0, "sample": 0}
-
+            return {"estimated": 0.0, "source": "No data",
+                    "low": 0.0, "high": 0.0, "sample": 0}
         estimated = self.compute_estimate([result], condition_score, grade)
         return {
             "estimated": estimated,
             "source":    result.get("source", ""),
-            "low":       result.get("low", 0.0),
-            "high":      result.get("high", 0.0),
+            "low":       result.get("low",    0.0),
+            "high":      result.get("high",   0.0),
             "sample":    result.get("sample", 0),
-            "query":     result.get("query", ""),
+            "query":     result.get("query",  ""),
         }
