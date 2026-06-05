@@ -32,7 +32,8 @@ from urllib.parse import quote
 logger = logging.getLogger(__name__)
 
 # Scryfall — free official Magic: The Gathering card API (prices in USD)
-SCRYFALL_NAMED_URL = "https://api.scryfall.com/cards/named"
+SCRYFALL_NAMED_URL  = "https://api.scryfall.com/cards/named"
+SCRYFALL_SEARCH_URL = "https://api.scryfall.com/cards/search"
 
 # eBay OAuth token endpoint
 OAUTH_URL_PROD    = "https://api.ebay.com/identity/v1/oauth2/token"
@@ -307,35 +308,60 @@ class CardValuator:
         if not name:
             return None
 
-        # Try with a specific set code first (precise printing), then by name only
+        # 1) Exact-ish lookup by name (+ set code if it looks valid)
         code = self._scryfall_set_code(set_name)
         attempts = ([{"fuzzy": name, "set": code}] if code else []) + [{"fuzzy": name}]
-
         for params in attempts:
             try:
                 self._scryfall_throttle()
                 r = self.api_session.get(SCRYFALL_NAMED_URL, params=params,
                                          timeout=self.api_timeout)
-                if r.status_code in (404, 400):
-                    continue   # not found with this set — try name-only
+                if r.status_code in (400, 404):
+                    continue
                 r.raise_for_status()
-                data = r.json()
-                price = self._scryfall_price(data)
-                if price is not None and price > 0:
-                    set_disp = (data.get("set") or "").upper()
-                    logger.info("Scryfall: %s (%s) = $%.2f", name, set_disp, price)
-                    return {
-                        "source": f"Scryfall ({set_disp})" if set_disp else "Scryfall",
-                        "value":  round(price, 2),
-                        "low":    round(price, 2),
-                        "high":   round(price, 2),
-                        "sample": 1,
-                        "query":  name,
-                    }
+                hit = self._scryfall_result(r.json(), name)
+                if hit:
+                    return hit
             except Exception as exc:
-                logger.warning("Scryfall lookup failed for '%s': %s", name, exc)
-                return None
+                logger.warning("Scryfall named lookup failed for '%s': %s", name, exc)
+                break
+
+        # 2) Fallback: search ALL printings of this exact name, cheapest priced
+        #    first. Rescues cards whose specific printing had no USD price (e.g.
+        #    a token reprint) or where the set field was garbage.
+        try:
+            self._scryfall_throttle()
+            r = self.api_session.get(
+                SCRYFALL_SEARCH_URL,
+                params={"q": f'!"{name}" game:paper', "order": "usd", "dir": "asc",
+                        "unique": "prints"},
+                timeout=self.api_timeout,
+            )
+            if r.status_code == 200:
+                for card in r.json().get("data", []):
+                    hit = self._scryfall_result(card, name)
+                    if hit:
+                        return hit
+        except Exception as exc:
+            logger.warning("Scryfall search fallback failed for '%s': %s", name, exc)
+
         return None
+
+    def _scryfall_result(self, data: dict, name: str) -> Optional[Dict]:
+        """Build a valuation dict from a Scryfall card object, or None."""
+        price = self._scryfall_price(data)
+        if price is None or price <= 0:
+            return None
+        set_disp = (data.get("set") or "").upper()
+        logger.info("Scryfall: %s (%s) = $%.2f", name, set_disp, price)
+        return {
+            "source": f"Scryfall ({set_disp})" if set_disp else "Scryfall",
+            "value":  round(price, 2),
+            "low":    round(price, 2),
+            "high":   round(price, 2),
+            "sample": 1,
+            "query":  name,
+        }
 
     # ------------------------------------------------------------------ #
     #  Source 2: PriceCharting — historical sold prices                    #
