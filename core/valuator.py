@@ -189,17 +189,18 @@ class CardValuator:
 
         query = self._build_query(card_name, set_name, game)
 
-        # Category filter
-        sports = {"baseball", "basketball", "football", "hockey", "sports cards"}
-        category = "213" if (game and game.lower() in sports) else "183454"
-
         params = {
             "q":               query,
-            "category_ids":    category,
             "limit":           "100",
             "sort":            "price",
             "filter":          "buyingOptions:{FIXED_PRICE|AUCTION|AUCTION_WITH_BIN}",
         }
+        # Only constrain the category when we're confident about the type.
+        # Non-sport cards (Star Wars, Garbage Pail Kids, etc. → "Other") must
+        # NOT be forced into the CCG category or eBay returns nothing.
+        category = self._ebay_category(game)
+        if category:
+            params["category_ids"] = category
 
         try:
             browse_headers = {
@@ -468,6 +469,27 @@ class CardValuator:
     # ------------------------------------------------------------------ #
     #  Helpers                                                             #
     # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def _ebay_category(game: Optional[str]) -> Optional[str]:
+        """
+        Map a game to an eBay category id, or None to search all categories.
+
+        Returning None for non-sport / unknown types is deliberate: forcing a
+        category would exclude legitimate results (e.g. 1980 Star Wars cards
+        are Non-Sport singles, not CCG cards).
+        """
+        if not game:
+            return None
+        g = game.lower()
+        sports = {"baseball", "basketball", "football", "hockey", "sports cards"}
+        tcg = {"magic", "mtg", "pokémon", "pokemon", "yu-gi-oh", "yugioh",
+               "one piece", "lorcana", "flesh and blood"}
+        if g in sports:
+            return "213"        # Sports Trading Card Singles
+        if any(t in g for t in tcg):
+            return "183454"     # CCG Individual Cards
+        return None             # Non-sport / unknown → search everything
 
     def _build_query(self, card_name: str, set_name: Optional[str],
                      game: Optional[str]) -> str:
