@@ -164,10 +164,8 @@ class ScanTab(QWidget):
         fl.setContentsMargins(8, 8, 8, 8)
         fl.setSpacing(6)
         self.front_view = ImageViewer("Front side\nNot scanned yet")
-        self.front_rotate_btn = QPushButton("↻ Rotate 180°")
-        self.front_rotate_btn.clicked.connect(self._rotate_front)
         fl.addWidget(self.front_view)
-        fl.addWidget(self.front_rotate_btn)
+        fl.addLayout(self._make_rotate_bar('front'))
 
         # BACK
         back_box = QGroupBox("Back")
@@ -175,10 +173,8 @@ class ScanTab(QWidget):
         bl.setContentsMargins(8, 8, 8, 8)
         bl.setSpacing(6)
         self.back_view = ImageViewer("Back side\nNot scanned yet")
-        self.back_rotate_btn = QPushButton("↻ Rotate 180°")
-        self.back_rotate_btn.clicked.connect(self._rotate_back)
         bl.addWidget(self.back_view)
-        bl.addWidget(self.back_rotate_btn)
+        bl.addLayout(self._make_rotate_bar('back'))
 
         img_layout.addWidget(front_box)
         img_layout.addWidget(back_box)
@@ -328,7 +324,7 @@ class ScanTab(QWidget):
             self.back_view.set_image(None)
 
     def _finish_scanning(self):
-        """Process all accumulated pages as individual cards."""
+        """Split accumulated pages into per-card chunks and open batch review."""
         images = self._accumulated_images
         self._accumulated_images = []
 
@@ -338,49 +334,66 @@ class ScanTab(QWidget):
                   for i in range(0, len(images), pages_per_card)]
 
         if len(chunks) == 1:
-            # Single card — load straight into viewer, no dialog
-            self._load_card_images(chunks[0])
+            # Single card — auto-straighten, then load into the viewer
+            from utils.image_ops import deskew
+            chunk = [deskew(im) for im in chunks[0]]
+            self._load_card_images(chunk)
             self._auto_identify()
             self._inspect()
             self.status_label.setText("✅ Card ready — review and save.")
             return
 
-        # Multiple cards — step through review queue
-        total = len(chunks)
-        saved = 0
-        for i, chunk in enumerate(chunks):
-            self._reset_form()
-            self._load_card_images(chunk)
-            self._auto_identify()
-            self._inspect()
-
-            dlg = _ContinuousScanDialog(i + 1, total, self)
-            choice = dlg.exec()
-
-            if choice == _ContinuousScanDialog.SAVE:
-                self._save_card()
-                saved += 1
-            elif choice == _ContinuousScanDialog.SKIP:
-                continue
-            else:
-                break
-
-        self.status_label.setText(
-            f"✅ Done — {saved} of {total} card(s) saved."
+        # Multiple cards — open batch review dialog
+        from ui.batch_review_dialog import BatchReviewDialog
+        dlg = BatchReviewDialog(
+            chunks, self.db, self.identifier,
+            self.inspector, self.valuator, self
         )
+        dlg.exec()
+        self.status_label.setText("✅ Batch session complete.")
         self.card_added.emit()
 
-    def _rotate_front(self):
-        if self.current_front_img is not None:
-            self.current_front_img = cv2.rotate(self.current_front_img, cv2.ROTATE_180)
-            self.front_view.set_image(self.current_front_img)
-            self.status_label.setText("↻ Front rotated 180°")
+    def _make_rotate_bar(self, side: str):
+        """Build a row of transform buttons (CCW, 180, CW, deskew) for a side."""
+        bar = QHBoxLayout()
+        bar.setSpacing(4)
+        buttons = [
+            ("↺ 90°",     lambda: self._transform(side, 'ccw')),
+            ("↻ 180°",    lambda: self._transform(side, '180')),
+            ("↻ 90°",     lambda: self._transform(side, 'cw')),
+            ("📐 Straighten", lambda: self._transform(side, 'deskew')),
+        ]
+        for label, slot in buttons:
+            btn = QPushButton(label)
+            btn.setMinimumHeight(32)
+            btn.clicked.connect(slot)
+            bar.addWidget(btn)
+        return bar
 
-    def _rotate_back(self):
-        if self.current_back_img is not None:
-            self.current_back_img = cv2.rotate(self.current_back_img, cv2.ROTATE_180)
-            self.back_view.set_image(self.current_back_img)
-            self.status_label.setText("↻ Back rotated 180°")
+    def _transform(self, side: str, op: str):
+        """Apply a rotation/deskew transform to the front or back image."""
+        from utils import image_ops
+        img = self.current_front_img if side == 'front' else self.current_back_img
+        if img is None:
+            return
+
+        ops = {
+            'cw':     (image_ops.rotate_90_cw,  "rotated 90° CW"),
+            'ccw':    (image_ops.rotate_90_ccw, "rotated 90° CCW"),
+            '180':    (image_ops.rotate_180,    "rotated 180°"),
+            'deskew': (image_ops.deskew,        "straightened"),
+        }
+        fn, desc = ops[op]
+        result = fn(img)
+
+        if side == 'front':
+            self.current_front_img = result
+            self.front_view.set_image(result)
+        else:
+            self.current_back_img = result
+            self.back_view.set_image(result)
+
+        self.status_label.setText(f"✅ {side.capitalize()} {desc}")
 
     def _load_file(self, side: str):
         path, _ = QFileDialog.getOpenFileName(self, f"Load {side} image", "",
@@ -591,43 +604,3 @@ class _ScanMoreDialog(QDialog):
         layout.addLayout(btn_row)
 
 
-class _ContinuousScanDialog(QDialog):
-    """Mini dialog shown between cards in a continuous/multi-card scan."""
-    SAVE = QDialog.DialogCode.Accepted   # 1
-    SKIP = 10                            # custom code outside Qt's 0/1 range
-    STOP = QDialog.DialogCode.Rejected   # 0
-
-    def __init__(self, current: int, total: int, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle(f"Card {current} of {total}")
-        self.setMinimumWidth(320)
-        self.setModal(True)
-
-        layout = QVBoxLayout(self)
-        layout.setSpacing(12)
-
-        msg = QLabel(f"Card <b>{current} of {total}</b> identified and inspected.<br>"
-                     "Review the details on the left, then choose an action.")
-        msg.setWordWrap(True)
-        layout.addWidget(msg)
-
-        btn_layout = QHBoxLayout()
-
-        save_btn = QPushButton("💾 Save & Next")
-        save_btn.setProperty("primary", True)
-        save_btn.setMinimumHeight(38)
-        save_btn.clicked.connect(self.accept)
-
-        skip_btn = QPushButton("⏭ Skip")
-        skip_btn.setMinimumHeight(38)
-        skip_btn.clicked.connect(lambda: self.done(_ContinuousScanDialog.SKIP))
-
-        stop_btn = QPushButton("⏹ Stop")
-        stop_btn.setMinimumHeight(38)
-        stop_btn.setStyleSheet("color: #ed4245;")
-        stop_btn.clicked.connect(self.reject)
-
-        btn_layout.addWidget(save_btn)
-        btn_layout.addWidget(skip_btn)
-        btn_layout.addWidget(stop_btn)
-        layout.addLayout(btn_layout)
