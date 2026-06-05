@@ -10,7 +10,7 @@ from pathlib import Path
 from PyQt6.QtWidgets import (
     QMainWindow, QTabWidget, QStatusBar, QMenuBar, QMessageBox
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QKeySequence, QShortcut, QAction
 
 from core.database import Database
@@ -19,9 +19,10 @@ from core.inspector import CardInspector
 from core.identifier import CardIdentifier
 from core.valuator import CardValuator
 from core.auth import AuthManager, WindowsHelloAuth, LoginDialog, AuthLockedError
+from core.watcher import WatchConfig
 
 from ui.scan_tab import ScanTab
-from ui.batch_tab import BatchTab
+from ui.batch_tab import BatchTab, ImageBatchWorker
 from ui.collection_tab import CollectionTab
 from ui.reports_tab import ReportsTab
 
@@ -61,8 +62,14 @@ class MainWindow(QMainWindow):
         self.tabs.setDocumentMode(False)
         self.tabs.setTabPosition(QTabWidget.TabPosition.North)
 
+        # Watch-folder auto-import config (shared with the batch tab UI)
+        self.watch_config = WatchConfig()
+        self._watch_worker = None
+        self._watch_snapshot = []
+
         self.scan_tab = ScanTab(self.db, self.scanner, self.inspector, self.identifier, self.valuator)
-        self.batch_tab = BatchTab(self.db, self.scanner, self.inspector, self.identifier, self.valuator)
+        self.batch_tab = BatchTab(self.db, self.scanner, self.inspector, self.identifier,
+                                  self.valuator, self.watch_config, self._run_watch_import)
         self.collection_tab = CollectionTab(self.db, self.valuator, self.identifier)
         self.reports_tab = ReportsTab(self.db)
 
@@ -88,6 +95,11 @@ class MainWindow(QMainWindow):
         sb = QStatusBar()
         self.setStatusBar(sb)
         sb.showMessage("Ready • Press F1 for keyboard shortcuts")
+
+        # Watch-folder timer — checks once a minute whether an auto-import is due
+        self._watch_timer = QTimer(self)
+        self._watch_timer.timeout.connect(self._check_watch)
+        self._watch_timer.start(60_000)
 
         # First-run: if no Anthropic key is configured, guide the user to Settings
         self._prompt_for_keys_if_needed()
@@ -167,6 +179,64 @@ class MainWindow(QMainWindow):
         shortcuts_action = QAction("Keyboard Shortcuts", self)
         shortcuts_action.triggered.connect(self._show_help)
         help_menu.addAction(shortcuts_action)
+
+    # ── Watch-folder auto-import ──────────────────────────────────────────────
+
+    def _check_watch(self):
+        """Called every minute — run an auto-import if one is due."""
+        if self._watch_worker and self._watch_worker.isRunning():
+            return
+        if self.watch_config.is_due():
+            self._run_watch_import()
+
+    def _run_watch_import(self, force: bool = False):
+        """Start an auto-import of the watch folder's pending images."""
+        if self._watch_worker and self._watch_worker.isRunning():
+            return
+        cfg = self.watch_config
+        if not cfg.folder:
+            return
+        images = cfg.pending_images()
+        if not images:
+            if force:
+                self.statusBar().showMessage("🕒 Watch folder is empty.", 4000)
+            # For interval mode, advance the clock so we don't busy-check
+            if cfg.mode == "interval":
+                cfg.mark_run()
+            return
+
+        self._watch_snapshot = images
+        self.statusBar().showMessage(
+            f"🕒 Auto-import: processing {len(images)} file(s)…")
+        self._watch_worker = ImageBatchWorker(
+            Path(cfg.folder), self.db, self.scanner, self.inspector,
+            self.identifier, self.valuator, cfg.auto_value, cfg.pairing)
+        self._watch_worker.finished.connect(self._on_watch_done)
+        self._watch_worker.start()
+
+    def _on_watch_done(self, count: int):
+        cfg = self.watch_config
+        # Move processed files into an "imported" subfolder so they aren't redone
+        from core.watcher import IMPORTED_SUBDIR
+        dest = Path(cfg.folder) / IMPORTED_SUBDIR
+        try:
+            dest.mkdir(exist_ok=True)
+            for p in self._watch_snapshot:
+                try:
+                    p.rename(dest / p.name)
+                except OSError:
+                    pass
+        except OSError:
+            pass
+
+        cfg.mark_run()
+        self._watch_snapshot = []
+        self.collection_tab.refresh()
+        self.reports_tab.refresh()
+        if hasattr(self.batch_tab, "refresh_watch_status"):
+            self.batch_tab.refresh_watch_status()
+        self.statusBar().showMessage(
+            f"🕒 Auto-import complete — {count} card(s) added.", 6000)
 
     def _open_settings(self):
         """Open the API-keys settings dialog and apply changes live."""

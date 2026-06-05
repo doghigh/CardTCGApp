@@ -11,15 +11,17 @@ from typing import Dict
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QComboBox,
-    QCheckBox, QProgressBar, QTextEdit, QFileDialog, QMessageBox, QGroupBox
+    QCheckBox, QProgressBar, QTextEdit, QFileDialog, QMessageBox, QGroupBox,
+    QTimeEdit, QSpinBox
 )
-from PyQt6.QtCore import QThread, pyqtSignal
+from PyQt6.QtCore import QThread, pyqtSignal, QTime
 
 from core.database import Database
 from core.scanner import ScannerInterface
 from core.inspector import CardInspector
 from core.identifier import CardIdentifier
 from core.valuator import CardValuator
+from core.watcher import WatchConfig
 from ui.dialogs import CsvMappingDialog
 
 
@@ -242,13 +244,16 @@ class BatchTab(QWidget):
     cards_added = pyqtSignal(int)
 
     def __init__(self, db: Database, scanner: ScannerInterface, inspector: CardInspector,
-                 identifier: CardIdentifier, valuator: CardValuator):
+                 identifier: CardIdentifier, valuator: CardValuator,
+                 watch_config: WatchConfig = None, run_watch_now=None):
         super().__init__()
         self.db = db
         self.scanner = scanner
         self.inspector = inspector
         self.identifier = identifier
         self.valuator = valuator
+        self.watch_config = watch_config or WatchConfig()
+        self._run_watch_now = run_watch_now   # callback into main window
         self.current_path = None
         self._build_ui()
 
@@ -340,6 +345,9 @@ class BatchTab(QWidget):
 
         layout.addWidget(source_group)
 
+        # Watch-folder auto-import
+        layout.addWidget(self._build_watch_group())
+
         # Action row
         action_row = QHBoxLayout()
         self.process_btn = QPushButton("🚀 Start Batch Import")
@@ -369,6 +377,138 @@ class BatchTab(QWidget):
         self.status_label = QLabel("Select a folder or CSV file to begin.")
         self.status_label.setStyleSheet("color: #8b8fa8; font-size: 12px;")
         layout.addWidget(self.status_label)
+
+    def _build_watch_group(self) -> QGroupBox:
+        cfg = self.watch_config
+        grp = QGroupBox("🕒 Auto-Import Watch Folder")
+        v = QVBoxLayout(grp)
+        v.setContentsMargins(12, 24, 12, 12)
+        v.setSpacing(8)
+
+        self.watch_enable = QCheckBox("Enable — automatically import images dropped in a folder")
+        self.watch_enable.setChecked(cfg.enabled)
+        self.watch_enable.stateChanged.connect(self._save_watch)
+        v.addWidget(self.watch_enable)
+
+        # Folder picker
+        f_row = QHBoxLayout()
+        self.watch_folder_btn = QPushButton("📁 Choose Watch Folder")
+        self.watch_folder_btn.setMaximumWidth(220)
+        self.watch_folder_btn.clicked.connect(self._choose_watch_folder)
+        self.watch_folder_label = QLabel(cfg.folder or "No folder selected")
+        self.watch_folder_label.setStyleSheet("color: #8b8fa8; font-size: 12px;")
+        f_row.addWidget(self.watch_folder_btn)
+        f_row.addWidget(self.watch_folder_label, 1)
+        v.addLayout(f_row)
+
+        # Schedule row
+        s_row = QHBoxLayout()
+        s_row.addWidget(QLabel("Schedule:"))
+        self.watch_mode = QComboBox()
+        self.watch_mode.addItems(["Daily at a set time", "Every N minutes"])
+        self.watch_mode.setCurrentIndex(0 if cfg.mode == "daily" else 1)
+        self.watch_mode.currentIndexChanged.connect(self._on_watch_mode_changed)
+        s_row.addWidget(self.watch_mode)
+
+        self.watch_time = QTimeEdit()
+        self.watch_time.setDisplayFormat("HH:mm")
+        try:
+            hh, mm = (int(x) for x in cfg.time.split(":"))
+        except ValueError:
+            hh, mm = 2, 0
+        self.watch_time.setTime(QTime(hh, mm))
+        self.watch_time.timeChanged.connect(self._save_watch)
+        s_row.addWidget(self.watch_time)
+
+        self.watch_interval = QSpinBox()
+        self.watch_interval.setRange(5, 1440)
+        self.watch_interval.setSuffix(" min")
+        self.watch_interval.setValue(cfg.interval_min)
+        self.watch_interval.valueChanged.connect(self._save_watch)
+        s_row.addWidget(self.watch_interval)
+        s_row.addStretch()
+        v.addLayout(s_row)
+
+        # Pairing + auto-value
+        p_row = QHBoxLayout()
+        p_row.addWidget(QLabel("Images:"))
+        self.watch_pairing = QComboBox()
+        self.watch_pairing.addItems([
+            "One image = one card",
+            "Front/back pairs — sequential",
+            "Front/back pairs — by filename",
+        ])
+        self.watch_pairing.setCurrentIndex(
+            {"single": 0, "sequential": 1, "filename": 2}.get(cfg.pairing, 0))
+        self.watch_pairing.currentIndexChanged.connect(self._save_watch)
+        p_row.addWidget(self.watch_pairing)
+        self.watch_autovalue = QCheckBox("Auto-value")
+        self.watch_autovalue.setChecked(cfg.auto_value)
+        self.watch_autovalue.stateChanged.connect(self._save_watch)
+        p_row.addWidget(self.watch_autovalue)
+        p_row.addStretch()
+        v.addLayout(p_row)
+
+        # Status + Run Now
+        r_row = QHBoxLayout()
+        self.watch_status = QLabel(self._watch_status_text())
+        self.watch_status.setStyleSheet("color: #8b8fa8; font-size: 12px;")
+        r_row.addWidget(self.watch_status, 1)
+        run_now = QPushButton("▶ Run Now")
+        run_now.clicked.connect(self._watch_run_now)
+        r_row.addWidget(run_now)
+        v.addLayout(r_row)
+
+        self._on_watch_mode_changed()
+        return grp
+
+    def _on_watch_mode_changed(self):
+        is_daily = self.watch_mode.currentIndex() == 0
+        self.watch_time.setVisible(is_daily)
+        self.watch_interval.setVisible(not is_daily)
+        self._save_watch()
+
+    def _choose_watch_folder(self):
+        folder = QFileDialog.getExistingDirectory(self, "Select Watch Folder")
+        if folder:
+            self.watch_folder_label.setText(folder)
+            self._save_watch()
+
+    def _save_watch(self, *args):
+        cfg = self.watch_config
+        cfg.enabled = self.watch_enable.isChecked()
+        lbl = self.watch_folder_label.text()
+        cfg.folder = lbl if lbl and lbl != "No folder selected" else ""
+        cfg.mode = "daily" if self.watch_mode.currentIndex() == 0 else "interval"
+        cfg.time = self.watch_time.time().toString("HH:mm")
+        cfg.interval_min = self.watch_interval.value()
+        cfg.pairing = {0: "single", 1: "sequential", 2: "filename"}[
+            self.watch_pairing.currentIndex()]
+        cfg.auto_value = self.watch_autovalue.isChecked()
+        cfg.save()
+        if hasattr(self, "watch_status"):
+            self.watch_status.setText(self._watch_status_text())
+
+    def _watch_status_text(self) -> str:
+        cfg = self.watch_config
+        pending = len(cfg.pending_images()) if cfg.folder else 0
+        base = cfg.next_run_text()
+        last = f"  •  Last run: {cfg.last_run[:16].replace('T', ' ')}" if cfg.last_run else ""
+        files = f"  •  {pending} file(s) waiting" if cfg.folder else ""
+        return base + files + last
+
+    def _watch_run_now(self):
+        if not self.watch_config.folder:
+            QMessageBox.information(self, "No Folder",
+                                   "Choose a watch folder first.")
+            return
+        if callable(self._run_watch_now):
+            self._run_watch_now(force=True)
+        self.watch_status.setText(self._watch_status_text())
+
+    def refresh_watch_status(self):
+        if hasattr(self, "watch_status"):
+            self.watch_status.setText(self._watch_status_text())
 
     def _switch_mode(self, index):
         self.image_widget.setVisible(index == 0)
