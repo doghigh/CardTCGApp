@@ -221,6 +221,72 @@ class Database:
             ))
             return cursor.lastrowid
 
+    def merge_existing_duplicates(self) -> Dict[str, int]:
+        """
+        Consolidate duplicate rows already in the collection.
+
+        Groups by name (case-insensitive) + set + card number + game + foil.
+        For each group of 2+, keeps the earliest (lowest id), sums quantities
+        into it, adopts a scan image if the keeper lacks one, deletes the rest,
+        and removes their now-orphaned scan files.
+
+        Returns {'groups': merged_group_count, 'removed': deleted_row_count}.
+        """
+        delete_paths: List[str] = []
+        merged_groups = 0
+        removed = 0
+
+        with self._lock, self._conn() as conn:
+            rows = conn.execute("SELECT * FROM cards ORDER BY id ASC").fetchall()
+            groups: Dict[tuple, List] = {}
+            for r in rows:
+                key = (
+                    (r['name'] or '').strip().lower(),
+                    (r['set_name'] or '').strip(),
+                    (r['card_number'] or '').strip(),
+                    (r['game'] or '').strip(),
+                    int(r['foil'] or 0),
+                )
+                groups.setdefault(key, []).append(r)
+
+            for members in groups.values():
+                if len(members) < 2:
+                    continue
+                keeper = members[0]
+                keep_front = keeper['front_scan_path']
+                keep_back = keeper['back_scan_path']
+                new_qty = int(keeper['quantity'] or 1)
+
+                for m in members[1:]:
+                    new_qty += int(m['quantity'] or 1)
+                    # Adopt an image only if the keeper is missing one
+                    if not keep_front and m['front_scan_path']:
+                        keep_front = m['front_scan_path']
+                    elif m['front_scan_path']:
+                        delete_paths.append(m['front_scan_path'])
+                    if not keep_back and m['back_scan_path']:
+                        keep_back = m['back_scan_path']
+                    elif m['back_scan_path']:
+                        delete_paths.append(m['back_scan_path'])
+                    conn.execute("DELETE FROM cards WHERE id = ?", (m['id'],))
+                    removed += 1
+
+                conn.execute(
+                    "UPDATE cards SET quantity = ?, front_scan_path = ?, "
+                    "back_scan_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (new_qty, keep_front, keep_back, keeper['id']),
+                )
+                merged_groups += 1
+
+        # Remove orphaned scan files outside the DB lock
+        for path in delete_paths:
+            try:
+                Path(path).unlink(missing_ok=True)
+            except OSError:
+                pass
+
+        return {'groups': merged_groups, 'removed': removed}
+
     def update_card(self, card_id: int, updates: Dict):
         """Safe update: column whitelist + type validation."""
         allowed_fields = {

@@ -102,6 +102,10 @@ class CollectionTab(QWidget):
         self.revalue_btn = QPushButton("💰 Re-value Selected")
         self.revalue_btn.clicked.connect(self._revalue_selected)
 
+        self.merge_btn = QPushButton("🔁 Merge Duplicates")
+        self.merge_btn.setToolTip("Combine duplicate cards into one row with summed quantity")
+        self.merge_btn.clicked.connect(self._merge_duplicates)
+
         self.delete_btn = QPushButton("🗑 Delete Selected")
         self.delete_btn.clicked.connect(self._delete_selected)
 
@@ -111,6 +115,7 @@ class CollectionTab(QWidget):
         bar.addWidget(self.search_edit)
         bar.addWidget(self.refresh_btn)
         bar.addWidget(self.revalue_btn)
+        bar.addWidget(self.merge_btn)
         bar.addWidget(self.delete_btn)
         bar.addWidget(self.export_btn)
         layout.addLayout(bar)
@@ -225,6 +230,31 @@ class CollectionTab(QWidget):
             for cid in ids:
                 self.db.delete_card(cid)
             self.refresh()
+
+    def _merge_duplicates(self):
+        """Consolidate existing duplicate rows into single rows with summed qty."""
+        reply = QMessageBox.question(
+            self, "Merge Duplicates",
+            "Combine duplicate cards (same name, set, card #, game, foil) into "
+            "single rows with their quantities added together?\n\n"
+            "This keeps the earliest copy and removes the extras. It cannot be undone.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        result = self.db.merge_existing_duplicates()
+        self.refresh()
+        if result['removed']:
+            QMessageBox.information(
+                self, "Merge Complete",
+                f"🔁 Merged {result['removed']} duplicate row(s) into "
+                f"{result['groups']} card(s).",
+            )
+        else:
+            QMessageBox.information(self, "No Duplicates",
+                                    "No duplicate cards were found.")
 
     def _revalue_selected(self):
         ids = self._selected_ids()
