@@ -18,7 +18,7 @@ from core.scanner import ScannerInterface
 from core.inspector import CardInspector
 from core.identifier import CardIdentifier
 from core.valuator import CardValuator
-from core.auth import AuthManager, WindowsHelloAuth, LoginDialog
+from core.auth import AuthManager, WindowsHelloAuth, LoginDialog, AuthLockedError
 
 from ui.scan_tab import ScanTab
 from ui.batch_tab import BatchTab

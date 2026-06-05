@@ -1,37 +1,58 @@
 """
-Authentication module with secure password handling, TOTP, and Windows Hello.
-Fixed: Secure key derivation, recovery codes, and input validation.
+Authentication module — password, TOTP, Windows Hello, recovery codes.
+
+Security properties:
+  - PBKDF2-SHA256 with 600,000 iterations for password key derivation
+  - Fernet (AES-128-CBC + HMAC-SHA256) for TOTP secret at rest
+  - Recovery codes stored as SHA-256 hashes (one-time use)
+  - Brute-force lockout: 5 attempts → exponential backoff (30s … 5min)
+  - Timing-safe comparison via secrets.compare_digest
 """
 
+import base64
 import json
-import secrets
+import logging
 import os
 import hashlib
+import secrets
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, List
 
 import pyotp
+from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.backends import default_backend
 
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QLabel, QLineEdit, QPushButton,
-                             QCheckBox, QMessageBox, QHBoxLayout, QInputDialog)
+from PyQt6.QtWidgets import (
+    QDialog, QVBoxLayout, QLabel, QLineEdit, QPushButton,
+    QCheckBox, QMessageBox, QHBoxLayout, QInputDialog,
+)
 from PyQt6.QtCore import Qt
 
-# Global APP_DIR
+logger = logging.getLogger(__name__)
+
 APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "TradingCardManager"
 APP_DIR.mkdir(parents=True, exist_ok=True)
 
 
+# ── Custom exceptions ────────────────────────────────────────────────────────
+
+class AuthLockedError(Exception):
+    """Raised when login is temporarily locked after too many failed attempts."""
+
+
+# ── Login dialog ─────────────────────────────────────────────────────────────
+
 class LoginDialog(QDialog):
-    """Login dialog with password, TOTP, Windows Hello, and recovery."""
+    """Login dialog: password + optional TOTP, Windows Hello, recovery."""
 
     def __init__(self, auth_manager, hello_auth, parent=None):
         super().__init__(parent)
-        self.auth = auth_manager
+        self.auth  = auth_manager
         self.hello = hello_auth
-        self.setWindowTitle("Login - Trading Card Manager")
+        self.setWindowTitle("Login — Trading Card Manager")
         self.resize(420, 320)
         self._build_ui()
         self._attempt_hello()
@@ -39,7 +60,6 @@ class LoginDialog(QDialog):
     def _build_ui(self):
         layout = QVBoxLayout(self)
         layout.setSpacing(16)
-
         layout.addWidget(QLabel("<h2>Welcome back</h2>"))
 
         self.pass_edit = QLineEdit()
@@ -54,60 +74,91 @@ class LoginDialog(QDialog):
         self.remember = QCheckBox("Remember this device")
         layout.addWidget(self.remember)
 
-        btn_layout = QHBoxLayout()
+        btn_row = QHBoxLayout()
         self.login_btn = QPushButton("Login")
-        self.login_btn.clicked.connect(self._try_login)
         self.login_btn.setDefault(True)
-        btn_layout.addWidget(self.login_btn)
+        self.login_btn.clicked.connect(self._try_login)
+        btn_row.addWidget(self.login_btn)
 
-        self.cancel_btn = QPushButton("Cancel")
-        self.cancel_btn.clicked.connect(self.reject)
-        btn_layout.addWidget(self.cancel_btn)
-        layout.addLayout(btn_layout)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        btn_row.addWidget(cancel_btn)
+        layout.addLayout(btn_row)
 
-        self.recovery_btn = QPushButton("Use Recovery Code")
-        self.recovery_btn.clicked.connect(self._recovery_login)
-        layout.addWidget(self.recovery_btn)
+        recovery_btn = QPushButton("Use Recovery Code")
+        recovery_btn.clicked.connect(self._recovery_login)
+        layout.addWidget(recovery_btn)
+
+        self.status_label = QLabel("")
+        self.status_label.setStyleSheet("color: #ed4245; font-size: 12px;")
+        layout.addWidget(self.status_label)
 
     def _attempt_hello(self):
         if self.hello.is_available():
             if self.hello.request_biometric_login():
                 self.accept()
-                return
 
     def _try_login(self):
-        pw = self.pass_edit.text().strip()
+        pw   = self.pass_edit.text()   # do NOT strip — spaces are valid in passwords
         totp = self.totp_edit.text().strip()
 
-        if self.auth.check_password(pw):
+        try:
+            ok = self.auth.check_password(pw)
+        except AuthLockedError as exc:
+            self.status_label.setText(str(exc))
+            self.login_btn.setEnabled(False)
+            return
+
+        if ok:
             if totp and not self.auth.verify_totp(totp):
-                QMessageBox.warning(self, "Invalid", "TOTP code invalid.")
+                self.status_label.setText("Invalid TOTP code.")
                 return
             self.accept()
         else:
-            QMessageBox.warning(self, "Error", "Invalid password.")
+            remaining = self.auth.attempts_remaining()
+            if remaining > 0:
+                self.status_label.setText(
+                    f"Incorrect password. {remaining} attempt(s) remaining."
+                )
+            else:
+                self.status_label.setText("Account locked — too many failed attempts.")
+                self.login_btn.setEnabled(False)
 
     def _recovery_login(self):
         code, ok = QInputDialog.getText(self, "Recovery", "Enter recovery code:")
         if ok and code and self.auth.verify_recovery_code(code):
             self.accept()
         else:
-            QMessageBox.warning(self, "Invalid", "Recovery code invalid or used.")
+            QMessageBox.warning(self, "Invalid", "Recovery code invalid or already used.")
 
+
+# ── Auth manager ─────────────────────────────────────────────────────────────
 
 class AuthManager:
-    """Secure authentication manager."""
+    """Secure authentication: password + optional TOTP + recovery codes."""
+
+    MAX_ATTEMPTS  = 5
+    BASE_LOCKOUT  = 30   # seconds for first lockout
+    MAX_LOCKOUT   = 300  # cap at 5 minutes
 
     def __init__(self):
-        self.key_file = APP_DIR / ".auth.key"
-        self.salt_file = APP_DIR / ".salt"
-        self.totp_secret_file = APP_DIR / ".totp_secret"
-        self.recovery_file = APP_DIR / ".recovery_codes"
+        self.key_file          = APP_DIR / ".auth.key"
+        self.salt_file         = APP_DIR / ".salt"
+        self.totp_secret_file  = APP_DIR / ".totp_secret"
+        self.recovery_file     = APP_DIR / ".recovery_codes"
+
+        # In-memory only — never persisted
+        self._session_key: Optional[bytes] = None
+        self._failed_attempts: int = 0
+        self._lockout_until: Optional[datetime] = None
+
         self._ensure_salt()
+
+    # ── Salt / key derivation ────────────────────────────────────────────────
 
     def _ensure_salt(self):
         if not self.salt_file.exists():
-            self.salt = secrets.token_bytes(16)
+            self.salt = secrets.token_bytes(32)   # 256-bit salt
             self.salt_file.write_bytes(self.salt)
         else:
             self.salt = self.salt_file.read_bytes()
@@ -118,87 +169,186 @@ class AuthManager:
             length=32,
             salt=self.salt,
             iterations=600_000,
-            backend=default_backend()
+            backend=default_backend(),
         )
-        return kdf.derive(password.encode('utf-8'))
+        return kdf.derive(password.encode("utf-8"))
+
+    def _get_fernet(self) -> Optional[Fernet]:
+        """Return a Fernet cipher using the current session key."""
+        if not self._session_key:
+            return None
+        return Fernet(base64.urlsafe_b64encode(self._session_key))
+
+    # ── Password ─────────────────────────────────────────────────────────────
 
     def set_password(self, password: str):
         if not password or len(password) < 8:
-            raise ValueError("Password must be at least 8 characters long.")
+            raise ValueError("Password must be at least 8 characters.")
         derived = self._derive_key(password)
-        verification_hash = hashlib.sha256(derived).hexdigest()
-        self.key_file.write_text(verification_hash)
+        self.key_file.write_text(hashlib.sha256(derived).hexdigest())
+        self._session_key = derived
+        logger.info("Password set successfully.")
 
     def check_password(self, password: str) -> bool:
+        """
+        Verify the password.
+
+        Raises AuthLockedError if the account is temporarily locked.
+        Returns True on success, False on failure.
+        First run (no key file) always returns True and logs a warning.
+        """
+        # Lockout check
+        if self._lockout_until and datetime.now() < self._lockout_until:
+            remaining = int((self._lockout_until - datetime.now()).total_seconds())
+            raise AuthLockedError(
+                f"Too many failed attempts. Try again in {remaining} second(s)."
+            )
+
         if not self.key_file.exists():
-            return True  # first run
+            logger.warning(
+                "No password file found — granting first-run access. "
+                "Set a password in Settings."
+            )
+            return True
+
         if not password:
             return False
+
         try:
-            stored_data = self.key_file.read_bytes() if self.key_file.stat().st_size <= 64 else self.key_file.read_text()
-            
-            # Migration: detect old format (raw 32-byte hash) and convert to new format
-            if isinstance(stored_data, bytes) and len(stored_data) == 32:
-                # Old format detected — re-prompt user and migrate
-                derived = self._derive_key(password)
-                verification_hash = hashlib.sha256(derived).hexdigest()
-                # Write new format
-                self.key_file.write_text(verification_hash)
-                # Verify matches
-                return secrets.compare_digest(hashlib.sha256(derived).hexdigest(), verification_hash)
-            
-            # New format: hex string
-            stored_hash = self.key_file.read_text().strip() if isinstance(stored_data, str) else stored_data.hex()
+            stored = self.key_file.read_text().strip()
             derived = self._derive_key(password)
-            verification_hash = hashlib.sha256(derived).hexdigest()
-            return secrets.compare_digest(stored_hash, verification_hash)
-        except Exception:
+            expected = hashlib.sha256(derived).hexdigest()
+            success = secrets.compare_digest(stored, expected)
+        except (OSError, ValueError) as exc:
+            logger.error("Password verification error: %s", exc)
             return False
+
+        if success:
+            self._failed_attempts = 0
+            self._lockout_until   = None
+            self._session_key     = derived
+            logger.info("Login successful.")
+        else:
+            self._failed_attempts += 1
+            logger.warning(
+                "Failed login attempt %d/%d.", self._failed_attempts, self.MAX_ATTEMPTS
+            )
+            if self._failed_attempts >= self.MAX_ATTEMPTS:
+                backoff = min(
+                    self.MAX_LOCKOUT,
+                    self.BASE_LOCKOUT * (2 ** (self._failed_attempts - self.MAX_ATTEMPTS)),
+                )
+                self._lockout_until = datetime.now() + timedelta(seconds=backoff)
+                logger.warning("Account locked for %ds.", backoff)
+
+        return success
+
+    def attempts_remaining(self) -> int:
+        return max(0, self.MAX_ATTEMPTS - self._failed_attempts)
 
     def has_password(self) -> bool:
         return self.key_file.exists()
 
+    # ── TOTP ─────────────────────────────────────────────────────────────────
+
     def setup_totp(self) -> Optional[str]:
+        """Generate and store a new TOTP secret, encrypted with session key."""
         if not self.totp_secret_file.exists():
             secret = pyotp.random_base32()
-            self.totp_secret_file.write_text(secret)
+            self._write_totp_secret(secret)
         return self.get_totp_uri()
 
-    def get_totp_uri(self) -> Optional[str]:
+    def _write_totp_secret(self, secret: str):
+        fernet = self._get_fernet()
+        if fernet:
+            self.totp_secret_file.write_bytes(fernet.encrypt(secret.encode()))
+            logger.debug("TOTP secret written (encrypted).")
+        else:
+            # Session key not yet established (edge case); store plaintext with warning
+            self.totp_secret_file.write_text(secret)
+            logger.warning(
+                "TOTP secret written in plaintext — log in first to enable encryption."
+            )
+
+    def _read_totp_secret(self) -> Optional[str]:
         if not self.totp_secret_file.exists():
             return None
-        secret = self.totp_secret_file.read_text().strip()
-        totp = pyotp.TOTP(secret)
-        return totp.provisioning_uri(name="TradingCardManager", issuer_name="TradingCardManager")
+        data = self.totp_secret_file.read_bytes()
+        fernet = self._get_fernet()
+        if fernet:
+            try:
+                return fernet.decrypt(data).decode()
+            except InvalidToken:
+                # Possibly stored in old plaintext format — try decoding as UTF-8
+                try:
+                    plaintext = data.decode().strip()
+                    # Re-encrypt now that we have a session key
+                    self._write_totp_secret(plaintext)
+                    logger.info("Migrated TOTP secret to encrypted storage.")
+                    return plaintext
+                except UnicodeDecodeError:
+                    logger.error("Cannot decrypt TOTP secret — data corrupted.")
+                    return None
+        else:
+            # No session key — try plaintext fallback
+            try:
+                return data.decode().strip()
+            except UnicodeDecodeError:
+                logger.error("Cannot read TOTP secret without session key.")
+                return None
+
+    def get_totp_uri(self) -> Optional[str]:
+        secret = self._read_totp_secret()
+        if not secret:
+            return None
+        return pyotp.TOTP(secret).provisioning_uri(
+            name="TradingCardManager", issuer_name="TradingCardManager"
+        )
 
     def verify_totp(self, code: str) -> bool:
         if not self.totp_secret_file.exists():
             return False
         try:
-            secret = self.totp_secret_file.read_text().strip()
-            totp = pyotp.TOTP(secret)
-            return totp.verify(code.strip(), valid_window=1)
-        except Exception:
+            secret = self._read_totp_secret()
+            if not secret:
+                return False
+            return pyotp.TOTP(secret).verify(code.strip(), valid_window=1)
+        except (ValueError, AttributeError) as exc:
+            logger.warning("TOTP verification error: %s", exc)
             return False
 
+    # ── Recovery codes ────────────────────────────────────────────────────────
+
     def generate_recovery_codes(self) -> List[str]:
-        codes = [secrets.token_hex(4).upper() for _ in range(8)]
-        self.recovery_file.write_text(json.dumps(codes))
+        """
+        Generate 8 one-time recovery codes.
+        Returns plaintext codes to show the user once.
+        Stores SHA-256 hashes — plaintext is never written to disk.
+        """
+        codes  = [secrets.token_hex(4).upper() for _ in range(8)]
+        hashes = [hashlib.sha256(c.encode()).hexdigest() for c in codes]
+        self.recovery_file.write_text(json.dumps(hashes))
+        logger.info("Recovery codes generated (%d codes).", len(codes))
         return codes
 
     def verify_recovery_code(self, code: str) -> bool:
         if not self.recovery_file.exists():
             return False
         try:
-            codes = json.loads(self.recovery_file.read_text())
-            if code in codes:
-                codes.remove(code)
-                self.recovery_file.write_text(json.dumps(codes))
+            stored = json.loads(self.recovery_file.read_text())
+            code_hash = hashlib.sha256(code.strip().upper().encode()).hexdigest()
+            if code_hash in stored:
+                stored.remove(code_hash)
+                self.recovery_file.write_text(json.dumps(stored))
+                logger.info("Recovery code used — %d remaining.", len(stored))
                 return True
-        except Exception:
-            pass
-        return False
+            return False
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.error("Recovery code verification error: %s", exc)
+            return False
 
+
+# ── Windows Hello ─────────────────────────────────────────────────────────────
 
 class WindowsHelloAuth:
     """Windows Hello biometric authentication."""
@@ -218,23 +368,25 @@ class WindowsHelloAuth:
             return False
         try:
             import asyncio
-            from winrt.windows.security.credentials import KeyCredentialManager, KeyCredentialCreationOption
+            from winrt.windows.security.credentials import (
+                KeyCredentialManager, KeyCredentialCreationOption,
+            )
 
-            async def auth_async():
+            async def _auth():
                 manager = KeyCredentialManager()
-                result = await manager.request_create_async(
+                result  = await manager.request_create_async(
                     self.credential_name, KeyCredentialCreationOption.SILENT
                 )
                 if result.status == 0:
-                    verify_result = await result.credential.request_verification_async()
-                    return verify_result.status == 0
+                    verify = await result.credential.request_verification_async()
+                    return verify.status == 0
                 return False
 
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            success = loop.run_until_complete(auth_async())
+            ok = loop.run_until_complete(_auth())
             loop.close()
-            return success
-        except Exception as e:
-            print(f"Windows Hello error: {e}")
+            return ok
+        except Exception as exc:
+            logger.debug("Windows Hello error: %s", exc)
             return False

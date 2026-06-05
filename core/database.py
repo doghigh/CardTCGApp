@@ -81,8 +81,73 @@ class Database:
                 CREATE INDEX IF NOT EXISTS idx_valuations_card ON valuations(card_id);
             """)
 
+    # ── Input validation ─────────────────────────────────────────────────────
+
+    def _validate_card(self, card: Dict) -> Dict:
+        """Sanitise and type-check all card fields before writing to the DB."""
+        v = dict(card)
+        current_year = datetime.now().year
+
+        # name — required, max 200 chars
+        name = str(v.get('name') or '').strip()[:200]
+        v['name'] = name or 'Unknown'
+
+        # year — 1800 … current+1 or None
+        year = v.get('year')
+        if year is not None:
+            try:
+                year = int(year)
+                year = year if 1800 <= year <= current_year + 1 else None
+            except (ValueError, TypeError):
+                year = None
+        v['year'] = year
+
+        # quantity — 1 … 9 999
+        try:
+            v['quantity'] = max(1, min(9_999, int(v.get('quantity', 1))))
+        except (ValueError, TypeError):
+            v['quantity'] = 1
+
+        # prices — non-negative, max $1 000 000
+        for field in ('purchase_price', 'estimated_value'):
+            try:
+                val = float(v.get(field) or 0.0)
+                v[field] = round(max(0.0, min(1_000_000.0, val)), 2)
+            except (ValueError, TypeError):
+                v[field] = 0.0
+
+        # condition_score — 0 … 100
+        score = v.get('condition_score')
+        if score is not None:
+            try:
+                v['condition_score'] = round(max(0.0, min(100.0, float(score))), 1)
+            except (ValueError, TypeError):
+                v['condition_score'] = None
+
+        # foil — strict boolean
+        v['foil'] = 1 if v.get('foil') else 0
+
+        # bounded text fields
+        _limits = {
+            'set_name': 200, 'card_number': 50, 'rarity': 50,
+            'game': 100, 'language': 50, 'condition_grade': 50,
+        }
+        for field, max_len in _limits.items():
+            val = v.get(field)
+            if val is not None:
+                cleaned = str(val).strip()[:max_len]
+                v[field] = cleaned if cleaned else None
+
+        # notes — up to 2 000 chars
+        notes = v.get('notes')
+        if notes:
+            v['notes'] = str(notes).strip()[:2_000]
+
+        return v
+
     def add_card(self, card: Dict) -> int:
-        """Add a new card to the database."""
+        """Add a new card to the database after input validation."""
+        card = self._validate_card(card)
         with self._lock, self._conn() as conn:
             cursor = conn.execute("""
                 INSERT INTO cards (
@@ -113,17 +178,20 @@ class Database:
             return cursor.lastrowid
 
     def update_card(self, card_id: int, updates: Dict):
-        """Safe update with column whitelist to prevent SQL injection."""
+        """Safe update: column whitelist + type validation."""
         allowed_fields = {
             'name', 'set_name', 'card_number', 'rarity', 'game', 'year',
             'language', 'foil', 'condition_grade', 'condition_score',
-            'estimated_value', 'purchase_price', 'purchase_date', 'notes', 'quantity',
-            'defects'
+            'estimated_value', 'purchase_price', 'purchase_date', 'notes',
+            'quantity', 'defects',
         }
+
+        # Run through the same validation logic for the fields being updated
+        validated = self._validate_card({**updates, 'name': updates.get('name', 'Unknown')})
 
         fields = []
         values = []
-        for k, v in updates.items():
+        for k, v in validated.items():
             if k not in allowed_fields:
                 continue
             if k == 'defects':
