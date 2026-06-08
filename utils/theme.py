@@ -38,17 +38,53 @@ def _adjust(hex_color: str, factor: float) -> str:
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
-def build_stylesheet(accent: str = DEFAULT_ACCENT) -> str:
-    """Build the full stylesheet around a chosen accent colour."""
+def _tokens(high_contrast: bool):
+    """Return the colour token set for normal or high-contrast mode."""
+    if high_contrast:
+        return {
+            "BG_DEEP": "#000000", "BG_BASE": "#000000", "BG_RAISED": "#0a0a0a",
+            "BG_HOVER": "#1a1a1a", "BORDER": "#ffffff",
+            "TEXT_PRI": "#ffffff", "TEXT_SEC": "#e0e0e0", "TEXT_DIS": "#9a9a9a",
+            "FOCUS_W": "3px",
+        }
+    return {
+        "BG_DEEP": BG_DEEP, "BG_BASE": BG_BASE, "BG_RAISED": BG_RAISED,
+        "BG_HOVER": BG_HOVER, "BORDER": BORDER,
+        "TEXT_PRI": TEXT_PRI, "TEXT_SEC": TEXT_SEC, "TEXT_DIS": TEXT_DIS,
+        "FOCUS_W": "2px",
+    }
+
+
+def build_stylesheet(accent: str = DEFAULT_ACCENT, scale: float = 1.0,
+                     high_contrast: bool = False) -> str:
+    """Build the full stylesheet around an accent colour, text scale and mode."""
     ACCENT = accent
     ACCENT_HOV = _adjust(accent, 0.15)
     ACCENT_PRS = _adjust(accent, -0.15)
-    BORDER_FOCUS = accent
+    BORDER_FOCUS = accent if not high_contrast else "#ffcc00"
+
+    t = _tokens(high_contrast)
+    BG_DEEP_  = t["BG_DEEP"];  BG_BASE_ = t["BG_BASE"];  BG_RAISED = t["BG_RAISED"]
+    BG_HOVER  = t["BG_HOVER"]; BORDER   = t["BORDER"]
+    TEXT_PRI_ = t["TEXT_PRI"]; TEXT_SEC = t["TEXT_SEC"]; TEXT_DIS = t["TEXT_DIS"]
+    FOCUS_W   = t["FOCUS_W"]
+    # Re-alias so the template below reads naturally
+    BG_DEEP = BG_DEEP_; BG_BASE = BG_BASE_; TEXT_PRI = TEXT_PRI_
+
+    base = max(10, round(13 * scale))      # base font size in px
+
     return f"""
 * {{
     font-family: "Segoe UI", sans-serif;
-    font-size: 13px;
+    font-size: {base}px;
     color: {TEXT_PRI};
+}}
+
+/* Visible keyboard focus on interactive controls */
+QPushButton:focus, QComboBox:focus, QCheckBox:focus,
+QSpinBox:focus, QDoubleSpinBox:focus, QTabBar::tab:focus {{
+    outline: {FOCUS_W} solid {BORDER_FOCUS};
+    outline-offset: 1px;
 }}
 
 QMainWindow, QDialog {{
@@ -386,43 +422,70 @@ def get_accent() -> str:
         return DEFAULT_ACCENT
 
 
-def apply_dark_theme(app: QApplication, accent: str = None):
-    """Apply the modern dark theme with the given (or saved) accent colour."""
+def get_ui_scale() -> float:
+    try:
+        from core.config import get_pref
+        return float(get_pref("ui_scale", 1.0) or 1.0)
+    except Exception:
+        return 1.0
+
+
+def get_high_contrast() -> bool:
+    try:
+        from core.config import get_pref
+        return bool(get_pref("high_contrast", False))
+    except Exception:
+        return False
+
+
+def apply_dark_theme(app: QApplication, accent: str = None,
+                     scale: float = None, high_contrast: bool = None):
+    """Apply the theme with the given (or saved) accent, text scale, and mode."""
     app.setStyle("Fusion")
-    app.setFont(QFont("Segoe UI", 10))
 
     accent = accent or get_accent()
+    scale = get_ui_scale() if scale is None else scale
+    high_contrast = get_high_contrast() if high_contrast is None else high_contrast
+
+    app.setFont(QFont("Segoe UI", max(8, round(10 * scale))))
+
+    t = _tokens(high_contrast)
     c = lambda h: QColor(h)
 
     palette = QPalette()
-    palette.setColor(QPalette.ColorRole.Window,          c(BG_DEEP))
-    palette.setColor(QPalette.ColorRole.WindowText,      c(TEXT_PRI))
-    palette.setColor(QPalette.ColorRole.Base,            c(BG_BASE))
-    palette.setColor(QPalette.ColorRole.AlternateBase,   c(BG_RAISED))
-    palette.setColor(QPalette.ColorRole.Text,            c(TEXT_PRI))
-    palette.setColor(QPalette.ColorRole.PlaceholderText, c(TEXT_SEC))
-    palette.setColor(QPalette.ColorRole.Button,          c(BG_RAISED))
-    palette.setColor(QPalette.ColorRole.ButtonText,      c(TEXT_PRI))
+    palette.setColor(QPalette.ColorRole.Window,          c(t["BG_DEEP"]))
+    palette.setColor(QPalette.ColorRole.WindowText,      c(t["TEXT_PRI"]))
+    palette.setColor(QPalette.ColorRole.Base,            c(t["BG_BASE"]))
+    palette.setColor(QPalette.ColorRole.AlternateBase,   c(t["BG_RAISED"]))
+    palette.setColor(QPalette.ColorRole.Text,            c(t["TEXT_PRI"]))
+    palette.setColor(QPalette.ColorRole.PlaceholderText, c(t["TEXT_SEC"]))
+    palette.setColor(QPalette.ColorRole.Button,          c(t["BG_RAISED"]))
+    palette.setColor(QPalette.ColorRole.ButtonText,      c(t["TEXT_PRI"]))
     palette.setColor(QPalette.ColorRole.Highlight,       c(accent))
     palette.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
     palette.setColor(QPalette.ColorRole.Link,            c(accent))
     palette.setColor(QPalette.ColorRole.BrightText,      QColor(255, 255, 255))
-    palette.setColor(QPalette.ColorRole.ToolTipBase,     c(BG_RAISED))
-    palette.setColor(QPalette.ColorRole.ToolTipText,     c(TEXT_PRI))
+    palette.setColor(QPalette.ColorRole.ToolTipBase,     c(t["BG_RAISED"]))
+    palette.setColor(QPalette.ColorRole.ToolTipText,     c(t["TEXT_PRI"]))
 
-    # Neutral grey roles — Fusion derives border/shadow colors from these.
-    palette.setColor(QPalette.ColorRole.Light,    QColor(60, 62, 72))
-    palette.setColor(QPalette.ColorRole.Midlight, QColor(45, 47, 56))
-    palette.setColor(QPalette.ColorRole.Mid,      QColor(35, 37, 45))
-    palette.setColor(QPalette.ColorRole.Dark,     QColor(22, 24, 30))
-    palette.setColor(QPalette.ColorRole.Shadow,   QColor(10, 11, 15))
+    if high_contrast:
+        palette.setColor(QPalette.ColorRole.Light,    QColor(255, 255, 255))
+        palette.setColor(QPalette.ColorRole.Mid,      QColor(255, 255, 255))
+        palette.setColor(QPalette.ColorRole.Dark,     QColor(255, 255, 255))
+        palette.setColor(QPalette.ColorRole.Shadow,   QColor(0, 0, 0))
+    else:
+        palette.setColor(QPalette.ColorRole.Light,    QColor(60, 62, 72))
+        palette.setColor(QPalette.ColorRole.Midlight, QColor(45, 47, 56))
+        palette.setColor(QPalette.ColorRole.Mid,      QColor(35, 37, 45))
+        palette.setColor(QPalette.ColorRole.Dark,     QColor(22, 24, 30))
+        palette.setColor(QPalette.ColorRole.Shadow,   QColor(10, 11, 15))
 
     for role in (QPalette.ColorRole.Text, QPalette.ColorRole.ButtonText,
                  QPalette.ColorRole.WindowText):
-        palette.setColor(QPalette.ColorGroup.Disabled, role, c(TEXT_DIS))
+        palette.setColor(QPalette.ColorGroup.Disabled, role, c(t["TEXT_DIS"]))
 
     app.setPalette(palette)
-    app.setStyleSheet(build_stylesheet(accent))
+    app.setStyleSheet(build_stylesheet(accent, scale, high_contrast))
 
 
 def set_accent(app: QApplication, accent: str):
@@ -433,3 +496,17 @@ def set_accent(app: QApplication, accent: str):
     except Exception:
         pass
     apply_dark_theme(app, accent)
+
+
+def set_appearance(app: QApplication, scale: float = None,
+                   high_contrast: bool = None):
+    """Persist and apply text scale and/or high-contrast mode at runtime."""
+    try:
+        from core.config import set_pref
+        if scale is not None:
+            set_pref("ui_scale", scale)
+        if high_contrast is not None:
+            set_pref("high_contrast", bool(high_contrast))
+    except Exception:
+        pass
+    apply_dark_theme(app)

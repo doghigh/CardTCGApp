@@ -33,6 +33,7 @@ GREEN  = "#43b581"
 RED    = "#ed4245"
 AMBER  = "#faa61a"
 MUTED  = "#8b8fa8"
+BORDER = "#2a2d3e"
 
 GRADE_COLORS = {
     "Gem Mint": GREEN, "Mint": GREEN, "Near Mint": GREEN,

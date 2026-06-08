@@ -98,12 +98,14 @@ class CardDetailDialog(QDialog):
         # Rotation / straighten controls
         bar = QHBoxLayout()
         bar.setSpacing(4)
-        for text, op in [("↺ 90°", 'ccw'), ("↻ 180°", '180'),
-                         ("↻ 90°", 'cw'), ("📐", 'deskew')]:
+        for text, op, a11y in [("↺ 90°", 'ccw', f"Rotate {label} 90 degrees counter-clockwise"),
+                               ("↻ 180°", '180', f"Rotate {label} 180 degrees"),
+                               ("↻ 90°", 'cw', f"Rotate {label} 90 degrees clockwise"),
+                               ("📐", 'deskew', f"Auto-straighten the {label} image")]:
             btn = QPushButton(text)
             btn.setMinimumHeight(28)
-            if op == 'deskew':
-                btn.setToolTip("Auto-straighten")
+            btn.setToolTip(a11y)
+            btn.setAccessibleName(a11y)
             btn.clicked.connect(lambda _=False, s=side, o=op: self._rotate(s, o))
             bar.addWidget(btn)
         # Disable controls if no image present

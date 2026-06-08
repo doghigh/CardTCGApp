@@ -167,6 +167,7 @@ class ScanTab(QWidget):
         fl.setContentsMargins(8, 8, 8, 8)
         fl.setSpacing(6)
         self.front_view = ImageViewer("Front side\nNot scanned yet")
+        self.front_view.setAccessibleName("Front card image preview")
         fl.addWidget(self.front_view)
         fl.addLayout(self._make_rotate_bar('front'))
 
@@ -176,6 +177,7 @@ class ScanTab(QWidget):
         bl.setContentsMargins(8, 8, 8, 8)
         bl.setSpacing(6)
         self.back_view = ImageViewer("Back side\nNot scanned yet")
+        self.back_view.setAccessibleName("Back card image preview")
         bl.addWidget(self.back_view)
         bl.addLayout(self._make_rotate_bar('back'))
 
@@ -361,15 +363,17 @@ class ScanTab(QWidget):
         bar = QHBoxLayout()
         bar.setSpacing(4)
         buttons = [
-            ("↺ 90°",     lambda: self._transform(side, 'ccw')),
-            ("↻ 180°",    lambda: self._transform(side, '180')),
-            ("↻ 90°",     lambda: self._transform(side, 'cw')),
-            ("📐 Straighten", lambda: self._transform(side, 'deskew')),
+            ("↺ 90°",     'ccw',    f"Rotate {side} 90 degrees counter-clockwise"),
+            ("↻ 180°",    '180',    f"Rotate {side} 180 degrees"),
+            ("↻ 90°",     'cw',     f"Rotate {side} 90 degrees clockwise"),
+            ("📐 Straighten", 'deskew', f"Auto-straighten the {side} image"),
         ]
-        for label, slot in buttons:
+        for label, op, a11y in buttons:
             btn = QPushButton(label)
             btn.setMinimumHeight(32)
-            btn.clicked.connect(slot)
+            btn.setToolTip(a11y)
+            btn.setAccessibleName(a11y)          # announced by Narrator
+            btn.clicked.connect(lambda _=False, o=op: self._transform(side, o))
             bar.addWidget(btn)
         return bar
 

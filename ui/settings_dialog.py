@@ -214,7 +214,47 @@ class SettingsDialog(QDialog):
         row.addWidget(card_btn)
         v.addLayout(row)
 
+        # ── Accessibility ──
+        from utils.theme import get_ui_scale, get_high_contrast
+        acc = QHBoxLayout()
+        acc.addWidget(QLabel("Text size:"))
+        self.scale_combo = QComboBox()
+        self._scales = [("Small", 0.9), ("Normal", 1.0),
+                        ("Large", 1.15), ("Extra Large", 1.3)]
+        for label, _ in self._scales:
+            self.scale_combo.addItem(label)
+        cur = get_ui_scale()
+        self.scale_combo.setCurrentIndex(
+            min(range(len(self._scales)),
+                key=lambda i: abs(self._scales[i][1] - cur)))
+        self.scale_combo.currentIndexChanged.connect(self._on_scale)
+        acc.addWidget(self.scale_combo)
+
+        self.hc_check = QCheckBox("High-contrast mode")
+        self.hc_check.setChecked(get_high_contrast())
+        self.hc_check.stateChanged.connect(self._on_high_contrast)
+        acc.addWidget(self.hc_check)
+        acc.addStretch()
+        v.addLayout(acc)
+
+        a11y_note = QLabel("Text size and high-contrast mode help readability; "
+                           "all controls are keyboard-navigable (Tab / Shift+Tab).")
+        a11y_note.setWordWrap(True)
+        a11y_note.setStyleSheet("color: #8b8fa8; font-size: 11px;")
+        v.addWidget(a11y_note)
+
         return box
+
+    def _on_scale(self, index: int):
+        from PyQt6.QtWidgets import QApplication
+        from utils.theme import set_appearance
+        set_appearance(QApplication.instance(), scale=self._scales[index][1])
+
+    def _on_high_contrast(self):
+        from PyQt6.QtWidgets import QApplication
+        from utils.theme import set_appearance
+        set_appearance(QApplication.instance(),
+                       high_contrast=self.hc_check.isChecked())
 
     def _update_swatch(self):
         self.accent_swatch.setStyleSheet(
