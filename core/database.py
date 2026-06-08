@@ -75,6 +75,14 @@ class Database:
                     generated_at TEXT DEFAULT CURRENT_TIMESTAMP
                 );
 
+                CREATE TABLE IF NOT EXISTS value_history (
+                    snapshot_date TEXT PRIMARY KEY,
+                    total_value REAL,
+                    total_cost REAL,
+                    total_cards INTEGER,
+                    total_quantity INTEGER
+                );
+
                 CREATE INDEX IF NOT EXISTS idx_cards_name ON cards(name);
                 CREATE INDEX IF NOT EXISTS idx_cards_set ON cards(set_name);
                 CREATE INDEX IF NOT EXISTS idx_cards_game ON cards(game);
@@ -425,6 +433,52 @@ class Database:
                 SELECT * FROM cards ORDER BY id DESC LIMIT ?
             """, (limit,)).fetchall()
             return [dict(r) for r in rows]
+
+    def get_set_breakdown(self) -> List[Dict]:
+        """Per-set unique-card counts (for set-completion tracking)."""
+        with self._lock, self._conn() as conn:
+            rows = conn.execute("""
+                SELECT COALESCE(NULLIF(TRIM(set_name), ''), 'Unknown') AS set_name,
+                       COALESCE(NULLIF(TRIM(game), ''), 'Other')       AS game,
+                       COUNT(*) AS unique_cards
+                FROM cards
+                GROUP BY set_name, game
+                ORDER BY unique_cards DESC
+            """).fetchall()
+            return [dict(r) for r in rows]
+
+    def record_value_snapshot(self) -> None:
+        """Upsert today's collection value into value_history (one row/day)."""
+        from datetime import date
+        with self._lock, self._conn() as conn:
+            row = conn.execute("""
+                SELECT COUNT(*) AS c,
+                       COALESCE(SUM(quantity), 0) AS q,
+                       COALESCE(SUM(estimated_value * quantity), 0) AS v,
+                       COALESCE(SUM(purchase_price * quantity), 0) AS cost
+                FROM cards
+            """).fetchone()
+            conn.execute("""
+                INSERT INTO value_history
+                    (snapshot_date, total_value, total_cost, total_cards, total_quantity)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(snapshot_date) DO UPDATE SET
+                    total_value=excluded.total_value,
+                    total_cost=excluded.total_cost,
+                    total_cards=excluded.total_cards,
+                    total_quantity=excluded.total_quantity
+            """, (date.today().isoformat(), row['v'], row['cost'], row['c'], row['q']))
+
+    def get_value_history(self, days: int = 90) -> List[Dict]:
+        """Return value snapshots for the last N days, oldest first."""
+        with self._lock, self._conn() as conn:
+            rows = conn.execute("""
+                SELECT snapshot_date, total_value, total_cost
+                FROM value_history
+                ORDER BY snapshot_date DESC
+                LIMIT ?
+            """, (days,)).fetchall()
+            return [dict(r) for r in reversed(rows)]
 
     def get_cards_for_period(self, start: str, end: str) -> List[Dict]:
         with self._lock, self._conn() as conn:

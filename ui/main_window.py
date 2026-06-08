@@ -75,6 +75,10 @@ class MainWindow(QMainWindow):
         self.collection_tab = CollectionTab(self.db, self.valuator, self.identifier)
         self.reports_tab = ReportsTab(self.db)
 
+        # Dashboard navigation
+        self.dashboard_tab.navigate_collection.connect(self._dashboard_to_collection)
+        self.dashboard_tab.open_card.connect(self._dashboard_open_card)
+
         # Connect signals — refresh dashboard, collection, and reports on changes
         self.scan_tab.card_added.connect(self.collection_tab.refresh)
         self.scan_tab.card_added.connect(self.reports_tab.refresh)
@@ -260,6 +264,24 @@ class MainWindow(QMainWindow):
         """Refresh the dashboard whenever it becomes the active tab."""
         if self.tabs.widget(index) is self.dashboard_tab:
             self.dashboard_tab.refresh()
+
+    def _dashboard_to_collection(self, term: str):
+        """Jump to the Collection tab filtered by a dashboard click."""
+        self.tabs.setCurrentWidget(self.collection_tab)
+        if hasattr(self.collection_tab, 'search_edit'):
+            self.collection_tab.search_edit.setText(term)
+
+    def _dashboard_open_card(self, card_id: int):
+        """Open a card's detail dialog from the dashboard."""
+        card = self.db.get_card(card_id)
+        if not card:
+            return
+        from ui.dialogs import CardDetailDialog
+        valuations = self.db.get_valuations(card_id)
+        dlg = CardDetailDialog(card, valuations, self.db, self)
+        if dlg.exec():
+            self.dashboard_tab.refresh()
+            self.collection_tab.refresh()
 
     def _open_settings(self):
         """Open the API-keys settings dialog and apply changes live."""

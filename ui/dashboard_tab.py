@@ -13,10 +13,20 @@ from PyQt6.QtWidgets import (
     QGroupBox, QProgressBar, QTableWidget, QTableWidgetItem, QHeaderView,
     QScrollArea, QSizePolicy,
 )
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor
+from PyQt6.QtCore import Qt, pyqtSignal, QPointF
+from PyQt6.QtGui import QColor, QPainter, QPen, QBrush, QLinearGradient, QPainterPath
 
 from core.database import Database
+from utils.theme import get_accent
+
+# Known set sizes for completion tracking (base-set card counts).
+# Matched case-insensitively against the card's set name.
+KNOWN_SET_SIZES = {
+    "1986 topps": 792, "1987 topps": 792, "1988 topps": 792,
+    "1989 topps": 792, "1990 topps": 792, "1991 topps": 792,
+    "1990 fleer": 660, "1991 fleer": 720, "1989 donruss": 660,
+    "1990 donruss": 716, "1991 upper deck": 800,
+}
 
 ACCENT = "#5865f2"
 GREEN  = "#43b581"
@@ -57,12 +67,126 @@ class _KpiCard(QFrame):
             f"font-size:24px;font-weight:700;color:{color};")
 
 
+class ValueChart(QWidget):
+    """Lightweight line chart of collection value over time (custom-painted)."""
+
+    def __init__(self):
+        super().__init__()
+        self._points: List[float] = []
+        self._dates: List[str] = []
+        self.setMinimumHeight(170)
+
+    def set_data(self, history: List[Dict]):
+        self._dates = [h["snapshot_date"] for h in history]
+        self._points = [float(h.get("total_value", 0) or 0) for h in history]
+        self.update()
+
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        w, h = self.width(), self.height()
+        pad = 36
+        accent = QColor(get_accent())
+
+        if len(self._points) < 2:
+            p.setPen(QPen(QColor(MUTED)))
+            msg = ("Tracking starts now — your value-over-time line will appear "
+                   "after a couple of days." if self._points else
+                   "No value history yet.")
+            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, msg)
+            return
+
+        lo, hi = min(self._points), max(self._points)
+        rng = (hi - lo) or 1.0
+        gx0, gy0 = pad, 10
+        gx1, gy1 = w - pad, h - 24
+        gw, gh = gx1 - gx0, gy1 - gy0
+
+        def X(i): return gx0 + gw * i / (len(self._points) - 1)
+        def Y(v): return gy1 - gh * (v - lo) / rng
+
+        # Axis baseline
+        p.setPen(QPen(QColor(BORDER), 1))
+        p.drawLine(gx0, gy1, gx1, gy1)
+
+        # Build line path
+        path = QPainterPath()
+        path.moveTo(QPointF(X(0), Y(self._points[0])))
+        for i, v in enumerate(self._points[1:], start=1):
+            path.lineTo(QPointF(X(i), Y(v)))
+
+        # Area fill
+        area = QPainterPath(path)
+        area.lineTo(QPointF(X(len(self._points) - 1), gy1))
+        area.lineTo(QPointF(X(0), gy1))
+        area.closeSubpath()
+        grad = QLinearGradient(0, gy0, 0, gy1)
+        fill = QColor(accent); fill.setAlpha(70); grad.setColorAt(0, fill)
+        fade = QColor(accent); fade.setAlpha(0); grad.setColorAt(1, fade)
+        p.fillPath(area, QBrush(grad))
+
+        # Line
+        p.setPen(QPen(accent, 2))
+        p.drawPath(path)
+
+        # Min / max labels
+        p.setPen(QPen(QColor(MUTED)))
+        p.drawText(2, int(Y(hi)) + 4, f"${hi:,.0f}")
+        p.drawText(2, int(Y(lo)) + 4, f"${lo:,.0f}")
+        # First / last date
+        if self._dates:
+            p.drawText(gx0, h - 6, self._dates[0][5:])
+            p.drawText(gx1 - 30, h - 6, self._dates[-1][5:])
+
+
+class ClickableBar(QWidget):
+    """A labelled relative bar that emits a click with a payload."""
+    clicked = pyqtSignal(str)
+
+    def __init__(self, label, value_text, fraction, color, payload):
+        super().__init__()
+        self._payload = payload
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        h = QHBoxLayout(self)
+        h.setContentsMargins(0, 0, 0, 0)
+        h.setSpacing(10)
+
+        name = QLabel(label)
+        name.setMinimumWidth(150)
+        name.setStyleSheet("color:#e8eaf0;font-size:13px;")
+        h.addWidget(name)
+
+        bar = QProgressBar()
+        bar.setTextVisible(False)
+        bar.setRange(0, 1000)
+        bar.setValue(int(max(0.0, min(1.0, fraction)) * 1000))
+        bar.setFixedHeight(14)
+        bar.setStyleSheet(
+            "QProgressBar{background:#13151f;border:none;border-radius:7px;}"
+            f"QProgressBar::chunk{{background:{color};border-radius:7px;}}")
+        h.addWidget(bar, 1)
+
+        val = QLabel(value_text)
+        val.setMinimumWidth(90)
+        val.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        val.setStyleSheet(f"color:{MUTED};font-size:13px;")
+        h.addWidget(val)
+
+    def mousePressEvent(self, event):
+        self.clicked.emit(self._payload)
+
+
 class DashboardTab(QWidget):
     """Collection overview / home screen."""
+
+    navigate_collection = pyqtSignal(str)   # search term → open Collection filtered
+    open_card = pyqtSignal(int)             # card id → open detail dialog
 
     def __init__(self, db: Database):
         super().__init__()
         self.db = db
+        self._top_ids: List[int] = []
+        self._recent_ids: List[int] = []
         self._build_ui()
         self.refresh()
 
@@ -101,6 +225,14 @@ class DashboardTab(QWidget):
             kpi_row.addWidget(c)
         layout.addLayout(kpi_row)
 
+        # Value over time
+        chart_box = QGroupBox("Collection Value Over Time")
+        cl = QVBoxLayout(chart_box)
+        cl.setContentsMargins(14, 22, 14, 14)
+        self.chart = ValueChart()
+        cl.addWidget(self.chart)
+        layout.addWidget(chart_box)
+
         # Breakdown row: by game | by grade
         mid = QHBoxLayout()
         mid.setSpacing(12)
@@ -118,6 +250,13 @@ class DashboardTab(QWidget):
         mid.addWidget(self.grade_box, 1)
         layout.addLayout(mid)
 
+        # Set completion
+        self.sets_box = QGroupBox("Set Completion")
+        self.sets_layout = QVBoxLayout(self.sets_box)
+        self.sets_layout.setContentsMargins(14, 22, 14, 14)
+        self.sets_layout.setSpacing(8)
+        layout.addWidget(self.sets_box)
+
         # Tables row: top value | recent
         bottom = QHBoxLayout()
         bottom.setSpacing(12)
@@ -126,6 +265,7 @@ class DashboardTab(QWidget):
         tl = QVBoxLayout(top_box)
         tl.setContentsMargins(10, 22, 10, 10)
         self.top_table = self._make_table(["Card", "Set", "Grade", "Value"])
+        self.top_table.cellDoubleClicked.connect(self._open_top_row)
         tl.addWidget(self.top_table)
         bottom.addWidget(top_box, 1)
 
@@ -133,11 +273,25 @@ class DashboardTab(QWidget):
         rl = QVBoxLayout(recent_box)
         rl.setContentsMargins(10, 22, 10, 10)
         self.recent_table = self._make_table(["Card", "Set", "Game", "Added"])
+        self.recent_table.cellDoubleClicked.connect(self._open_recent_row)
         rl.addWidget(self.recent_table)
         bottom.addWidget(recent_box, 1)
         layout.addLayout(bottom)
 
+        hint = QLabel("Tip: click a game bar to filter the Collection; "
+                      "double-click a card to open it.")
+        hint.setStyleSheet(f"color:{MUTED};font-size:11px;")
+        layout.addWidget(hint)
+
         layout.addStretch()
+
+    def _open_top_row(self, row, _col):
+        if 0 <= row < len(self._top_ids):
+            self.open_card.emit(self._top_ids[row])
+
+    def _open_recent_row(self, row, _col):
+        if 0 <= row < len(self._recent_ids):
+            self.open_card.emit(self._recent_ids[row])
 
     def _make_table(self, headers: List[str]) -> QTableWidget:
         t = QTableWidget()
@@ -195,6 +349,12 @@ class DashboardTab(QWidget):
     # ── data ───────────────────────────────────────────────────────────────────
 
     def refresh(self):
+        # Record a daily snapshot, then read everything back
+        try:
+            self.db.record_value_snapshot()
+        except Exception:
+            pass
+
         stats = self.db.get_collection_stats()
         value = float(stats.get('total_value', 0) or 0)
         cost  = float(stats.get('total_cost', 0) or 0)
@@ -208,8 +368,10 @@ class DashboardTab(QWidget):
         self.kpi_pnl.set_value(f"${pnl:+,.2f}", GREEN if pnl >= 0 else RED)
         self.kpi_cond.set_value(f"{cond:.0f}/100" if cond else "—")
 
+        self.chart.set_data(self.db.get_value_history(90))
         self._refresh_games()
         self._refresh_grades()
+        self._refresh_sets()
         self._fill_top_table()
         self._fill_recent_table()
 
@@ -219,11 +381,37 @@ class DashboardTab(QWidget):
         if not games:
             self.game_layout.addWidget(self._empty("No cards yet."))
             return
+        accent = get_accent()
         max_val = max((g['value'] for g in games), default=0) or 1
         for g in games[:8]:
             frac = g['value'] / max_val if max_val else 0
-            self.game_layout.addWidget(self._bar_row(
-                g['game'], f"${g['value']:,.0f}", frac, ACCENT))
+            bar = ClickableBar(g['game'], f"${g['value']:,.0f}", frac, accent, g['game'])
+            bar.clicked.connect(self.navigate_collection.emit)
+            self.game_layout.addWidget(bar)
+
+    def _refresh_sets(self):
+        self._clear(self.sets_layout)
+        sets = self.db.get_set_breakdown()
+        # Show sets we recognise (with completion %), then the largest others
+        known, others = [], []
+        for s in sets:
+            total = KNOWN_SET_SIZES.get(s['set_name'].strip().lower())
+            (known if total else others).append((s, total))
+        shown = known + others
+        if not shown:
+            self.sets_layout.addWidget(self._empty("No cards yet."))
+            return
+        accent = get_accent()
+        for s, total in shown[:8]:
+            have = s['unique_cards']
+            if total:
+                frac = min(1.0, have / total)
+                bar = ClickableBar(s['set_name'], f"{have}/{total} ({frac*100:.0f}%)",
+                                   frac, accent, s['set_name'])
+            else:
+                bar = ClickableBar(s['set_name'], f"{have} cards", 0.0, BORDER, s['set_name'])
+            bar.clicked.connect(self.navigate_collection.emit)
+            self.sets_layout.addWidget(bar)
 
     def _refresh_grades(self):
         self._clear(self.grade_layout)
@@ -245,6 +433,7 @@ class DashboardTab(QWidget):
 
     def _fill_top_table(self):
         cards = self.db.get_top_cards(10)
+        self._top_ids = [int(c.get('id', 0) or 0) for c in cards]
         self.top_table.setRowCount(len(cards))
         for i, c in enumerate(cards):
             total = float(c.get('estimated_value', 0) or 0) * int(c.get('quantity', 1) or 1)
@@ -257,6 +446,7 @@ class DashboardTab(QWidget):
 
     def _fill_recent_table(self):
         cards = self.db.get_recent_cards(10)
+        self._recent_ids = [int(c.get('id', 0) or 0) for c in cards]
         self.recent_table.setRowCount(len(cards))
         for i, c in enumerate(cards):
             self.recent_table.setItem(i, 0, QTableWidgetItem(c.get('name', '') or ''))
