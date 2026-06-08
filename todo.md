@@ -52,11 +52,11 @@
 
 ## 🎯 Remaining path to Microsoft Store
 
-### 1. Logging (required — packaged apps have no console)
-- [ ] Replace remaining `print()` calls with the `logging` framework
-      (UI files still print: `ui/batch_tab.py`, `ui/batch_review_dialog.py`,
-      `ui/collection_tab.py`, `core/scanner.py`, `core/identifier.py`)
-- [ ] Log to a rotating file in `%APPDATA%/TradingCardManager/logs/`
+### 1. Logging (required — packaged apps have no console) ✅ DONE
+- [x] Central `core/logging_config.py` — rotating file in
+      `%APPDATA%/TradingCardManager/logs/app.log` (+ console in dev)
+- [x] All app `print()` calls replaced with module loggers
+      (only the dev-only `apply-fixes.py` still prints)
 
 ### 2. Privacy policy (required for Store listing)
 - [ ] Write and host a privacy policy (data stored locally; images sent to
