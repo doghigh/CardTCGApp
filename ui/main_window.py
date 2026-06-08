@@ -21,6 +21,7 @@ from core.valuator import CardValuator
 from core.auth import AuthManager, WindowsHelloAuth, LoginDialog, AuthLockedError
 from core.watcher import WatchConfig
 
+from ui.dashboard_tab import DashboardTab
 from ui.scan_tab import ScanTab
 from ui.batch_tab import BatchTab, ImageBatchWorker
 from ui.collection_tab import CollectionTab
@@ -67,25 +68,32 @@ class MainWindow(QMainWindow):
         self._watch_worker = None
         self._watch_snapshot = []
 
+        self.dashboard_tab = DashboardTab(self.db)
         self.scan_tab = ScanTab(self.db, self.scanner, self.inspector, self.identifier, self.valuator)
         self.batch_tab = BatchTab(self.db, self.scanner, self.inspector, self.identifier,
                                   self.valuator, self.watch_config, self._run_watch_import)
         self.collection_tab = CollectionTab(self.db, self.valuator, self.identifier)
         self.reports_tab = ReportsTab(self.db)
 
-        # Connect signals
+        # Connect signals — refresh dashboard, collection, and reports on changes
         self.scan_tab.card_added.connect(self.collection_tab.refresh)
         self.scan_tab.card_added.connect(self.reports_tab.refresh)
+        self.scan_tab.card_added.connect(self.dashboard_tab.refresh)
         self.batch_tab.cards_added.connect(self.collection_tab.refresh)
         self.batch_tab.cards_added.connect(self.reports_tab.refresh)
+        self.batch_tab.cards_added.connect(self.dashboard_tab.refresh)
 
         # Add tabs
+        self.tabs.addTab(self.dashboard_tab, "📊 Dashboard")
         self.tabs.addTab(self.scan_tab, "🃏 Scan & Add")
         self.tabs.addTab(self.batch_tab, "📦 Batch Import")
         self.tabs.addTab(self.collection_tab, "📋 Collection")
-        self.tabs.addTab(self.reports_tab, "📊 Reports")
+        self.tabs.addTab(self.reports_tab, "📈 Reports")
 
         self.setCentralWidget(self.tabs)
+
+        # Keep the dashboard current whenever the user switches to it
+        self.tabs.currentChanged.connect(self._on_tab_changed)
 
         # Setup shortcuts and menu
         self._setup_shortcuts()
@@ -123,8 +131,8 @@ class MainWindow(QMainWindow):
     def _setup_shortcuts(self):
         """Setup global keyboard shortcuts."""
         # Tab switching
-        for i in range(4):
-            QShortcut(QKeySequence(f"Ctrl+{i+1}"), self, 
+        for i in range(self.tabs.count()):
+            QShortcut(QKeySequence(f"Ctrl+{i+1}"), self,
                       lambda idx=i: self.tabs.setCurrentIndex(idx))
 
         # New card
@@ -248,6 +256,11 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(
             f"🕒 Auto-import complete — {count} card(s) added.", 6000)
 
+    def _on_tab_changed(self, index: int):
+        """Refresh the dashboard whenever it becomes the active tab."""
+        if self.tabs.widget(index) is self.dashboard_tab:
+            self.dashboard_tab.refresh()
+
     def _open_settings(self):
         """Open the API-keys settings dialog and apply changes live."""
         from ui.settings_dialog import SettingsDialog
@@ -260,24 +273,26 @@ class MainWindow(QMainWindow):
 
     def _new_card(self):
         """Ctrl+N - New card."""
-        self.tabs.setCurrentIndex(0)
+        self.tabs.setCurrentWidget(self.scan_tab)
         if hasattr(self.scan_tab, '_reset'):
             self.scan_tab._reset()
         self.statusBar().showMessage("🆕 New card ready", 2000)
 
     def _focus_search(self):
         """Focus search in Collection tab."""
-        if self.tabs.currentIndex() == 2 and hasattr(self.collection_tab, 'search_edit'):
+        if self.tabs.currentWidget() is self.collection_tab and hasattr(self.collection_tab, 'search_edit'):
             self.collection_tab.search_edit.setFocus()
             self.collection_tab.search_edit.selectAll()
 
     def _save_current_card(self):
         """Save current card if on Scan tab."""
-        if self.tabs.currentIndex() == 0 and hasattr(self.scan_tab, '_save_card'):
+        if self.tabs.currentWidget() is self.scan_tab and hasattr(self.scan_tab, '_save_card'):
             self.scan_tab._save_card()
 
     def _refresh_all(self):
         """Refresh all tabs."""
+        if hasattr(self.dashboard_tab, 'refresh'):
+            self.dashboard_tab.refresh()
         if hasattr(self.collection_tab, 'refresh'):
             self.collection_tab.refresh()
         if hasattr(self.reports_tab, 'refresh'):

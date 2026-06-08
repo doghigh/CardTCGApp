@@ -381,6 +381,51 @@ class Database:
             """).fetchone()
             return dict(row) if row else {}
 
+    def get_game_breakdown(self) -> List[Dict]:
+        """Per-game counts and value, most valuable first."""
+        with self._lock, self._conn() as conn:
+            rows = conn.execute("""
+                SELECT COALESCE(NULLIF(TRIM(game), ''), 'Other') AS game,
+                       COUNT(*) AS unique_cards,
+                       COALESCE(SUM(quantity), 0) AS quantity,
+                       COALESCE(SUM(estimated_value * quantity), 0) AS value
+                FROM cards
+                GROUP BY game
+                ORDER BY value DESC, quantity DESC
+            """).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_grade_breakdown(self) -> List[Dict]:
+        """Counts per condition grade (Ungraded grouped)."""
+        with self._lock, self._conn() as conn:
+            rows = conn.execute("""
+                SELECT COALESCE(NULLIF(TRIM(condition_grade), ''), 'Ungraded') AS grade,
+                       COUNT(*) AS unique_cards,
+                       COALESCE(SUM(quantity), 0) AS quantity
+                FROM cards
+                GROUP BY grade
+            """).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_top_cards(self, limit: int = 10) -> List[Dict]:
+        """Most valuable cards by total (unit value × quantity)."""
+        with self._lock, self._conn() as conn:
+            rows = conn.execute("""
+                SELECT *, (estimated_value * quantity) AS total_value
+                FROM cards
+                ORDER BY total_value DESC, updated_at DESC
+                LIMIT ?
+            """, (limit,)).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_recent_cards(self, limit: int = 10) -> List[Dict]:
+        """Most recently added cards."""
+        with self._lock, self._conn() as conn:
+            rows = conn.execute("""
+                SELECT * FROM cards ORDER BY id DESC LIMIT ?
+            """, (limit,)).fetchall()
+            return [dict(r) for r in rows]
+
     def get_cards_for_period(self, start: str, end: str) -> List[Dict]:
         with self._lock, self._conn() as conn:
             rows = conn.execute("""
