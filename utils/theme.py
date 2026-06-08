@@ -8,10 +8,7 @@ BG_BASE    = "#13151f"   # widget / panel background
 BG_RAISED  = "#1c1f2e"   # cards, group boxes, raised surfaces
 BG_HOVER   = "#252840"   # hover state for list rows / buttons
 BORDER     = "#2a2d3e"   # subtle borders
-BORDER_FOCUS = "#5865f2" # indigo focus ring
-ACCENT     = "#5865f2"   # primary accent (indigo)
-ACCENT_HOV = "#6b77f5"   # accent hover
-ACCENT_PRS = "#4752c4"   # accent pressed
+DEFAULT_ACCENT = "#5865f2"   # default indigo accent
 TEXT_PRI   = "#e8eaf0"   # primary text
 TEXT_SEC   = "#8b8fa8"   # secondary / placeholder text
 TEXT_DIS   = "#4a4d60"   # disabled text
@@ -20,7 +17,34 @@ WARNING    = "#faa61a"
 DANGER     = "#ed4245"
 # ─────────────────────────────────────────────────────────────────────────────
 
-STYLESHEET = f"""
+
+def _clamp(v: int) -> int:
+    return max(0, min(255, v))
+
+
+def _adjust(hex_color: str, factor: float) -> str:
+    """Lighten (factor>0) or darken (factor<0) a hex colour."""
+    h = hex_color.lstrip("#")
+    if len(h) != 6:
+        return hex_color
+    r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
+    if factor >= 0:
+        r = _clamp(int(r + (255 - r) * factor))
+        g = _clamp(int(g + (255 - g) * factor))
+        b = _clamp(int(b + (255 - b) * factor))
+    else:
+        f = 1 + factor
+        r, g, b = _clamp(int(r * f)), _clamp(int(g * f)), _clamp(int(b * f))
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def build_stylesheet(accent: str = DEFAULT_ACCENT) -> str:
+    """Build the full stylesheet around a chosen accent colour."""
+    ACCENT = accent
+    ACCENT_HOV = _adjust(accent, 0.15)
+    ACCENT_PRS = _adjust(accent, -0.15)
+    BORDER_FOCUS = accent
+    return f"""
 * {{
     font-family: "Segoe UI", sans-serif;
     font-size: 13px;
@@ -353,49 +377,59 @@ QProgressBar::chunk {{
 """
 
 
-def apply_dark_theme(app: QApplication):
-    """Apply modern dark theme."""
+def get_accent() -> str:
+    """Return the user's saved accent colour, or the default."""
+    try:
+        from core.config import get_pref
+        return get_pref("accent_color", DEFAULT_ACCENT) or DEFAULT_ACCENT
+    except Exception:
+        return DEFAULT_ACCENT
+
+
+def apply_dark_theme(app: QApplication, accent: str = None):
+    """Apply the modern dark theme with the given (or saved) accent colour."""
     app.setStyle("Fusion")
+    app.setFont(QFont("Segoe UI", 10))
 
-    font = QFont("Segoe UI", 10)
-    app.setFont(font)
-
-    palette = QPalette()
+    accent = accent or get_accent()
     c = lambda h: QColor(h)
 
-    if True:  # always modern theme; HC detection removed until needed
+    palette = QPalette()
+    palette.setColor(QPalette.ColorRole.Window,          c(BG_DEEP))
+    palette.setColor(QPalette.ColorRole.WindowText,      c(TEXT_PRI))
+    palette.setColor(QPalette.ColorRole.Base,            c(BG_BASE))
+    palette.setColor(QPalette.ColorRole.AlternateBase,   c(BG_RAISED))
+    palette.setColor(QPalette.ColorRole.Text,            c(TEXT_PRI))
+    palette.setColor(QPalette.ColorRole.PlaceholderText, c(TEXT_SEC))
+    palette.setColor(QPalette.ColorRole.Button,          c(BG_RAISED))
+    palette.setColor(QPalette.ColorRole.ButtonText,      c(TEXT_PRI))
+    palette.setColor(QPalette.ColorRole.Highlight,       c(accent))
+    palette.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
+    palette.setColor(QPalette.ColorRole.Link,            c(accent))
+    palette.setColor(QPalette.ColorRole.BrightText,      QColor(255, 255, 255))
+    palette.setColor(QPalette.ColorRole.ToolTipBase,     c(BG_RAISED))
+    palette.setColor(QPalette.ColorRole.ToolTipText,     c(TEXT_PRI))
 
-        # Core roles
-        palette.setColor(QPalette.ColorRole.Window,          c(BG_DEEP))
-        palette.setColor(QPalette.ColorRole.WindowText,      c(TEXT_PRI))
-        palette.setColor(QPalette.ColorRole.Base,            c(BG_BASE))
-        palette.setColor(QPalette.ColorRole.AlternateBase,   c(BG_RAISED))
-        palette.setColor(QPalette.ColorRole.Text,            c(TEXT_PRI))
-        palette.setColor(QPalette.ColorRole.PlaceholderText, c(TEXT_SEC))
-        palette.setColor(QPalette.ColorRole.Button,          c(BG_RAISED))
-        palette.setColor(QPalette.ColorRole.ButtonText,      c(TEXT_PRI))
-        palette.setColor(QPalette.ColorRole.Highlight,       c(ACCENT))
-        palette.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
-        palette.setColor(QPalette.ColorRole.Link,            c(ACCENT))
-        palette.setColor(QPalette.ColorRole.BrightText,      QColor(255, 255, 255))
-        palette.setColor(QPalette.ColorRole.ToolTipBase,     c(BG_RAISED))
-        palette.setColor(QPalette.ColorRole.ToolTipText,     c(TEXT_PRI))
+    # Neutral grey roles — Fusion derives border/shadow colors from these.
+    palette.setColor(QPalette.ColorRole.Light,    QColor(60, 62, 72))
+    palette.setColor(QPalette.ColorRole.Midlight, QColor(45, 47, 56))
+    palette.setColor(QPalette.ColorRole.Mid,      QColor(35, 37, 45))
+    palette.setColor(QPalette.ColorRole.Dark,     QColor(22, 24, 30))
+    palette.setColor(QPalette.ColorRole.Shadow,   QColor(10, 11, 15))
 
-        # Neutral grey roles — Fusion derives border/shadow colors from these.
-        # Without explicit values it auto-calculates from blue-tinted base → cyan borders.
-        palette.setColor(QPalette.ColorRole.Light,           QColor(60,  62,  72))
-        palette.setColor(QPalette.ColorRole.Midlight,        QColor(45,  47,  56))
-        palette.setColor(QPalette.ColorRole.Mid,             QColor(35,  37,  45))
-        palette.setColor(QPalette.ColorRole.Dark,            QColor(22,  24,  30))
-        palette.setColor(QPalette.ColorRole.Shadow,          QColor(10,  11,  15))
-
-        # Disabled
-        palette.setColor(QPalette.ColorGroup.Disabled,
-                         QPalette.ColorRole.Text,       c(TEXT_DIS))
-        palette.setColor(QPalette.ColorGroup.Disabled,
-                         QPalette.ColorRole.ButtonText, c(TEXT_DIS))
-        palette.setColor(QPalette.ColorGroup.Disabled,
-                         QPalette.ColorRole.WindowText, c(TEXT_DIS))
+    for role in (QPalette.ColorRole.Text, QPalette.ColorRole.ButtonText,
+                 QPalette.ColorRole.WindowText):
+        palette.setColor(QPalette.ColorGroup.Disabled, role, c(TEXT_DIS))
 
     app.setPalette(palette)
-    app.setStyleSheet(STYLESHEET)
+    app.setStyleSheet(build_stylesheet(accent))
+
+
+def set_accent(app: QApplication, accent: str):
+    """Persist and apply a new accent colour at runtime."""
+    try:
+        from core.config import set_pref
+        set_pref("accent_color", accent)
+    except Exception:
+        pass
+    apply_dark_theme(app, accent)

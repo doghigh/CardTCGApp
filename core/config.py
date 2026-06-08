@@ -112,3 +112,31 @@ class AppConfig:
 
 # Module-level singleton
 config = AppConfig()
+
+
+# ── Plain (non-secret) preferences — theme, UI choices, etc. ──────────────────
+
+PREFS_FILE = APP_DIR / "prefs.json"
+
+
+def get_pref(key: str, default=None):
+    try:
+        if PREFS_FILE.exists():
+            return json.loads(PREFS_FILE.read_text(encoding="utf-8")).get(key, default)
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.error("Could not read prefs: %s", exc)
+    return default
+
+
+def set_pref(key, value):
+    data = {}
+    try:
+        if PREFS_FILE.exists():
+            data = json.loads(PREFS_FILE.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        data = {}
+    data[key] = value
+    try:
+        PREFS_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    except OSError as exc:
+        logger.error("Could not write prefs: %s", exc)

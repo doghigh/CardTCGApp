@@ -11,7 +11,7 @@ from typing import Optional
 
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
-    QGroupBox, QFormLayout, QDialogButtonBox, QCheckBox, QWidget,
+    QGroupBox, QFormLayout, QDialogButtonBox, QCheckBox, QWidget, QComboBox,
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QDesktopServices
@@ -160,6 +160,9 @@ class SettingsDialog(QDialog):
         e_form.addRow("", note)
         layout.addWidget(ebay_box)
 
+        # ── Appearance ────────────────────────────────────────────────────────
+        layout.addWidget(self._build_appearance_group())
+
         # ── Save / Cancel ─────────────────────────────────────────────────────
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save
@@ -168,6 +171,90 @@ class SettingsDialog(QDialog):
         buttons.accepted.connect(self._save)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+    # ── appearance / theming ────────────────────────────────────────────────
+
+    def _build_appearance_group(self) -> QGroupBox:
+        from utils.theme import get_accent
+        from utils.themes import ACCENT_PRESETS
+
+        box = QGroupBox("Appearance — Accent Colour")
+        v = QVBoxLayout(box)
+
+        intro = QLabel("Theme the app to a favourite team's colours, pick a "
+                       "custom colour, or pull one from a card image.")
+        intro.setWordWrap(True)
+        intro.setStyleSheet("color: #8b8fa8; font-size: 11px;")
+        v.addWidget(intro)
+
+        row = QHBoxLayout()
+        self._accent = get_accent()
+
+        # Swatch preview
+        self.accent_swatch = QLabel()
+        self.accent_swatch.setFixedSize(28, 28)
+        self._update_swatch()
+        row.addWidget(self.accent_swatch)
+
+        # Preset picker
+        self.preset_combo = QComboBox()
+        self.preset_combo.addItem("Choose a preset…", None)
+        for name, hexv in ACCENT_PRESETS.items():
+            self.preset_combo.addItem(name, hexv)
+        self.preset_combo.currentIndexChanged.connect(self._on_preset)
+        row.addWidget(self.preset_combo, 1)
+
+        custom_btn = QPushButton("Custom…")
+        custom_btn.clicked.connect(self._pick_custom)
+        row.addWidget(custom_btn)
+
+        card_btn = QPushButton("From card…")
+        card_btn.setToolTip("Pull an accent colour from a card image")
+        card_btn.clicked.connect(self._pick_from_card)
+        row.addWidget(card_btn)
+        v.addLayout(row)
+
+        return box
+
+    def _update_swatch(self):
+        self.accent_swatch.setStyleSheet(
+            f"background:{self._accent};border:1px solid #2a2d3e;border-radius:6px;")
+
+    def _apply_accent(self, hex_color: str):
+        if not hex_color:
+            return
+        self._accent = hex_color
+        self._update_swatch()
+        from PyQt6.QtWidgets import QApplication
+        from utils.theme import set_accent
+        set_accent(QApplication.instance(), hex_color)   # live + persisted
+
+    def _on_preset(self, _index):
+        hexv = self.preset_combo.currentData()
+        if hexv:
+            self._apply_accent(hexv)
+
+    def _pick_custom(self):
+        from PyQt6.QtWidgets import QColorDialog
+        from PyQt6.QtGui import QColor
+        col = QColorDialog.getColor(QColor(self._accent), self, "Pick an accent colour")
+        if col.isValid():
+            self._apply_accent(col.name())
+
+    def _pick_from_card(self):
+        from PyQt6.QtWidgets import QFileDialog, QMessageBox
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Choose a card image", "",
+            "Images (*.png *.jpg *.jpeg *.bmp *.tiff)")
+        if not path:
+            return
+        from utils.themes import extract_accent_from_image
+        hexv = extract_accent_from_image(path)
+        if hexv:
+            self._apply_accent(hexv)
+        else:
+            QMessageBox.information(self, "No colour found",
+                                   "Couldn't extract a colour from that image.")
 
     # ── helpers ────────────────────────────────────────────────────────────────
 
