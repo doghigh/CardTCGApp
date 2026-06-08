@@ -180,6 +180,16 @@ class MainWindow(QMainWindow):
         shortcuts_action.triggered.connect(self._show_help)
         help_menu.addAction(shortcuts_action)
 
+        help_menu.addSeparator()
+        privacy_action = QAction("Privacy Policy", self)
+        privacy_action.triggered.connect(self._open_privacy)
+        help_menu.addAction(privacy_action)
+
+    def _open_privacy(self):
+        from PyQt6.QtGui import QDesktopServices
+        from PyQt6.QtCore import QUrl
+        QDesktopServices.openUrl(QUrl("https://cardtcgapp.onrender.com/privacy"))
+
     # ── Watch-folder auto-import ──────────────────────────────────────────────
 
     def _check_watch(self):
