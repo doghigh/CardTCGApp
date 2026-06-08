@@ -4,6 +4,7 @@ Fixed: Input validation, safe operations, better error handling.
 """
 
 import csv
+import logging
 from pathlib import Path
 from typing import List, Dict, Optional
 
@@ -25,6 +26,8 @@ from ui.dialogs import CardDetailDialog
 
 APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "TradingCardManager"
 
+
+logger = logging.getLogger(__name__)
 
 class _SortItem(QTableWidgetItem):
     """Table item that sorts by an underlying value, not its display text.
@@ -72,7 +75,7 @@ class RevalueWorker(QThread):
                 if estimate > 0:
                     self.db.update_card(cid, {'estimated_value': estimate})
             except Exception as e:
-                print(f"Error re-valuing card {cid}: {e}")
+                logger.warning("Error re-valuing card %s: %s", cid, e)
         self.finished.emit()
 
 
@@ -136,7 +139,7 @@ class ReidentifyWorker(QThread):
                 if est > 0:
                     self.db.update_card(cid, {'estimated_value': est})
             except Exception as e:
-                print(f"Re-identify error for card {cid}: {e}")
+                logger.warning("Re-identify error for card %s: %s", cid, e)
 
             self.progress.emit(i + 1, total)
         self.finished.emit(updated)

@@ -27,13 +27,19 @@ def _load_dotenv():
 
 _load_dotenv()
 
+# Initialise logging before anything else logs.
+import logging
+from core.logging_config import setup_logging
+setup_logging()
+logger = logging.getLogger("main")
+
 # Apply user-saved API keys (Settings screen). .env / real env vars take
 # precedence so developers can still override locally.
 try:
     from core.config import config as _app_config
     _app_config.apply_to_env(override=False)
 except Exception as _exc:  # noqa: BLE001 — config is best-effort at startup
-    print(f"Config load skipped: {_exc}")
+    logger.warning("Config load skipped: %s", _exc)
 
 
 try:
@@ -70,7 +76,7 @@ def main():
     window = MainWindow()
     window.showMaximized()
 
-    print(f"{APP_NAME} v{APP_VERSION} started successfully!")
+    logger.info("%s v%s started successfully!", APP_NAME, APP_VERSION)
     sys.exit(app.exec())
 
 

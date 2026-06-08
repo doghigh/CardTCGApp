@@ -2,9 +2,12 @@
 Shared image operations — rotation and skew correction for card scans.
 """
 
+import logging
 import cv2
 import numpy as np
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 def rotate_90_cw(img: np.ndarray) -> np.ndarray:
@@ -69,7 +72,7 @@ def deskew(img: np.ndarray, max_angle: float = 15.0) -> np.ndarray:
         return _rotate_bound(img, angle)
 
     except Exception as exc:
-        print(f"Deskew error: {exc}")
+        logger.debug("Deskew error: %s", exc)
         return img
 
 

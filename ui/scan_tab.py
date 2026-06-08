@@ -3,6 +3,7 @@ Scan & Add Tab - Single Scan Card + Manual Rotate Buttons
 """
 
 import os
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -32,6 +33,8 @@ from core.database import Database
 SCANS_DIR = Path(os.environ.get('APPDATA', Path.home())) / "TradingCardManager" / "scans"
 SCANS_DIR.mkdir(parents=True, exist_ok=True)
 
+
+logger = logging.getLogger(__name__)
 
 class ScanWorker(QThread):
     finished = pyqtSignal(object)
@@ -557,7 +560,7 @@ class ScanTab(QWidget):
 
         except Exception as e:
             QMessageBox.critical(self, "Save Failed", f"Error saving card:\n{str(e)}")
-            print(f"Save error: {e}")
+            logger.warning("Save error: %s", e)
             
     def _reset_form(self):
         """Clear the form after saving."""

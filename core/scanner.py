@@ -3,6 +3,7 @@ import numpy as np
 from PIL import Image
 import io
 import time
+import logging
 from pathlib import Path
 from typing import Optional, List
 
@@ -11,6 +12,8 @@ try:
     HAS_TWAIN = True
 except ImportError:
     HAS_TWAIN = False
+
+logger = logging.getLogger(__name__)
 
 
 class ScannerInterface:
@@ -29,7 +32,7 @@ class ScannerInterface:
             sm.destroy()
             return list(sources)
         except Exception as e:
-            print(f"List sources error: {e}")
+            logger.warning("List sources error: %s", e)
             return []
 
     def _enhance_image(self, img: np.ndarray) -> np.ndarray:
@@ -60,7 +63,7 @@ class ScannerInterface:
             return enhanced
 
         except Exception as e:
-            print(f"Enhancement skipped: {e}")
+            logger.warning("Enhancement skipped: %s", e)
             return img
 
     def scan(self, source_name: Optional[str] = None, dpi: int = 400, duplex: bool = False) -> List[np.ndarray]:
@@ -76,7 +79,7 @@ class ScannerInterface:
                 sm.destroy()
                 return []
 
-            print(f"✅ Opened scanner: {source_name} @ {dpi} DPI")
+            logger.info("Opened scanner: %s @ %d DPI", source_name, dpi)
 
             # Higher quality settings
             try:
@@ -85,14 +88,14 @@ class ScannerInterface:
                 src.SetCapability(twain.ICAP_PIXELTYPE, twain.TWTY_UINT16, twain.TWPT_RGB)
                 src.SetCapability(twain.ICAP_BITDEPTH, twain.TWTY_UINT16, 24)  # 24-bit color
             except Exception as e:
-                print(f"Setting warning: {e}")
+                logger.debug("Capability setting warning: %s", e)
 
             # Disable in-transfer compression — JPEG compression is a major
             # source of the blocky colour artefacts/grain on card scans.
             try:
                 src.SetCapability(twain.ICAP_COMPRESSION, twain.TWTY_UINT16, twain.TWCP_NONE)
             except Exception as e:
-                print(f"Compression setting skipped: {e}")
+                logger.debug("Compression setting skipped: %s", e)
 
             # Ask the scanner NOT to apply its own auto image processing where
             # the driver exposes it (keeps the capture faithful/sharp).
@@ -112,9 +115,9 @@ class ScannerInterface:
                 try:
                     src.SetCapability(twain.CAP_FEEDERENABLED, twain.TWTY_BOOL, True)
                     src.SetCapability(twain.CAP_DUPLEXENABLED, twain.TWTY_BOOL, True)
-                    print("✅ Duplex + Feeder enabled")
+                    logger.info("Duplex + feeder enabled")
                 except (AttributeError, Exception) as e:
-                    print(f"Duplex not available: {e}")
+                    logger.debug("Duplex not available: %s", e)
 
             self._cancel_requested = False
             src.RequestAcquire(0, 0)
@@ -136,22 +139,22 @@ class ScannerInterface:
                 except twain.exceptions.SequenceError:
                     break
                 except Exception as e:
-                    print(f"Transfer error: {e}")
+                    logger.warning("Transfer error: %s", e)
                     break
 
                 time.sleep(0.1)
 
             if self._cancel_requested:
-                print("⏹ Scan cancelled by user")
+                logger.info("Scan cancelled by user")
 
             src.destroy()
             sm.destroy()
 
-            print(f"✅ Finished scanning — {len(images)} image(s)")
+            logger.info("Finished scanning — %d image(s)", len(images))
             return images
 
         except Exception as e:
-            print(f"Scan error: {e}")
+            logger.error("Scan error: %s", e)
             return []
 
     def scan_from_file(self, path: str) -> Optional[np.ndarray]:
@@ -164,5 +167,5 @@ class ScannerInterface:
                 arr = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             return arr
         except Exception as e:
-            print(f"File load error: {e}")
+            logger.warning("File load error: %s", e)
             return None

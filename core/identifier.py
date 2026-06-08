@@ -2,9 +2,12 @@ import base64
 import json
 import re
 import os
+import logging
 import cv2
 import numpy as np
 from typing import Dict, Optional
+
+logger = logging.getLogger(__name__)
 
 try:
     import anthropic
@@ -158,7 +161,7 @@ class CardIdentifier:
                 'game': data.get('game') or None,
             }
         except Exception as e:
-            print(f"Claude vision error: {e}")
+            logger.warning("Claude vision error: %s", e)
             return None
 
     def _img_to_base64(self, img: np.ndarray) -> Optional[str]:
@@ -177,7 +180,7 @@ class CardIdentifier:
                 return None
             return base64.standard_b64encode(buf.tobytes()).decode('ascii')
         except Exception as e:
-            print(f"Image encode error: {e}")
+            logger.warning("Image encode error: %s", e)
             return None
 
     # ------------------------------------------------------------------
@@ -214,7 +217,7 @@ class CardIdentifier:
 
             return max(results, key=lambda t: sum(1 for w in t.split() if len(w) >= 3 and w.isalpha()))
         except Exception as e:
-            print(f"OCR Error: {e}")
+            logger.debug("OCR error: %s", e)
             return ""
 
     def extract_header_text(self, img: np.ndarray) -> str:
@@ -264,7 +267,7 @@ class CardIdentifier:
             return max(results, key=lambda t: sum(
                 1 for word in t.split() if len(word) >= 2 and word.isalpha()))
         except Exception as e:
-            print(f"Header OCR Error: {e}")
+            logger.debug("Header OCR error: %s", e)
             return ""
 
     def parse_card_info(self, front_text: str = "", back_text: str = "",

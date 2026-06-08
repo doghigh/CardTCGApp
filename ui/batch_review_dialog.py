@@ -4,6 +4,7 @@ a review table where the user can edit fields and save everything at once.
 """
 
 import cv2
+import logging
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
@@ -48,6 +49,8 @@ NCOLS     = 9
 
 
 # ── Background worker ─────────────────────────────────────────────────────────
+
+logger = logging.getLogger(__name__)
 
 class BatchProcessWorker(QThread):
     card_ready = pyqtSignal(int, dict)   # (index, result_dict)
@@ -507,7 +510,7 @@ class BatchReviewDialog(QDialog):
 
             except Exception as exc:
                 errors += 1
-                print(f"Save error row {row}: {exc}")
+                logger.warning("Save error row %s: %s", row, exc)
 
         msg = f"✅ Saved {saved} new card(s)."
         if merged:
