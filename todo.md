@@ -78,7 +78,9 @@
 - [ ] Store assets: icon set, screenshots, description, age rating
 
 ### 4. Pre-release hardening
-- [ ] Unit tests for `database`, `valuator`, `auth`, `inspector`, pairing logic
+- [x] Unit tests (`tests/`, stdlib unittest, 38 tests) — database, valuator,
+      watcher schedule, theme, front/back pairing, inspector. Run with
+      `python -m unittest discover -s tests`
 - [ ] Graceful "no API key" degradation messaging throughout
 - [ ] Remove dev artifacts from the package (`.env`, `apply-fixes.py`)
 
