@@ -156,7 +156,7 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("F5"), self, self._refresh_all)
 
         # Help
-        QShortcut(QKeySequence("F1"), self, self._show_help)
+        QShortcut(QKeySequence("F1"), self, self._open_help_center)
 
         # Quit
         QShortcut(QKeySequence("Ctrl+Q"), self, self.close)
@@ -184,13 +184,22 @@ class MainWindow(QMainWindow):
 
         # Help menu
         help_menu = menubar.addMenu("&Help")
-        about_action = QAction("About", self)
-        about_action.triggered.connect(self._about)
-        help_menu.addAction(about_action)
+        help_center_action = QAction("Help Center\tF1", self)
+        help_center_action.triggered.connect(self._open_help_center)
+        help_menu.addAction(help_center_action)
 
         shortcuts_action = QAction("Keyboard Shortcuts", self)
         shortcuts_action.triggered.connect(self._show_help)
         help_menu.addAction(shortcuts_action)
+
+        help_menu.addSeparator()
+        about_action = QAction("About", self)
+        about_action.triggered.connect(self._about)
+        help_menu.addAction(about_action)
+
+    def _open_help_center(self, topic: str = None):
+        from ui.help_dialog import HelpDialog
+        HelpDialog(self, topic if isinstance(topic, str) else None).exec()
 
         help_menu.addSeparator()
         privacy_action = QAction("Privacy Policy", self)
