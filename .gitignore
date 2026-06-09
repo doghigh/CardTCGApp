@@ -64,3 +64,10 @@ __pycache__/
 
 # Secrets
 .env
+
+# Build / packaging artifacts
+build/
+dist/
+*.msix
+*.appx
+

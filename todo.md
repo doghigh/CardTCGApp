@@ -73,9 +73,12 @@
       Anthropic/eBay; Windows Hello biometrics; no eBay user data stored)
 
 ### 3. Packaging
-- [ ] PyInstaller build → standalone `.exe` (bundle Tesseract + VC runtimes)
+- [x] PyInstaller build → standalone windowed `.exe` (onedir, ~290 MB).
+      `pyinstaller TradingCardManager.spec --noconfirm` → dist/. Launches
+      cleanly; see BUILD.md. Excludes unused paddle/matplotlib/etc.
+- [ ] App icon set (.ico + Store tiles)
 - [ ] Wrap in MSIX; pass Windows App Certification Kit (WACK)
-- [ ] Store assets: icon set, screenshots, description, age rating
+- [ ] Store assets: screenshots, description, age rating
 
 ### 4. Pre-release hardening
 - [x] Unit tests (`tests/`, stdlib unittest, 38 tests) — database, valuator,
