@@ -15,7 +15,7 @@
 - [x] Clickable game/set bars → filtered Collection; double-click card → detail
 - [x] Set-completion tracking (known set sizes, e.g. 1986 Topps = 792)
 - [x] Custom accent themes — 40 presets (MLB teams, MTG, Pokémon), custom picker,
-      and extract-colour-from-card-image
+      and extract-color-from-card-image
 - [x] Accessibility — adjustable text size, high-contrast mode, visible keyboard
       focus, screen-reader labels on icon-only controls
 

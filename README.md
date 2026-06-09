@@ -1,26 +1,26 @@
-# Trading Card Manager
+            # Trading Card Manager
 
-A **privacy-first**, Windows desktop application for managing your physical trading card collection (TCG, Sports Cards, etc.).
+            A **privacy-first**, Windows desktop application for managing your physical trading card collection (TCG, Sports Cards, etc.).
 
-Scan cards with a TWAIN-compatible scanner, automatically identify them with OCR, grade condition using computer vision, fetch live market values, and generate beautiful monthly PDF reports — all **100% locally**.
+            Scan cards with a TWAIN-compatible scanner, automatically identify them with OCR, grade condition using computer vision, fetch live market values, and generate beautiful monthly PDF reports — all **100% locally**.
 
----
+            ---
 
-## ✨ Features
+            ## ✨ Features
 
-- **TWAIN Scanner Integration** — Direct scanning of card fronts and backs
-- **Auto Card Identification** — Tesseract OCR with smart parsing
-- **AI Condition Grading** — OpenCV analyzes corners, edges, surface, centering, and defects
-- **Live Market Values** — Parallel lookups from TCGPlayer, eBay Sold, and PriceCharting
-- **Local SQLite Database** — Your collection stays private (no cloud, no account)
-- **Batch Import** — Import from image folders or CSV with smart column mapping
-- **Continuous Scan Mode** — High-volume scanning with auto-save
-- **Monthly PDF Reports** — Professional reports with charts and summaries
-- **Windows Hello + TOTP 2FA** — Modern authentication (optional)
-- **Full Keyboard Accessibility** — Ctrl+1–4, Ctrl+N, F1 help, etc.
-- **Single-file .exe** — Easy distribution
+            - **TWAIN Scanner Integration** — Direct scanning of card fronts and backs
+            - **Auto Card Identification** — Tesseract OCR with smart parsing
+            - **AI Condition Grading** — OpenCV analyzes corners, edges, surface, centering, and defects
+            - **Live Market Values** — Parallel lookups from TCGPlayer, eBay Sold, and PriceCharting
+            - **Local SQLite Database** — Your collection stays private (no cloud, no account)
+            - **Batch Import** — Import from image folders or CSV with smart column mapping
+            - **Continuous Scan Mode** — High-volume scanning with auto-save
+            - **Monthly PDF Reports** — Professional reports with charts and summaries
+            - **Windows Hello + TOTP 2FA** — Modern authentication (optional)
+            - **Full Keyboard Accessibility** — Ctrl+1–4, Ctrl+N, F1 help, etc.
+            - **Single-file .exe** — Easy distribution
 
----
+            ---
 
 ## 📸 Screenshots
 

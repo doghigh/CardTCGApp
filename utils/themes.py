@@ -1,8 +1,8 @@
 """
-Accent-colour presets (teams, card games) and extract-from-image helper.
+Accent-color presets (teams, card games) and extract-from-image helper.
 
-Used by the Appearance settings to let users theme the app to a favourite
-team's colour or a colour pulled straight from one of their cards.
+Used by the Appearance settings to let users theme the app to a favorite
+team's color or a color pulled straight from one of their cards.
 """
 
 import logging
@@ -10,12 +10,12 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# Curated accent presets → primary hex colour.
+# Curated accent presets → primary hex color.
 # Grouped by a "Category — Name" key so they read nicely in a combo box.
 ACCENT_PRESETS = {
     "Default — Indigo": "#5865f2",
 
-    # ── MLB (primary colours) ──
+    # ── MLB (primary colors) ──
     "MLB — Diamondbacks": "#A71930",
     "MLB — Braves":       "#CE1141",
     "MLB — Orioles":      "#DF4601",
@@ -46,7 +46,7 @@ ACCENT_PRESETS = {
     "MLB — Blue Jays":    "#134A8E",
     "MLB — Nationals":    "#AB0003",
 
-    # ── Magic: The Gathering (mana colours) ──
+    # ── Magic: The Gathering (mana colors) ──
     "MTG — White": "#E8E0C0",
     "MTG — Blue":  "#0E68AB",
     "MTG — Black": "#6D6E70",
@@ -64,11 +64,11 @@ ACCENT_PRESETS = {
 
 def extract_accent_from_image(path: str) -> Optional[str]:
     """
-    Pull a vivid accent colour from a card image via k-means clustering.
+    Pull a vivid accent color from a card image via k-means clustering.
 
     Returns a hex string, or None on failure. Picks the cluster that best
     balances vividness (saturation × brightness) with how much of the image
-    it covers — i.e. a bold, representative colour rather than a muted one.
+    it covers — i.e. a bold, representative color rather than a muted one.
     """
     try:
         import cv2

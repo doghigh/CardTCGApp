@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import QApplication
 from PyQt6.QtGui import QPalette, QColor, QFont
 
 
-# ── Colour tokens ────────────────────────────────────────────────────────────
+# ── Color tokens ────────────────────────────────────────────────────────────
 BG_DEEP    = "#0d0f18"   # window / outermost background
 BG_BASE    = "#13151f"   # widget / panel background
 BG_RAISED  = "#1c1f2e"   # cards, group boxes, raised surfaces
@@ -23,7 +23,7 @@ def _clamp(v: int) -> int:
 
 
 def _adjust(hex_color: str, factor: float) -> str:
-    """Lighten (factor>0) or darken (factor<0) a hex colour."""
+    """Lighten (factor>0) or darken (factor<0) a hex color."""
     h = hex_color.lstrip("#")
     if len(h) != 6:
         return hex_color
@@ -39,7 +39,7 @@ def _adjust(hex_color: str, factor: float) -> str:
 
 
 def _tokens(high_contrast: bool):
-    """Return the colour token set for normal or high-contrast mode."""
+    """Return the color token set for normal or high-contrast mode."""
     if high_contrast:
         return {
             "BG_DEEP": "#000000", "BG_BASE": "#000000", "BG_RAISED": "#0a0a0a",
@@ -57,7 +57,7 @@ def _tokens(high_contrast: bool):
 
 def build_stylesheet(accent: str = DEFAULT_ACCENT, scale: float = 1.0,
                      high_contrast: bool = False) -> str:
-    """Build the full stylesheet around an accent colour, text scale and mode."""
+    """Build the full stylesheet around an accent color, text scale and mode."""
     ACCENT = accent
     ACCENT_HOV = _adjust(accent, 0.15)
     ACCENT_PRS = _adjust(accent, -0.15)
@@ -414,7 +414,7 @@ QProgressBar::chunk {{
 
 
 def get_accent() -> str:
-    """Return the user's saved accent colour, or the default."""
+    """Return the user's saved accent color, or the default."""
     try:
         from core.config import get_pref
         return get_pref("accent_color", DEFAULT_ACCENT) or DEFAULT_ACCENT
@@ -489,7 +489,7 @@ def apply_dark_theme(app: QApplication, accent: str = None,
 
 
 def set_accent(app: QApplication, accent: str):
-    """Persist and apply a new accent colour at runtime."""
+    """Persist and apply a new accent color at runtime."""
     try:
         from core.config import set_pref
         set_pref("accent_color", accent)

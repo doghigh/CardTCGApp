@@ -178,11 +178,11 @@ class SettingsDialog(QDialog):
         from utils.theme import get_accent
         from utils.themes import ACCENT_PRESETS
 
-        box = QGroupBox("Appearance — Accent Colour")
+        box = QGroupBox("Appearance — Accent Color")
         v = QVBoxLayout(box)
 
-        intro = QLabel("Theme the app to a favourite team's colours, pick a "
-                       "custom colour, or pull one from a card image.")
+        intro = QLabel("Theme the app to a favorite team's colors, pick a "
+                       "custom color, or pull one from a card image.")
         intro.setWordWrap(True)
         intro.setStyleSheet("color: #8b8fa8; font-size: 11px;")
         v.addWidget(intro)
@@ -209,7 +209,7 @@ class SettingsDialog(QDialog):
         row.addWidget(custom_btn)
 
         card_btn = QPushButton("From card…")
-        card_btn.setToolTip("Pull an accent colour from a card image")
+        card_btn.setToolTip("Pull an accent color from a card image")
         card_btn.clicked.connect(self._pick_from_card)
         row.addWidget(card_btn)
         v.addLayout(row)
@@ -277,7 +277,7 @@ class SettingsDialog(QDialog):
     def _pick_custom(self):
         from PyQt6.QtWidgets import QColorDialog
         from PyQt6.QtGui import QColor
-        col = QColorDialog.getColor(QColor(self._accent), self, "Pick an accent colour")
+        col = QColorDialog.getColor(QColor(self._accent), self, "Pick an accent color")
         if col.isValid():
             self._apply_accent(col.name())
 
@@ -293,8 +293,8 @@ class SettingsDialog(QDialog):
         if hexv:
             self._apply_accent(hexv)
         else:
-            QMessageBox.information(self, "No colour found",
-                                   "Couldn't extract a colour from that image.")
+            QMessageBox.information(self, "No color found",
+                                   "Couldn't extract a color from that image.")
 
     # ── helpers ────────────────────────────────────────────────────────────────
 

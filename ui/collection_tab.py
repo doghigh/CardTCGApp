@@ -274,7 +274,7 @@ class CollectionTab(QWidget):
 
             for j, (text, key) in enumerate(cells):
                 item = _SortItem(text, key)
-                if j == 6 and score_val >= 0:   # Score column colour coding
+                if j == 6 and score_val >= 0:   # Score column color coding
                     if score_val >= 90:
                         item.setForeground(QColor("#38a169"))
                     elif score_val >= 70:

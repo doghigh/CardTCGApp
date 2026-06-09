@@ -346,7 +346,7 @@ class BatchReviewDialog(QDialog):
         year_item = QTableWidgetItem(str(r.get('year') or ''))
         self._table.setItem(row, COL_YEAR, year_item)
 
-        # Grade (read-only, coloured)
+        # Grade (read-only, colored)
         grade = r.get('grade', '')
         score = r.get('score', 0.0)
         grade_item = QTableWidgetItem(f"{grade}\n{score:.0f}/100")

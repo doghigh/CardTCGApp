@@ -51,7 +51,7 @@ class ScannerInterface:
             #    while smoothing flat noise — fastNlMeans was over-smoothing text.
             denoised = cv2.bilateralFilter(
                 img, d=5,
-                sigmaColor=40,   # how much colour difference is "noise"
+                sigmaColor=40,   # how much color difference is "noise"
                 sigmaSpace=40,   # spatial reach
             )
 
@@ -91,7 +91,7 @@ class ScannerInterface:
                 logger.debug("Capability setting warning: %s", e)
 
             # Disable in-transfer compression — JPEG compression is a major
-            # source of the blocky colour artefacts/grain on card scans.
+            # source of the blocky color artifacts/grain on card scans.
             try:
                 src.SetCapability(twain.ICAP_COMPRESSION, twain.TWTY_UINT16, twain.TWCP_NONE)
             except Exception as e:
