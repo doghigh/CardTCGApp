@@ -9,6 +9,16 @@
 
 ## ✅ Completed (recent sessions)
 
+### Dashboard & Personalization (this session)
+- [x] Dashboard home tab — KPIs, value-by-game & cards-by-grade bars, top/recent tables
+- [x] Value-over-time line chart (daily snapshots in value_history table)
+- [x] Clickable game/set bars → filtered Collection; double-click card → detail
+- [x] Set-completion tracking (known set sizes, e.g. 1986 Topps = 792)
+- [x] Custom accent themes — 40 presets (MLB teams, MTG, Pokémon), custom picker,
+      and extract-colour-from-card-image
+- [x] Accessibility — adjustable text size, high-contrast mode, visible keyboard
+      focus, screen-reader labels on icon-only controls
+
 ### Valuation
 - [x] eBay Browse API (OAuth client-credentials) for sold/active prices
 - [x] Scryfall integration for Magic cards (free, official, reliable)
