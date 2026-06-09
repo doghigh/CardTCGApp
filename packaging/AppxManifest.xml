@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  MSIX manifest for the Microsoft Store build.
+
+  PLACEHOLDERS to fill in before packaging:
+    - Identity Name / Publisher  → copy EXACTLY from Partner Center
+      (Product identity → Package/Identity values). Publisher must match your
+      registered publisher, e.g. "CN=ABCD1234-..."
+    - PublisherDisplayName       → your seller/display name
+    - DisplayName (App + props)  → the FINAL product name once branding is set
+      (currently the working title "Trading Card Manager")
+
+  Build (see BUILD.md):
+    1. Copy dist/TradingCardManager/* into a staging folder.
+    2. Copy assets/*.png tiles into staging\Assets\ (or adjust paths below).
+    3. makeappx pack /d <staging> /p TradingCardManager.msix
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap rescap">
+
+  <Identity
+    Name="REPLACE-WITH-PARTNER-CENTER-IDENTITY-NAME"
+    Publisher="CN=REPLACE-WITH-PARTNER-CENTER-PUBLISHER-ID"
+    Version="1.1.0.0"
+    ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>Trading Card Manager</DisplayName>
+    <PublisherDisplayName>REPLACE-WITH-YOUR-SELLER-NAME</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+    <Description>Catalog, grade, and value your trading card collection.</Description>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop"
+                        MinVersion="10.0.17763.0"
+                        MaxVersionTested="10.0.22621.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Applications>
+    <Application Id="TradingCardManager"
+                 Executable="TradingCardManager.exe"
+                 EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="Trading Card Manager"
+        Description="Catalog, grade, and value your trading card collection."
+        BackgroundColor="#5865f2"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile
+          Wide310x150Logo="Assets\Wide310x150Logo.png"
+          Square310x310Logo="Assets\Square310x310Logo.png"
+          Square71x71Logo="Assets\Square71x71Logo.png" />
+        <uap:SplashScreen Image="Assets\Square310x310Logo.png" />
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

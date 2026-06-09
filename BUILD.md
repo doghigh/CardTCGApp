@@ -26,21 +26,50 @@ Notes:
   is the Claude vision API, so the app runs fine without it.
 - **TWAIN scanner driver** — provided by the user's scanner; loaded at runtime.
 
-## 2. MSIX package (Microsoft Store) — TODO
+## 2. App icon — DONE (placeholder)
 
-The Store requires an MSIX. Options:
+`assets/generate_assets.py` renders the icon set (card-stack glyph on an indigo
+tile). Re-run after swapping branding:
 
-1. **MSIX Packaging Tool** (GUI, simplest): point it at the built
-   `TradingCardManager.exe`, capture install, set identity/icons.
-2. **makeappx / manifest** (scripted): author an `AppxManifest.xml`, then
-   `makeappx pack` the `dist/TradingCardManager` folder.
+```powershell
+python assets/generate_assets.py
+```
+
+Produces `icon.ico` (embedded in the exe via the spec) plus the MSIX tiles
+(Square44/71/150/310, Wide310x150, StoreLogo). Replace these PNGs with real
+branding later — keep the filenames.
+
+## 3. MSIX package (Microsoft Store) — scaffolded
+
+Manifest: `packaging/AppxManifest.xml` (fill in the Partner Center
+Identity/Publisher placeholders first). Pack with:
+
+```powershell
+pyinstaller TradingCardManager.spec --noconfirm      # build the exe
+powershell -ExecutionPolicy Bypass -File packaging\build_msix.ps1
+```
+
+`build_msix.ps1` stages `dist/` + the manifest + tiles and runs `makeappx pack`
+→ `packaging/TradingCardManager.msix`. Requires the **Windows SDK** on PATH
+(`makeappx.exe`) — easiest from a *Developer Command Prompt for VS*.
 
 Still needed before submission:
-- App icons (Square44x44, Square150x150, Store logo, etc.)
-- `AppxManifest.xml` with Publisher identity (from Partner Center)
-- Signing — the Store re-signs on submission; for sideload testing, a
-  self-signed cert.
-- Pass the Windows App Certification Kit (WACK).
+- Fill `AppxManifest.xml` Identity/Publisher from **Partner Center**.
+- **Final product name / branding** (currently the working title
+  "Trading Card Manager" — change `DisplayName` in the manifest + tiles).
+- Signing — the Store re-signs on submission; for local sideload testing use a
+  self-signed cert + `signtool`.
+- Pass the **Windows App Certification Kit (WACK)**.
+
+## 4. Pre-submission checklist
+- [x] App icon set (placeholder)
+- [x] MSIX manifest + pack script
+- [ ] Final name / branding decided
+- [ ] Partner Center identity filled into the manifest
+- [ ] Privacy policy URL live (ebay_webhook `/privacy`) + contact email filled
+- [ ] Screenshots (1366×768 or 1920×1080)
+- [ ] Store description, category, age rating
+- [ ] WACK pass
 
 ## 3. Pre-submission checklist
 - [ ] App icon set

@@ -71,3 +71,7 @@ dist/
 *.msix
 *.appx
 
+
+# MSIX staging output
+packaging/staging/
+packaging/*.msix
