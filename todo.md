@@ -1,357 +1,185 @@
-# Trading Card Manager — TODO
+---
 
-Now let me review this file in detail for security and robustness issues:
+## ⚡ Performance Issues (Identified 2026-06-14)
 
-## 🔍 Security & Robustness Review: `core/reports_generator.py`
+### 🔴 **Critical Performance Issues**
 
-### 🔴 **Critical Issues**
-
-**1. No Exception Handling for PDF Generation (`core/reports_generator.py:199`)**
-- **Issue:** `doc.build(story)` can fail for various reasons (disk space, permissions, corrupted data), but there's no try-catch
-- **Risk:** App crash with no user feedback
+**1. Database N+1 Query Pattern — `get_all_cards()`** (`core/database.py:347–363`)
+- **Issue:** Loading ALL cards into memory on every collection view access
+- **Impact:** 1000+ cards = UI lag, memory bloat, wasted I/O
 - **Code:**
 ```python
-doc.build(story)  # Can raise exceptions but not caught
-return out_path
+def get_all_cards(self, search: str = None) -> List[Dict]:
+    rows = conn.execute("SELECT * FROM cards ORDER BY updated_at DESC, id ASC").fetchall()
+    return [dict(r) for r in rows]  # Entire table loaded
 ```
-- **Fix:**
-```python
-try:
-    doc.build(story)
-except Exception as e:
-    logger.error(f"Failed to build PDF: {e}")
-    raise ReportGenerationError(f"Failed to generate PDF: {str(e)}")
-```
+- **Fix:** Implement pagination (LIMIT/OFFSET) or lazy loading; load only visible page
+- **Priority:** HIGH — affects every collection view
 
-**2. No Validation of Input Parameters (`core/reports_generator.py:36`)**
-- **Issue:** Year and month are not validated
-- **Risk:** Invalid months (13+) or negative years could cause crashes
+**2. LIKE Searches Bypass Indexes** (`core/database.py:354–358`)
+- **Issue:** `WHERE name LIKE ? OR set_name LIKE ?` with leading `%` forces full table scan
+- **Impact:** Search slowness on 5000+ cards
 - **Code:**
 ```python
-def generate_monthly(self, year: int, month: int) -> Optional[Path]:
-    start = datetime(year, month, 1)  # Will crash if month > 12 or < 1
+term = f"%{search.strip()}%"
+rows = conn.execute("""
+    SELECT * FROM cards
+    WHERE name LIKE ? OR set_name LIKE ? OR game LIKE ? OR card_number LIKE ?
+    ORDER BY updated_at DESC, id ASC
+""", (term, term, term, term)).fetchall()
 ```
-- **Fix:**
-```python
-def generate_monthly(self, year: int, month: int) -> Optional[Path]:
-    if not isinstance(year, int) or not isinstance(month, int):
-        raise ValueError("Year and month must be integers")
-    if not (1 <= month <= 12):
-        raise ValueError(f"Month must be 1-12, got {month}")
-    if year < 1900 or year > datetime.now().year + 1:
-        raise ValueError(f"Invalid year: {year}")
-```
+- **Fix:** Use SQLite FTS5 (full-text search) or prefix-only matching (no leading `%`)
+- **Priority:** HIGH — blocks search feature on large collections
 
-**3. Unsafe String Truncation in Report Data (`core/reports_generator.py:128-132`)**
-- **Issue:** Slicing strings `[:30]`, `[:20]` could split multi-byte UTF-8 characters
-- **Risk:** Corrupted card names in PDF
+**3. Batch Deskew on ALL Images** (`ui/batch_review_dialog.py:90–106`)
+- **Issue:** Every card deskewed even if already straight; expensive CV ops (GaussianBlur, Otsu, minAreaRect, warpAffine)
+- **Impact:** 30-card batch × 2–5 sec/card = 60–150 seconds total
 - **Code:**
 ```python
-(c.get('name') or '')[:30],  # Could split UTF-8 chars
-(c.get('set_name') or '')[:20],
+def _process(self, idx: int, chunk: List[np.ndarray]) -> dict:
+    chunk = [deskew(im) for im in chunk]  # Expensive for all cards
+    info = self.identifier.identify_card(front, back)
+    inspection = self.inspector.inspect(front)
+    valuation = self.valuator.value_summary(...)
 ```
-- **Fix:**
+- **Fix:** Add skew-detection pre-check (simple threshold); cache/skip deskew for low angles
+- **Priority:** HIGH — blocks batch import workflow
+
+**4. Unbounded Memory in Batch Dialog** (`ui/batch_review_dialog.py:156–288`)
+- **Issue:** All image arrays (50–100 MB each) held in memory during review phase
+- **Impact:** 50 high-DPI scans × 2.5 MB = 125+ MB resident memory
+- **Code:**
 ```python
-def truncate_utf8(text: str, max_len: int) -> str:
-    text = text or ''
-    encoded = text.encode('utf-8')
-    if len(encoded) <= max_len:
-        return text
-    truncated = encoded[:max_len]
-    # Remove incomplete UTF-8 sequences
-    while truncated:
-        try:
-            return truncated.decode('utf-8')
-        except UnicodeDecodeError:
-            truncated = truncated[:-1]
-    return ''
+self._results: dict[int, dict] = {}  # Stores ALL images until dialog closes
+# Each row's `images` field contains full NumPy arrays
 ```
+- **Fix:** Store only metadata; reload images on demand for thumbnails; compress/downsample in-memory cache
+- **Priority:** MEDIUM
 
 ---
 
-### 🟠 **High Priority Issues**
+### 🟠 **High Priority Performance Issues**
 
-**4. No File Permissions Validation (`core/reports_generator.py:56-58`)**
-- **Issue:** Creates directory without checking if write permission exists
-- **Risk:** Silent failure or crashes during PDF write
+**5. Duplicate Detection on Every Insert** (`core/database.py:181–201`)
+- **Issue:** Each `add_card()` runs `find_duplicate()` before insert (extra query with complex IFNULL/LOWER logic)
+- **Impact:** Batch insert of 30 cards = 30 finds + 30 inserts/updates = 60 round trips
 - **Code:**
 ```python
-reports_dir = APP_DIR / "reports"
-reports_dir.mkdir(parents=True, exist_ok=True)
-out_path = reports_dir / f"collection_report_{year}_{month:02d}.pdf"
+def add_card(self, card: Dict, merge_duplicates: bool = True) -> int:
+    card = self._validate_card(card)
+    if merge_duplicates:
+        dup_id = self.find_duplicate(card)  # <-- EXTRA QUERY
+        if dup_id is not None:
+            conn.execute("UPDATE cards SET quantity = quantity + ?...")
+            return dup_id
+    conn.execute("INSERT INTO cards ...")
 ```
-- **Fix:**
-```python
-reports_dir = APP_DIR / "reports"
-try:
-    reports_dir.mkdir(parents=True, exist_ok=True)
-    # Test write permission
-    test_file = reports_dir / ".write_test"
-    test_file.touch()
-    test_file.unlink()
-except (OSError, PermissionError) as e:
-    logger.error(f"Cannot write to reports directory: {e}")
-    return None
-```
+- **Fix:** Use `INSERT OR IGNORE` + `ON CONFLICT UPDATE` or batch duplicate detection in-app
+- **Priority:** HIGH — significant for batch operations
 
-**5. Database Save Called After PDF Build, No Rollback (`core/reports_generator.py:202-208`)**
-- **Issue:** If PDF is created successfully but database save fails, inconsistency occurs
-- **Risk:** Report exists but not recorded in database
+**6. Multiple Sequential API Calls per Card** (`ui/batch_review_dialog.py:98–106`)
+- **Issue:** identify → inspect → valuate called sequentially (3 separate requests) per card with no caching
+- **Impact:** If Anthropic + eBay APIs average 5 sec total per card, 30-card batch = 150 seconds
 - **Code:**
 ```python
-doc.build(story)  # Creates file
-self.db.save_report(...)  # Could fail, file orphaned
+info = self.identifier.identify_card(front, back)        # API call 1
+inspection = self.inspector.inspect(front)              # API call 2
+valuation = self.valuator.value_summary(...)            # API call 3
 ```
-- **Fix:**
-```python
-try:
-    doc.build(story)
-    self.db.save_report(...)
-except Exception as e:
-    # Try to clean up
-    try:
-        out_path.unlink()
-    except:
-        pass
-    raise
-```
+- **Fix:** Batch API calls or implement result caching for duplicate cards
+- **Priority:** HIGH — blocks batch import
 
-**6. No Input Sanitization for HTML in Paragraph (`core/reports_generator.py:117-120`)**
-- **Issue:** Card data is inserted into HTML strings without escaping
-- **Risk:** If card names contain `<b>`, `<br/>`, or HTML tags, could corrupt PDF layout
+**7. Expensive Deskew Operations** (`utils/image_ops.py:41–77`)
+- **Issue:** cvtColor → GaussianBlur → threshold → Otsu → findNonZero → minAreaRect → warpAffine all called sequentially; no early exit
+- **Impact:** 1–2 sec per image even if angle is < 0.3° (quick win)
 - **Code:**
 ```python
-story.append(Paragraph(
-    f"Cards added: <b>{len(period_cards)}</b><br/>"
-    f"Value added: <b>${period_value:,.2f}</b>",
-    styles['Normal']
-))
+gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+_, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+# ... then expensive minAreaRect + warpAffine
 ```
-- **Fix:**
-```python
-from html import escape
-story.append(Paragraph(
-    f"Cards added: <b>{len(period_cards)}</b><br/>"
-    f"Value added: <b>{escape(f'${period_value:,.2f}')}</b>",
-    styles['Normal']
-))
-```
-
-**7. No Handling for Division by Zero or None Values (`core/reports_generator.py:114, 149)`**
-- **Issue:** Calculations assume values are numeric
-- **Risk:** TypeError if database returns None or unexpected types
-- **Code:**
-```python
-period_value = sum((c.get('estimated_value') or 0) * (c.get('quantity') or 1) for c in period_cards)
-# If quantity is None, `or 1` works, but if it's 0, calculations fail
-```
-- **Fix:**
-```python
-def safe_get_numeric(obj: dict, key: str, default: float = 0) -> float:
-    val = obj.get(key, default)
-    try:
-        return float(val) if val is not None else default
-    except (ValueError, TypeError):
-        return default
-
-period_value = sum(
-    safe_get_numeric(c, 'estimated_value') * safe_get_numeric(c, 'quantity', 1) 
-    for c in period_cards
-)
-```
-
-**8. No Timestamp Validation (`core/reports_generator.py:49-50`)**
-- **Issue:** Date strings passed to database without format validation
-- **Risk:** If database returns malformed timestamps, report generation could fail
-- **Code:**
-```python
-period_cards = self.db.get_cards_for_period(
-    start.strftime('%Y-%m-%d %H:%M:%S'),
-    end.strftime('%Y-%m-%d %H:%M:%S')
-)
-```
+- **Fix:** Quick histogram-based skew pre-check before expensive CV ops
+- **Priority:** HIGH
 
 ---
 
-### 🟡 **Medium Priority Issues**
+### 🟡 **Medium Priority Performance Issues**
 
-**9. Bare Exception Handling (`core/reports_generator.py:22-23`)**
-- **Issue:** ImportError silently sets flag, but no user feedback
-- **Location:** `try/except` for reportlab import
-- **Fix:**
-```python
-try:
-    from reportlab.lib.pagesizes import letter
-    # ... other imports
-    HAS_REPORTLAB = True
-except ImportError as e:
-    logger.warning(f"ReportLab not installed: {e}")
-    HAS_REPORTLAB = False
-```
-
-**10. No Logging of Report Generation (`core/reports_generator.py:36-210`)**
-- **Issue:** No audit trail of reports generated
-- **Risk:** Cannot troubleshoot or track report history
-- **Fix:**
-```python
-def generate_monthly(self, year: int, month: int) -> Optional[Path]:
-    logger.info(f"Generating report for {year}-{month:02d}")
-    try:
-        # ... generate report
-        logger.info(f"Report generated successfully: {out_path}")
-        return out_path
-    except Exception as e:
-        logger.error(f"Report generation failed: {e}")
-        raise
-```
-
-**11. Hardcoded Color Values Without Validation (`core/reports_generator.py:74, 79, 105, etc.)**
-- **Issue:** Hex colors passed to reportlab without validation
-- **Risk:** Invalid hex colors could cause crashes
+**8. Merge Duplicates Loads Full Table** (`core/database.py:232–296`)
+- **Issue:** `SELECT * FROM cards` loads entire table to memory for deduplication
+- **Impact:** Slow on 5000+ cards, high memory
 - **Code:**
 ```python
-textColor=colors.HexColor('#1a365d')
+def merge_existing_duplicates(self) -> Dict[str, int]:
+    with self._lock, self._conn() as conn:
+        rows = conn.execute("SELECT * FROM cards ORDER BY id ASC").fetchall()  # FULL TABLE
+        groups: Dict[tuple, List] = {}
+        for r in rows:
+            key = (...)
+            groups.setdefault(key, []).append(r)
 ```
-- **Fix:**
+- **Fix:** Use SQL GROUP BY + window functions to identify duplicates in-database
+- **Priority:** MEDIUM
+
+**9. Aggregate Queries Scan Full Table Daily** (`core/database.py:450–470`)
+- **Issue:** `record_value_snapshot()` SUM/COUNT all cards every time (called daily)
+- **Impact:** Full table scan × 90 snapshots = wasteful, especially with 5000+ cards
+- **Code:**
 ```python
-def validate_hex_color(hex_color: str) -> bool:
-    import re
-    return bool(re.match(r'^#[0-9a-fA-F]{6}$', hex_color))
-
-COLORS = {
-    'dark_blue': '#1a365d',
-    'medium_blue': '#2c5282'
-}
-for color in COLORS.values():
-    if not validate_hex_color(color):
-        raise ValueError(f"Invalid hex color: {color}")
+row = conn.execute("""
+    SELECT COUNT(*) AS c, SUM(quantity), SUM(estimated_value * quantity)
+    FROM cards  # <-- FULL TABLE
+""").fetchone()
 ```
+- **Fix:** Incremental snapshots or compute only on changed cards
+- **Priority:** MEDIUM
 
-**12. No Check for Empty Cards/Stats Before PDF Generation (`core/reports_generator.py:52-53)`**
-- **Issue:** If database is empty, some tables might be empty but PDF still generated
-- **Risk:** Confusing empty reports
-- **Fix:**
-```python
-all_cards = self.db.get_all_cards()
-stats = self.db.get_collection_stats()
-if not all_cards or not stats:
-    logger.warning("No cards in database, skipping report generation")
-    return None
-```
-
-**13. Unsafe Path Construction for Report Filename (`core/reports_generator.py:58`)**
-- **Issue:** Filename uses user-provided year/month without validation
-- **Risk:** Could create unexpected filenames (though limited by datetime validation)
-- **Fix:**
-```python
-out_path = reports_dir / f"collection_report_{year:04d}_{month:02d}.pdf"
-# Ensure it's a valid path
-if not out_path.parent.exists():
-    raise ValueError("Report directory doesn't exist")
-```
-
-**14. No Handling for Large Collections (`core/reports_generator.py:125-141, 147-175)`**
-- **Issue:** Limits data to 30 cards this month and 25 overall, but no clear reason
-- **Risk:** Reports incomplete, no warning to user
-- **Fix:**
-```python
-# Add documentation/configurable limits
-MAX_MONTHLY_CARDS = 30
-MAX_TOP_CARDS = 25
-
-for c in period_cards[:MAX_MONTHLY_CARDS]:
-    # ...
-
-logger.debug(f"Showing {min(len(period_cards), MAX_MONTHLY_CARDS)} of {len(period_cards)} cards this month")
-```
-
-**15. No Validation That Database Methods Return Expected Types (`core/reports_generator.py:48-53)`**
-- **Issue:** No assertion that returned values are lists/dicts
-- **Risk:** Type errors if database API changes
-- **Fix:**
-```python
-period_cards = self.db.get_cards_for_period(start_str, end_str)
-assert isinstance(period_cards, list), "Database returned non-list for period_cards"
-all_cards = self.db.get_all_cards()
-assert isinstance(all_cards, list), "Database returned non-list for all_cards"
-stats = self.db.get_collection_stats()
-assert isinstance(stats, dict), "Database returned non-dict for stats"
-```
+**10. No Pagination in Dashboard/Reports** (`ui/collection_tab.py`, `ui/dashboard_tab.py`)
+- **Issue:** All stats/breakdowns computed for full collection every view refresh
+- **Impact:** Slow dashboard with 5000+ cards
+- **Fix:** Add aggregation cache; refresh only on card add/edit
+- **Priority:** MEDIUM
 
 ---
 
-### 🔵 **Low Priority Issues**
+### 🔵 **Low Priority / Optimization Opportunities**
 
-**16. Magic Numbers Without Constants (`core/reports_generator.py`)**
-- **Issue:** Numbers like `0.2 * inch`, `3*inch` hardcoded
-- **Locations:** Lines 87, 89, 111, 121, 134, 167, 189
-- **Fix:**
-```python
-# At top of class
-SPACING_SMALL = 0.2 * inch
-SPACING_NORMAL = 0.3 * inch
-COLUMN_NAME = 2.2 * inch
-COLUMN_SET = 1.6 * inch
-# ... etc
-```
+**11. Image Conversions in Display Loop** (`ui/batch_review_dialog.py:363–375`)
+- **Issue:** `_make_thumb()` converts NumPy → QImage → QPixmap for every row (can be 50+ conversions)
+- **Impact:** Noticeable lag when populating review table (50 rows)
+- **Fix:** Cache converted thumbnails; generate once, reuse
+- **Priority:** LOW
 
-**17. Inconsistent Naming Convention (`core/reports_generator.py:103, 134, 167, 189`)**
-- **Issue:** `colWidths` is camelCase, rest of code is snake_case
-- **Risk:** Minor - style inconsistency
-- **Fix:** Use snake_case consistently
-
-**18. No Docstrings for Helper Logic**
-- **Issue:** Complex calculations lack documentation
-- **Location:** Lines 147-150 sorting logic
-- **Fix:** Add docstrings explaining sorting and filtering
-
-**19. No Context Manager for Database (`core/reports_generator.py:33-34`)**
-- **Issue:** Database object stored but not guaranteed cleanup
-- **Risk:** Minor - but could leave connections open
-- **Fix:**
-```python
-try:
-    report = ReportGenerator(db)
-    report.generate_monthly(2026, 6)
-finally:
-    db.close()  # Ensure cleanup
-```
+**12. No Query Result Caching** (throughout `core/database.py`)
+- **Issue:** Same queries (e.g., `get_game_breakdown()`) called multiple times per view refresh
+- **Impact:** Dashboard refresh re-computes all stats
+- **Fix:** Add simple result cache with TTL (60 sec) or event-based invalidation
+- **Priority:** LOW
 
 ---
 
-## ✅ **Strengths**
+## 📋 **Performance Fixes (Recommended Priority)**
 
-- ✅ Uses pathlib for cross-platform path handling
-- ✅ Creates reports directory safely with `mkdir(parents=True, exist_ok=True)`
-- ✅ Uses parameterized queries for database save
-- ✅ Good table formatting with TableStyle
-- ✅ Calculates condition distribution dynamically
-- ✅ Includes net position calculation
-
----
-
-## 📋 **Recommended Fixes (Priority Order)**
-
-### Immediate (Critical):
-1. Add exception handling for `doc.build()` (#1)
-2. Validate input parameters (year/month) (#2)
-3. Add HTML escaping for card data (#6)
-4. Add file permission validation (#4)
+### Immediate (blocks workflows):
+1. Add LIKE → FTS5 search conversion (#2) — unblocks search feature
+2. Optimize batch deskew with pre-check (#3, #7) — unblocks batch import
+3. Implement pagination for collection view (#1) — unblocks large collections
 
 ### High Priority:
-5. Handle database save failure with rollback (#5)
-6. Add safe numeric conversions (#7)
-7. Add logging (#10)
+4. Batch duplicate detection or INSERT OR CONFLICT (#5) — improve batch insert speed
+5. Cache API results per batch (#6) — reduce API calls by 60%
+6. Stream/pipeline API calls instead of sequential (#6) — reduce 150 sec → 30 sec batch time
 
 ### Medium Priority:
-8. Improve error messages and validation (#9, #12, #15)
-9. Add constants for magic numbers (#16)
-10. Add docstrings (#18)
+7. Reduce in-memory image storage in review dialog (#4) — free up 100+ MB
+8. SQL GROUP BY for duplicate merge (#8) — speed up deduplication
+9. Cache aggregation results (#9, #10, #12) — speed up dashboard
 
-Would you like me to create a patch file with fixes for the critical issues, or add them to your `todo.md`?
+---
 
 **Repository:** https://github.com/doghigh/CardTCGApp
-**Last updated:** 2026-06-08
+**Last updated:** 2026-06-14
 **Branch:** main
 **Goal:** Ship to the Microsoft Store
 
