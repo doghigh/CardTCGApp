@@ -153,6 +153,24 @@ class Database:
 
         return v
 
+    @staticmethod
+    def _find_duplicate_in(conn, card: Dict) -> Optional[int]:
+        """Duplicate lookup using an existing connection (no new connection)."""
+        row = conn.execute("""
+            SELECT id FROM cards
+            WHERE LOWER(IFNULL(name,'')) = LOWER(IFNULL(?,''))
+              AND IFNULL(set_name,'')    = IFNULL(?,'')
+              AND IFNULL(card_number,'') = IFNULL(?,'')
+              AND IFNULL(game,'')        = IFNULL(?,'')
+              AND IFNULL(foil,0)         = IFNULL(?,0)
+            ORDER BY id ASC LIMIT 1
+        """, (
+            card.get('name'), card.get('set_name'),
+            card.get('card_number'), card.get('game'),
+            int(card.get('foil', 0)),
+        )).fetchone()
+        return int(row['id']) if row else None
+
     def find_duplicate(self, card: Dict) -> Optional[int]:
         """
         Return the id of an existing card that is the same printing, or None.
@@ -163,20 +181,7 @@ class Database:
         differently.
         """
         with self._lock, self._conn() as conn:
-            row = conn.execute("""
-                SELECT id FROM cards
-                WHERE LOWER(IFNULL(name,'')) = LOWER(IFNULL(?,''))
-                  AND IFNULL(set_name,'')    = IFNULL(?,'')
-                  AND IFNULL(card_number,'') = IFNULL(?,'')
-                  AND IFNULL(game,'')        = IFNULL(?,'')
-                  AND IFNULL(foil,0)         = IFNULL(?,0)
-                ORDER BY id ASC LIMIT 1
-            """, (
-                card.get('name'), card.get('set_name'),
-                card.get('card_number'), card.get('game'),
-                int(card.get('foil', 0)),
-            )).fetchone()
-            return int(row['id']) if row else None
+            return self._find_duplicate_in(conn, card)
 
     def add_card(self, card: Dict, merge_duplicates: bool = True) -> int:
         """
@@ -188,19 +193,20 @@ class Database:
         """
         card = self._validate_card(card)
 
-        if merge_duplicates:
-            dup_id = self.find_duplicate(card)
-            if dup_id is not None:
-                add_qty = int(card.get('quantity', 1) or 1)
-                with self._lock, self._conn() as conn:
+        # Single connection for both the duplicate check and the write — avoids
+        # opening two connections per card during batch imports.
+        with self._lock, self._conn() as conn:
+            if merge_duplicates:
+                dup_id = self._find_duplicate_in(conn, card)
+                if dup_id is not None:
+                    add_qty = int(card.get('quantity', 1) or 1)
                     conn.execute(
                         "UPDATE cards SET quantity = quantity + ?, "
                         "updated_at = CURRENT_TIMESTAMP WHERE id = ?",
                         (add_qty, dup_id),
                     )
-                return dup_id
+                    return dup_id
 
-        with self._lock, self._conn() as conn:
             cursor = conn.execute("""
                 INSERT INTO cards (
                     name, set_name, card_number, rarity, game, year, language, foil,

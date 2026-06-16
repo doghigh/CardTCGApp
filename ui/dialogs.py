@@ -18,7 +18,7 @@ import numpy as np
 GAMES = [
     "Baseball", "Basketball", "Football", "Hockey", "Sports Cards",
     "Magic: The Gathering", "Pokémon", "Yu-Gi-Oh!", "One Piece",
-    "Lorcana", "Flesh and Blood", "Other",
+    "Lorcana", "Flesh and Blood", "Non-Sport", "Other",
 ]
 
 GRADES = [

@@ -44,7 +44,8 @@ Fields:
     line), else null.
 - game: one of "Baseball", "Basketball", "Football", "Hockey",
     "Magic: The Gathering", "Pokémon", "Yu-Gi-Oh!", "One Piece", "Lorcana",
-    "Sports Cards", or "Other".
+    "Sports Cards", "Non-Sport" (entertainment/TV/movie cards such as Star Wars,
+    Garbage Pail Kids, Marvel), or "Other".
 
 Important:
 - Older Magic cards (pre-2003) print the type as "Summon <type>". Ignore that

@@ -39,10 +39,20 @@ def deskew(img: np.ndarray, max_angle: float = 15.0) -> np.ndarray:
         return img
 
     try:
-        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY) if len(img.shape) == 3 else img.copy()
+        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY) if len(img.shape) == 3 else img
 
-        # Threshold to isolate the card from the (lighter) background
-        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+        # Angle detection is the expensive part (threshold + findNonZero +
+        # minAreaRect). On a 600-DPI scan that's millions of points, so detect
+        # the skew on a downscaled copy — the angle is unchanged by scaling, and
+        # we only warp the full-resolution image if a correction is actually
+        # needed. This keeps batch imports fast.
+        h, w = gray.shape[:2]
+        scale = 1000.0 / max(h, w)
+        small = (cv2.resize(gray, None, fx=scale, fy=scale,
+                            interpolation=cv2.INTER_AREA)
+                 if scale < 1.0 else gray)
+
+        blurred = cv2.GaussianBlur(small, (5, 5), 0)
         _, thresh = cv2.threshold(blurred, 0, 255,
                                   cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
@@ -56,8 +66,7 @@ def deskew(img: np.ndarray, max_angle: float = 15.0) -> np.ndarray:
             return img
 
         # minAreaRect gives the tilt of the smallest rotated bounding box
-        rect = cv2.minAreaRect(coords)
-        angle = rect[-1]
+        angle = cv2.minAreaRect(coords)[-1]
 
         # Normalise OpenCV's angle convention to [-45, 45]
         if angle < -45:
@@ -65,7 +74,8 @@ def deskew(img: np.ndarray, max_angle: float = 15.0) -> np.ndarray:
         elif angle > 45:
             angle = angle - 90
 
-        # Ignore tiny noise and large angles (likely a 90° rotation, not skew)
+        # Ignore tiny noise and large angles (likely a 90° rotation, not skew).
+        # Early-out here means no warpAffine runs on already-straight scans.
         if abs(angle) < 0.3 or abs(angle) > max_angle:
             return img
 

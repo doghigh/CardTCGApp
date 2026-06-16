@@ -217,7 +217,7 @@ class ScanTab(QWidget):
         self.game_combo.addItems([
             "Magic: The Gathering", "Pokémon", "Yu-Gi-Oh!", "One Piece",
             "Lorcana", "Flesh and Blood", "Baseball", "Basketball",
-            "Football", "Hockey", "Sports Cards", "Other"
+            "Football", "Hockey", "Sports Cards", "Non-Sport", "Other"
         ])
         self.year_spin = QSpinBox()
         self.year_spin.setRange(1900, 2100)

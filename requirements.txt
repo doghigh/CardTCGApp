@@ -1,4 +1,4 @@
-anthropic>=0.40.0
+anthropic==0.105.2
 PyQt6==6.7.0
 opencv-python==4.10.0.84
 numpy==1.26.4
@@ -12,6 +12,5 @@ pytwain==2.3.0
 pyotp==2.9.0
 cryptography==43.0.0
 qrcode[pil]==8.0
-paddleocr>=2.8.0
-paddlepaddle>=3.0.0  # CPU version (lighter)
-# Removed invalid qtwidgwets entry
+# Note: paddleocr/paddlepaddle removed — never imported (OCR fallback uses
+# pytesseract; primary identification is the Claude vision API).
