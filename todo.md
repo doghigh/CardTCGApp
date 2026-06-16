@@ -14,6 +14,21 @@
 - After publishing, migrate identity from `catsjc1175@hotmail.com` →
   `jcatlowdev@outlook.com` (separate MSA — support request, do it *after* launch).
 
+### Licensing & Store-agreement compliance (reviewed against ADA v8.11)
+- [x] **Open source — AGPL-3.0** (`LICENSE`). Resolves PyQt6's GPL obligation
+      (shipping on PyQt6 requires GPL-compatible licensing OR a commercial Qt
+      license; open-sourcing satisfies it). Author retains copyright (commercial
+      dual-licensing stays possible).
+- [x] **Retired PriceCharting web scrape** — valuation now uses official APIs
+      only (Scryfall + eBay Browse); avoids ToS/indemnification exposure.
+      `search_pricecharting()` is a safe no-op. TradingCardAPI to be added later.
+- [x] Privacy policy exists (`PRIVACY.md` + Render `/privacy`); affiliation
+      disclaimer in README + privacy policy.
+- [ ] **Store listing screenshots** must use non-branded/your-own cards (don't
+      feature Topps/Pokémon/Magic art as the hero image). — your task
+- [ ] **Website** on loreboxapp.dev hosting privacy + contact info. — your task
+- [ ] Put privacy-policy URL + contact email in the Store listing fields.
+
 ### Remaining path to submission (needs you)
 - [ ] **Decide the final product name / branding** — reserve it in Partner Center
       (gives the Identity Name + Publisher ID). One-line change in

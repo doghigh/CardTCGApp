@@ -9,9 +9,9 @@
             ## ✨ Features
 
             - **TWAIN Scanner Integration** — Direct scanning of card fronts and backs
-            - **Auto Card Identification** — Tesseract OCR with smart parsing
+            - **Auto Card Identification** — Claude vision API (Tesseract OCR fallback)
             - **AI Condition Grading** — OpenCV analyzes corners, edges, surface, centering, and defects
-            - **Live Market Values** — Parallel lookups from TCGPlayer, eBay Sold, and PriceCharting
+            - **Live Market Values** — Scryfall (Magic) and the eBay Browse API — official APIs only
             - **Local SQLite Database** — Your collection stays private (no cloud, no account)
             - **Batch Import** — Import from image folders or CSV with smart column mapping
             - **Continuous Scan Mode** — High-volume scanning with auto-save
@@ -40,7 +40,22 @@
 - **Windows 10 or 11**
 - Python 3.10+ (included via venv)
 - TWAIN-compatible scanner (optional)
-- [Tesseract OCR](https://github.com/UB-Mannheim/tesseract/wiki) (recommended)
+- [Tesseract OCR](https://github.com/UB-Mannheim/tesseract/wiki) (optional OCR fallback)
+
+---
+
+## 📄 License
+
+Lorebox is open source under the **GNU Affero General Public License v3.0**
+(AGPL-3.0) — see [LICENSE](LICENSE).
+
+Copyright (C) 2026 Jesse Catlow. The author retains copyright and may also offer
+the software under separate commercial terms.
+
+Lorebox is an independent application and is not affiliated with or endorsed by
+Anthropic, eBay, Scryfall, The Topps Company, Wizards of the Coast, or any
+trading card manufacturer. Product names and trademarks are the property of
+their respective owners.
 
 ---
 

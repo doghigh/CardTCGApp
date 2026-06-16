@@ -1,10 +1,13 @@
 """
-Card valuation — Scryfall (MTG), eBay Browse API, and PriceCharting fallback.
+Card valuation — official APIs only (no web scraping).
 
 Source priority:
   - Magic: The Gathering → Scryfall (free official API, real USD prices)
-  - Everything else      → eBay Browse API (real sold/active data)
-  - Fallback             → PriceCharting scrape (throttled, 429-aware)
+  - Everything else      → eBay Browse API (active listings, est.)
+  - Future               → TradingCardAPI (when a key is available)
+
+NOTE: the former PriceCharting web scrape has been retired to avoid any terms-of-
+service exposure; search_pricecharting() is now a safe no-op.
 
 eBay API Compliance — Marketplace Account Deletion:
   This app uses only public eBay data via App-level OAuth (no user tokens).
@@ -407,7 +410,17 @@ class CardValuator:
 
     def search_pricecharting(self, card_name: str, set_name: Optional[str] = None,
                              game: Optional[str] = None) -> Optional[Dict]:
-        """Scrape PriceCharting for sold/historical card prices."""
+        """
+        RETIRED — PriceCharting web scraping has been disabled.
+
+        Scraping risks violating PriceCharting's terms of service, so valuation
+        now uses official APIs only (Scryfall for MTG, eBay Browse for others),
+        with TradingCardAPI to be added when available. This method is kept as a
+        no-op so any stray caller fails safe rather than scraping.
+        """
+        return None
+
+        # --- retired scraping implementation (intentionally unreachable) ---
         try:
             query = card_name
             if set_name:
@@ -512,54 +525,34 @@ class CardValuator:
     def fetch_value(self, card_name: str, set_name: Optional[str] = None,
                     game: Optional[str] = None) -> Optional[Dict]:
         """
-        Fetch best valuation from available sources.
+        Fetch best valuation using OFFICIAL APIs only (no web scraping).
 
-        Priority:
-          1. PriceCharting  — historical sold prices (most accurate)
-          2. eBay Browse API — active listing prices (official API)
-          3. Blend if both available: 70% PriceCharting + 30% Browse
-          4. Browse-only: apply 15% discount (cards sell below asking)
+        Sources:
+          - Magic: The Gathering → Scryfall (free official API)
+          - Everything else      → eBay Browse API (active listings, est.)
+
+        Future: TradingCardAPI will slot in here as an additional/primary
+        source once a key is available (see the marked fallback below).
         """
         if not card_name or not card_name.strip():
             return None
 
-        # Magic cards: use Scryfall (free official API, real USD prices, no
-        # rate-limit headaches). Avoids scraping PriceCharting entirely for MTG.
+        # Magic cards: Scryfall (free official API, real USD prices).
         if self._is_mtg(game):
             scry = self.search_scryfall(card_name, set_name, game)
             if scry:
                 return scry
 
-        # Try eBay Browse first — it's a real API with high rate limits. If it
-        # returns a confident result, skip the PriceCharting scrape entirely.
-        # This keeps large batch/re-value runs from tripping PriceCharting 429s.
+        # Everything else: eBay Browse API (active listings). Cards typically
+        # sell below asking, so apply a ~15% discount to the listing median.
         active = self.search_browse_api(card_name, set_name, game)
-        if active and active.get("sample", 0) >= 5:
-            return {**active,
-                    "value":  round(active["value"] * 0.85, 2),
-                    "source": "eBay Browse (active, est.)"}
-
-        sold = self.search_pricecharting(card_name, set_name, game)
-
-        if sold and active:
-            blended = round(sold["value"] * 0.70 + active["value"] * 0.30, 2)
-            return {
-                "source":  f"Blended (PriceCharting + eBay, n={sold['sample'] + active['sample']})",
-                "value":   blended,
-                "low":     min(sold["low"],  active["low"]),
-                "high":    max(sold["high"], active["high"]),
-                "sample":  sold["sample"] + active["sample"],
-                "query":   sold.get("query", ""),
-            }
-
-        if sold:
-            return sold
-
         if active:
             return {**active,
                     "value":  round(active["value"] * 0.85, 2),
                     "source": "eBay Browse (active, est.)"}
 
+        # TODO: TradingCardAPI official fallback — add here when the beta key
+        # is available (replaces the retired PriceCharting web scrape).
         return None
 
     # Keep old method name for existing callers
