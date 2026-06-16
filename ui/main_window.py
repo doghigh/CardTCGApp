@@ -118,14 +118,14 @@ class MainWindow(QMainWindow):
         self._prompt_for_keys_if_needed()
 
     def _show_first_run_notice(self):
-        """One-time welcome notice: app opens without a login, and a friendly
-        nudge for parental involvement when the collector is under 16."""
+        """One-time, non-blocking welcome notice: the app opens without a login,
+        with a friendly nudge for family involvement when the collector is young."""
         from core.config import get_pref, set_pref
         if get_pref("welcome_ack"):
             return
 
         from PyQt6.QtWidgets import (
-            QDialog, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QPushButton
+            QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
         )
         dlg = QDialog(self)
         dlg.setWindowTitle("Welcome to Lorebox")
@@ -137,33 +137,26 @@ class MainWindow(QMainWindow):
         msg = QLabel(
             "<b>Welcome to Lorebox! 🃏</b><br><br>"
             "Lorebox opens without a login and keeps your whole collection "
-            "<b>on this computer</b> — nothing is uploaded to us. By default it "
-            "isn't password-protected.<br><br>"
-            "Collecting is even better together. <b>If the collector is under 16, "
-            "we encourage a parent or guardian to set things up alongside them</b> "
-            "and to approve using Lorebox without a login. Cataloguing a "
-            "collection is a great thing to share."
+            "<b>on this computer</b> — nothing is uploaded to us.<br><br>"
+            "Collecting is even better together — if a younger collector is using "
+            "Lorebox, we'd love for a parent or guardian to dive in alongside "
+            "them. Cataloguing a collection is a great thing to share."
         )
         msg.setWordWrap(True)
         v.addWidget(msg)
 
-        chk = QCheckBox("I'm 16 or older, or a parent/guardian is involved and approves.")
-        v.addWidget(chk)
-
         row = QHBoxLayout()
         row.addStretch()
-        cont = QPushButton("Continue")
-        cont.setProperty("primary", True)
-        cont.setEnabled(False)
-        chk.toggled.connect(cont.setEnabled)
-        cont.clicked.connect(dlg.accept)
-        row.addWidget(cont)
+        ok = QPushButton("Got it")
+        ok.setProperty("primary", True)
+        ok.setDefault(True)
+        ok.clicked.connect(dlg.accept)
+        row.addWidget(ok)
         v.addLayout(row)
 
         dlg.exec()
-        if chk.isChecked():
-            from datetime import date
-            set_pref("welcome_ack", date.today().isoformat())
+        from datetime import date
+        set_pref("welcome_ack", date.today().isoformat())
 
     def _prompt_for_keys_if_needed(self):
         """On first run (no API key), offer to open Settings."""
