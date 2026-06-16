@@ -33,7 +33,7 @@ from PyQt6.QtCore import Qt
 
 logger = logging.getLogger(__name__)
 
-APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "TradingCardManager"
+APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "Lorebox"
 APP_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -52,7 +52,7 @@ class LoginDialog(QDialog):
         super().__init__(parent)
         self.auth  = auth_manager
         self.hello = hello_auth
-        self.setWindowTitle("Login — Trading Card Manager")
+        self.setWindowTitle("Login — Lorebox")
         self.resize(420, 320)
         self._build_ui()
         self._attempt_hello()
@@ -302,7 +302,7 @@ class AuthManager:
         if not secret:
             return None
         return pyotp.TOTP(secret).provisioning_uri(
-            name="TradingCardManager", issuer_name="TradingCardManager"
+            name="Lorebox", issuer_name="Lorebox"
         )
 
     def verify_totp(self, code: str) -> bool:
@@ -354,7 +354,7 @@ class WindowsHelloAuth:
     """Windows Hello biometric authentication."""
 
     def __init__(self):
-        self.credential_name = "TradingCardManager_Login"
+        self.credential_name = "Lorebox_Login"
 
     def is_available(self) -> bool:
         try:

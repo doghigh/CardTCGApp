@@ -1,4 +1,4 @@
-            # Trading Card Manager
+            # Lorebox
 
             A **privacy-first**, Windows desktop application for managing your physical trading card collection (TCG, Sports Cards, etc.).
 

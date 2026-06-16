@@ -81,7 +81,7 @@ class CardValuator:
         # API session — clean headers for eBay OAuth / Browse API
         self.api_session = requests.Session()
         self.api_session.headers.update({
-            "User-Agent": "TradingCardManager/1.1",
+            "User-Agent": "Lorebox/1.1",
             "Accept":     "application/json",
         })
 

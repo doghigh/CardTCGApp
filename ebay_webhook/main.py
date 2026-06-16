@@ -133,7 +133,7 @@ def privacy():
 PRIVACY_HTML = """<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Privacy Policy — Trading Card Manager</title>
+<title>Privacy Policy — Lorebox</title>
 <style>
  body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
       max-width:780px;margin:40px auto;padding:0 20px;line-height:1.6;color:#1a1a1a}
@@ -145,7 +145,7 @@ PRIVACY_HTML = """<!doctype html>
  code{background:#f5f5f7;padding:1px 5px;border-radius:3px;font-size:90%}
  small{color:#666}
 </style></head><body>
-<h1>Privacy Policy — Trading Card Manager</h1>
+<h1>Privacy Policy — Lorebox</h1>
 <p><small><b>Effective date:</b> June 8, 2026 &nbsp;•&nbsp; <b>Last updated:</b> June 8, 2026</small></p>
 <p class="summary"><b>Summary:</b> Your collection lives on your own computer. The
 App has no servers and collects no analytics. Card images and card names are sent
@@ -154,7 +154,7 @@ supply. We do not sell or share your data.</p>
 
 <h2>1. Information stored on your device</h2>
 <p>All of the following is stored locally on your computer (under
-<code>%APPDATA%\\TradingCardManager</code>) and is never transmitted to the developer:</p>
+<code>%APPDATA%\\Lorebox</code>) and is never transmitted to the developer:</p>
 <ul>
 <li><b>Collection data</b> — card names, sets, numbers, grades, condition scores,
 estimated values, purchase prices, quantities, and notes.</li>
@@ -165,7 +165,7 @@ estimated values, purchase prices, quantities, and notes.</li>
 hash; any TOTP secret encrypted; recovery codes hashed. None are reversible.</li>
 </ul>
 <p>You can delete any of this from within the App, or by deleting the
-<code>%APPDATA%\\TradingCardManager</code> folder.</p>
+<code>%APPDATA%\\Lorebox</code> folder.</p>
 
 <h2>2. Information sent to third parties</h2>
 <p>The App sends data to these services only to identify and value cards, and only
@@ -210,7 +210,7 @@ personal information from them.</p>
 <li>Use the App without API keys — identification/valuation are simply disabled.</li>
 <li>Remove or change your API keys at any time in Settings.</li>
 <li>Delete individual cards, or your entire local database, from within the App.</li>
-<li>Uninstalling and deleting <code>%APPDATA%\\TradingCardManager</code> removes all local data.</li>
+<li>Uninstalling and deleting <code>%APPDATA%\\Lorebox</code> removes all local data.</li>
 </ul>
 
 <h2>9. Changes to this policy</h2>
@@ -221,7 +221,7 @@ personal information from them.</p>
 <p>Questions? Contact the developer at: <b>[YOUR-CONTACT-EMAIL]</b></p>
 
 <hr>
-<p><small>Trading Card Manager is an independent application and is not affiliated
+<p><small>Lorebox is an independent application and is not affiliated
 with, endorsed by, or sponsored by Anthropic, eBay, Scryfall, PriceCharting, The
 Topps Company, Wizards of the Coast, or any trading card manufacturer.</small></p>
 </body></html>"""

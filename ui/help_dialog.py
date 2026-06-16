@@ -17,7 +17,7 @@ class HelpDialog(QDialog):
 
     def __init__(self, parent=None, topic: str = None):
         super().__init__(parent)
-        self.setWindowTitle("Help Center — Trading Card Manager")
+        self.setWindowTitle("Help Center — Lorebox")
         self.resize(880, 620)
         self._build_ui()
         # Open a specific topic if requested, else the first

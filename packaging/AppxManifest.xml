@@ -7,13 +7,12 @@
       (Product identity → Package/Identity values). Publisher must match your
       registered publisher, e.g. "CN=ABCD1234-..."
     - PublisherDisplayName       → your seller/display name
-    - DisplayName (App + props)  → the FINAL product name once branding is set
-      (currently the working title "Trading Card Manager")
+    - DisplayName (App + props)  → product name "Lorebox" (set)
 
   Build (see BUILD.md):
-    1. Copy dist/TradingCardManager/* into a staging folder.
+    1. Copy dist/Lorebox/* into a staging folder.
     2. Copy assets/*.png tiles into staging\Assets\ (or adjust paths below).
-    3. makeappx pack /d <staging> /p TradingCardManager.msix
+    3. makeappx pack /d <staging> /p Lorebox.msix
 -->
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
@@ -28,7 +27,7 @@
     ProcessorArchitecture="x64" />
 
   <Properties>
-    <DisplayName>Trading Card Manager</DisplayName>
+    <DisplayName>Lorebox</DisplayName>
     <PublisherDisplayName>REPLACE-WITH-YOUR-SELLER-NAME</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
     <Description>Catalog, grade, and value your trading card collection.</Description>
@@ -45,11 +44,11 @@
   </Resources>
 
   <Applications>
-    <Application Id="TradingCardManager"
-                 Executable="TradingCardManager.exe"
+    <Application Id="Lorebox"
+                 Executable="Lorebox.exe"
                  EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
-        DisplayName="Trading Card Manager"
+        DisplayName="Lorebox"
         Description="Catalog, grade, and value your trading card collection."
         BackgroundColor="#5865f2"
         Square150x150Logo="Assets\Square150x150Logo.png"

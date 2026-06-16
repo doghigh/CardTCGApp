@@ -1,5 +1,5 @@
 """
-Trading Card Manager - Privacy-first TCG collection manager.
+Lorebox - Privacy-first TCG collection manager.
 """
 
 __version__ = "1.1.0"

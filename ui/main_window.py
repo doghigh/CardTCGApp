@@ -1,5 +1,5 @@
 """
-Main Window for Trading Card Manager
+Main Window for Lorebox
 Fixed: Keyboard shortcuts, menu, login integration, and clean structure.
 """
 
@@ -28,7 +28,7 @@ from ui.collection_tab import CollectionTab
 from ui.reports_tab import ReportsTab
 
 
-APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "TradingCardManager"
+APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "Lorebox"
 
 
 class MainWindow(QMainWindow):
@@ -48,7 +48,7 @@ class MainWindow(QMainWindow):
                 sys.exit(0)
 
         # Window setup
-        self.setWindowTitle("Trading Card Manager v1.1.0")
+        self.setWindowTitle("Lorebox v1.1.0")
         self.resize(1580, 960)
 
         # Core components
@@ -122,7 +122,7 @@ class MainWindow(QMainWindow):
         if config.has_anthropic_key():
             return
         reply = QMessageBox.question(
-            self, "Welcome to Trading Card Manager",
+            self, "Welcome to Lorebox",
             "To identify cards you'll need a free Anthropic API key "
             "(card scanning costs about $0.006 per card).\n\n"
             "Would you like to enter your API keys now?",
@@ -351,7 +351,7 @@ class MainWindow(QMainWindow):
         QMessageBox.information(self, "Keyboard Shortcuts", help_text)
 
     def _about(self):
-        QMessageBox.about(self, "About Trading Card Manager",
-            f"<h2>Trading Card Manager v1.1.0</h2>"
+        QMessageBox.about(self, "About Lorebox",
+            f"<h2>Lorebox v1.1.0</h2>"
             "<p>Privacy-first Windows desktop app for trading card collectors.</p>"
             f"<p>Data folder: {APP_DIR}</p>")

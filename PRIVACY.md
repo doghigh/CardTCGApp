@@ -1,9 +1,9 @@
-# Privacy Policy — Trading Card Manager
+# Privacy Policy — Lorebox
 
 **Effective date:** June 8, 2026
 **Last updated:** June 8, 2026
 
-Trading Card Manager ("the App") is a desktop application for cataloguing,
+Lorebox ("the App") is a desktop application for cataloguing,
 grading, and valuing trading cards. This policy explains what data the App
 handles, where it goes, and the choices you have. Please read it alongside the
 privacy policies of the third-party services listed below.
@@ -18,7 +18,7 @@ privacy policies of the third-party services listed below.
 ## 1. Information stored on your device
 
 All of the following is stored **locally** on your computer (under
-`%APPDATA%\TradingCardManager`) and is never transmitted to the developer:
+`%APPDATA%\Lorebox`) and is never transmitted to the developer:
 
 - **Collection data** — card names, sets, card numbers, grades, condition
   scores, estimated values, purchase prices, quantities, and notes you add.
@@ -31,7 +31,7 @@ All of the following is stored **locally** on your computer (under
   are stored as hashes. None of these can be reversed to recover the original.
 
 You can delete any of this at any time from within the App, or by deleting the
-`%APPDATA%\TradingCardManager` folder.
+`%APPDATA%\Lorebox` folder.
 
 ## 2. Information sent to third parties
 
@@ -90,7 +90,7 @@ personal information from them.
   disabled; the rest of the App still works.
 - Remove or change your API keys at any time in **Settings**.
 - Delete individual cards, or your entire local database, from within the App.
-- Uninstalling the App and deleting `%APPDATA%\TradingCardManager` removes all
+- Uninstalling the App and deleting `%APPDATA%\Lorebox` removes all
   locally stored data.
 
 ## 9. Changes to this policy
@@ -105,6 +105,6 @@ Questions about this policy? Contact the developer at:
 
 ---
 
-*Trading Card Manager is an independent application and is not affiliated with,
+*Lorebox is an independent application and is not affiliated with,
 endorsed by, or sponsored by Anthropic, eBay, Scryfall, PriceCharting, The Topps
 Company, Wizards of the Coast, or any trading card manufacturer.*

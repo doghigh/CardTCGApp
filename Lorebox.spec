@@ -1,6 +1,6 @@
-# PyInstaller spec for Trading Card Manager
-# Build:  pyinstaller TradingCardManager.spec --noconfirm
-# Output: dist/TradingCardManager/   (onedir — ideal for MSIX packaging)
+# PyInstaller spec for Lorebox
+# Build:  pyinstaller Lorebox.spec --noconfirm
+# Output: dist/Lorebox/   (onedir — ideal for MSIX packaging)
 
 from PyInstaller.utils.hooks import collect_all, collect_submodules
 
@@ -50,7 +50,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="TradingCardManager",
+    name="Lorebox",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -71,5 +71,5 @@ coll = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name="TradingCardManager",
+    name="Lorebox",
 )

@@ -1,5 +1,5 @@
 """
-Database module for Trading Card Manager.
+Database module for Lorebox.
 Fixed: SQL Injection prevention, better error handling, input validation.
 """
 

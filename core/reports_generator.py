@@ -24,7 +24,7 @@ except ImportError:
 
 
 # Global APP_DIR for consistency
-APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "TradingCardManager"
+APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "Lorebox"
 
 
 class ReportGenerator:

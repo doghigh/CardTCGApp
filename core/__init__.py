@@ -1,5 +1,5 @@
 """
-Core business logic modules for Trading Card Manager.
+Core business logic modules for Lorebox.
 """
 
 from .database import Database

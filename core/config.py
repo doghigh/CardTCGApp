@@ -6,8 +6,8 @@ valuation) via the Settings screen. This keeps the app free to distribute on
 the Microsoft Store: no shared keys, no per-user cost to the developer.
 
 Storage:
-  %APPDATA%/TradingCardManager/config.enc   — Fernet-encrypted JSON
-  %APPDATA%/TradingCardManager/.config.key  — local Fernet key
+  %APPDATA%/Lorebox/config.enc   — Fernet-encrypted JSON
+  %APPDATA%/Lorebox/.config.key  — local Fernet key
 
 Precedence: a real environment variable / .env value always wins over the
 saved config, so developers can still override locally without touching the UI.
@@ -23,7 +23,7 @@ from cryptography.fernet import Fernet, InvalidToken
 
 logger = logging.getLogger(__name__)
 
-APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "TradingCardManager"
+APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "Lorebox"
 APP_DIR.mkdir(parents=True, exist_ok=True)
 
 CONFIG_FILE = APP_DIR / "config.enc"

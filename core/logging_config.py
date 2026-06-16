@@ -3,7 +3,7 @@ Central logging configuration.
 
 Packaged (MSIX / PyInstaller windowed) builds have no console, so anything
 printed to stdout is lost. This routes all logging to a rotating file under
-%APPDATA%/TradingCardManager/logs/ and, when a console exists, mirrors it there.
+%APPDATA%/Lorebox/logs/ and, when a console exists, mirrors it there.
 
 Call setup_logging() once at startup (main.py) before other modules log.
 """
@@ -14,7 +14,7 @@ import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "TradingCardManager"
+APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "Lorebox"
 LOG_DIR = APP_DIR / "logs"
 LOG_FILE = LOG_DIR / "app.log"
 

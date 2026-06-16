@@ -1,5 +1,5 @@
 """
-Utility modules for Trading Card Manager.
+Utility modules for Lorebox.
 """
 
 from .theme import apply_dark_theme

@@ -1,5 +1,5 @@
 """
-Trading Card Manager - Main Entry Point
+Lorebox - Main Entry Point
 """
 
 import sys
@@ -60,7 +60,7 @@ from utils.theme import apply_dark_theme
 from ui.main_window import MainWindow
 
 
-APP_NAME = "Trading Card Manager"
+APP_NAME = "Lorebox"
 APP_VERSION = "1.1.0"
 
 
@@ -82,7 +82,7 @@ def main():
 
 if __name__ == "__main__":
     # Ensure APP_DIR is available globally if needed
-    APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "TradingCardManager"
+    APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "Lorebox"
     APP_DIR.mkdir(parents=True, exist_ok=True)
 
     main()

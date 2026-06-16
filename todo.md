@@ -1,4 +1,4 @@
-# Trading Card Manager — TODO
+# Lorebox — TODO
 
 **Repository:** https://github.com/doghigh/CardTCGApp  (private)
 **Last updated:** 2026-06-16
@@ -20,7 +20,7 @@
       `packaging/AppxManifest.xml` + rerun `assets/generate_assets.py` (or drop in
       a real logo with the same filenames).
 - [ ] Fill `AppxManifest.xml` Identity/Publisher from Partner Center.
-- [ ] Build MSIX: `pyinstaller TradingCardManager.spec --noconfirm` →
+- [ ] Build MSIX: `pyinstaller Lorebox.spec --noconfirm` →
       `packaging/build_msix.ps1` (needs Windows SDK / `makeappx`).
 - [ ] Pass **WACK** (Windows App Certification Kit).
 - [ ] Store listing: screenshots, description, category, age rating.
@@ -51,7 +51,7 @@
 ## ✅ Completed (earlier sessions)
 
 ### Store-readiness
-- [x] Logging — rotating file at `%APPDATA%/TradingCardManager/logs/app.log`
+- [x] Logging — rotating file at `%APPDATA%/Lorebox/logs/app.log`
 - [x] Privacy policy — `PRIVACY.md` + hosted at Render `/privacy`; Help menu link
 - [x] PyInstaller standalone windowed exe (onedir; see BUILD.md)
 - [x] App icon set + MSIX tiles (`assets/generate_assets.py`)

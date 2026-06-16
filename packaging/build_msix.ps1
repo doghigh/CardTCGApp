@@ -1,7 +1,7 @@
 # Stage the PyInstaller output + manifest + tiles, then pack an MSIX.
 #
 # Prereqs:
-#   - Built exe:  pyinstaller TradingCardManager.spec --noconfirm   (-> dist/)
+#   - Built exe:  pyinstaller Lorebox.spec --noconfirm   (-> dist/)
 #   - Windows SDK on PATH (provides makeappx.exe & signtool.exe), or run from a
 #     "Developer Command Prompt for VS".
 #   - AppxManifest.xml placeholders filled in (Identity/Publisher from Partner Center).
@@ -11,13 +11,13 @@
 
 $ErrorActionPreference = "Stop"
 $root    = Split-Path -Parent $PSScriptRoot
-$dist    = Join-Path $root "dist\TradingCardManager"
+$dist    = Join-Path $root "dist\Lorebox"
 $staging = Join-Path $root "packaging\staging"
 $assets  = Join-Path $root "assets"
-$out     = Join-Path $root "packaging\TradingCardManager.msix"
+$out     = Join-Path $root "packaging\Lorebox.msix"
 
 if (-not (Test-Path $dist)) {
-    throw "Build first: pyinstaller TradingCardManager.spec --noconfirm"
+    throw "Build first: pyinstaller Lorebox.spec --noconfirm"
 }
 
 # Fresh staging dir = copy of the app payload

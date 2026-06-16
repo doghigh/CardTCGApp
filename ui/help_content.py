@@ -8,7 +8,7 @@ the MSIX/PyInstaller build with no path lookups.
 
 HELP_TOPICS = {
     "Welcome": """
-# Welcome to Trading Card Manager
+# Welcome to Lorebox
 
 Catalog, grade, and value your trading card collection — sports cards, Magic,
 Pokémon, and more.
@@ -226,7 +226,7 @@ Icon-only buttons and image previews are labeled for screen readers (Narrator).
 # Privacy & Data
 
 - Your collection, scans, and settings are stored **only on your computer**
-  (under `%APPDATA%\\TradingCardManager`).
+  (under `%APPDATA%\\Lorebox`).
 - Card images go to **Anthropic** for identification and card names go to
   **eBay/Scryfall/PriceCharting** for pricing — using **your** API keys.
 - API keys are stored **encrypted**. There is **no analytics or tracking**.
@@ -251,7 +251,7 @@ In Batch Import, choose the right **pairing mode** (Sequential, By filename, or
 By orientation) for how your files are organized.
 
 **Where are the logs?**
-`%APPDATA%\\TradingCardManager\\logs\\app.log` — handy if you need to report an issue.
+`%APPDATA%\\Lorebox\\logs\\app.log` — handy if you need to report an issue.
 
 **A scan looks grainy.**
 Make sure your scanner isn't saving compressed JPEGs; the app captures

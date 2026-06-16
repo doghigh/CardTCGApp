@@ -1,25 +1,25 @@
-# Building & Packaging — Trading Card Manager
+# Building & Packaging — Lorebox
 
 ## 1. Standalone executable (PyInstaller) — DONE
 
-Produces a self-contained `dist/TradingCardManager/` folder (onedir) that runs
+Produces a self-contained `dist/Lorebox/` folder (onedir) that runs
 without a Python install.
 
 ```powershell
 pip install pyinstaller
-pyinstaller TradingCardManager.spec --noconfirm
+pyinstaller Lorebox.spec --noconfirm
 ```
 
-Output: `dist/TradingCardManager/TradingCardManager.exe` (~290 MB folder).
+Output: `dist/Lorebox/Lorebox.exe` (~290 MB folder).
 
 Notes:
 - The spec excludes unused heavy libs (paddleocr/paddlepaddle, matplotlib,
   pandas, scipy, …) to keep the build lean.
 - `CONSOLE = False` in the spec → windowed app. Flip to `True` temporarily if
   you need a live console while debugging; diagnostics otherwise go to
-  `%APPDATA%\TradingCardManager\logs\app.log`.
+  `%APPDATA%\Lorebox\logs\app.log`.
 - If a rebuild fails with *Access is denied*, an instance is still running —
-  close the app (or `Get-Process TradingCardManager | Stop-Process -Force`).
+  close the app (or `Get-Process Lorebox | Stop-Process -Force`).
 
 ### External dependencies (not bundled)
 - **Tesseract OCR** — optional. Only used as an OCR fallback; the primary path
@@ -45,18 +45,16 @@ Manifest: `packaging/AppxManifest.xml` (fill in the Partner Center
 Identity/Publisher placeholders first). Pack with:
 
 ```powershell
-pyinstaller TradingCardManager.spec --noconfirm      # build the exe
+pyinstaller Lorebox.spec --noconfirm      # build the exe
 powershell -ExecutionPolicy Bypass -File packaging\build_msix.ps1
 ```
 
 `build_msix.ps1` stages `dist/` + the manifest + tiles and runs `makeappx pack`
-→ `packaging/TradingCardManager.msix`. Requires the **Windows SDK** on PATH
+→ `packaging/Lorebox.msix`. Requires the **Windows SDK** on PATH
 (`makeappx.exe`) — easiest from a *Developer Command Prompt for VS*.
 
 Still needed before submission:
 - Fill `AppxManifest.xml` Identity/Publisher from **Partner Center**.
-- **Final product name / branding** (currently the working title
-  "Trading Card Manager" — change `DisplayName` in the manifest + tiles).
 - Signing — the Store re-signs on submission; for local sideload testing use a
   self-signed cert + `signtool`.
 - Pass the **Windows App Certification Kit (WACK)**.
@@ -64,7 +62,7 @@ Still needed before submission:
 ## 4. Pre-submission checklist
 - [x] App icon set (placeholder)
 - [x] MSIX manifest + pack script
-- [ ] Final name / branding decided
+- [x] Final name / branding decided — **Lorebox** (domain loreboxapp.dev)
 - [ ] Partner Center identity filled into the manifest
 - [ ] Privacy policy URL live (ebay_webhook `/privacy`) + contact email filled
 - [ ] Screenshots (1366×768 or 1920×1080)

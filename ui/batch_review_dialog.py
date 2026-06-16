@@ -27,7 +27,7 @@ from core.inspector import CardInspector
 from core.valuator import CardValuator
 from core.database import Database
 
-SCANS_DIR = Path(os.environ.get('APPDATA', Path.home())) / "TradingCardManager" / "scans" / "cards"
+SCANS_DIR = Path(os.environ.get('APPDATA', Path.home())) / "Lorebox" / "scans" / "cards"
 SCANS_DIR.mkdir(parents=True, exist_ok=True)
 
 GAMES = [

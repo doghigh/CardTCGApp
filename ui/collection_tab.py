@@ -24,7 +24,7 @@ from core.valuator import CardValuator
 from ui.dialogs import CardDetailDialog
 
 
-APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "TradingCardManager"
+APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "Lorebox"
 
 
 logger = logging.getLogger(__name__)

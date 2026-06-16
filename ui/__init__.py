@@ -1,5 +1,5 @@
 """
-UI components for Trading Card Manager.
+UI components for Lorebox.
 """
 
 from .main_window import MainWindow

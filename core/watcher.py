@@ -5,7 +5,7 @@ The user drops card scans into a folder; the app imports them automatically
 on a schedule (a daily time, or a repeating interval). Imported files are
 moved into an "imported" subfolder so they're never processed twice.
 
-Config persists to %APPDATA%/TradingCardManager/watch_config.json.
+Config persists to %APPDATA%/Lorebox/watch_config.json.
 The actual import run is driven by the main window (it owns the components
 and a 60-second QTimer); this module only stores settings and answers
 "is a run due right now?".
@@ -20,7 +20,7 @@ from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 
-APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "TradingCardManager"
+APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "Lorebox"
 APP_DIR.mkdir(parents=True, exist_ok=True)
 CONFIG_FILE = APP_DIR / "watch_config.json"
 
