@@ -176,7 +176,6 @@ occurs under your own accounts and is governed by their privacy policies.</p>
 <tr><td>Anthropic (Claude API)</td><td>Images of your cards</td><td>Identify name, set, number, year, game</td></tr>
 <tr><td>eBay (Browse API)</td><td>Card name / keywords</td><td>Current market prices</td></tr>
 <tr><td>Scryfall</td><td>Card name (Magic cards)</td><td>Magic: The Gathering prices</td></tr>
-<tr><td>PriceCharting</td><td>Card name</td><td>Historical prices (fallback)</td></tr>
 </table>
 <p>Anthropic states that inputs submitted through its API are not used to train its
 models. No payment information, account credentials, or personal identifiers are
@@ -222,7 +221,7 @@ personal information from them.</p>
 
 <hr>
 <p><small>Lorebox is an independent application and is not affiliated
-with, endorsed by, or sponsored by Anthropic, eBay, Scryfall, PriceCharting, The
+with, endorsed by, or sponsored by Anthropic, eBay, Scryfall, The
 Topps Company, Wizards of the Coast, or any trading card manufacturer.</small></p>
 </body></html>"""
 

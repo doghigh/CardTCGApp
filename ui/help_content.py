@@ -41,8 +41,8 @@ Cost is about **half a cent per card** scanned.
 2. Use your **Production** App ID and Cert ID (not Sandbox).
 3. Paste both into *Settings* and click **Test**.
 
-eBay lookups are free. Without eBay keys, the app still values Magic cards via
-Scryfall and falls back to PriceCharting for others.
+eBay lookups are free. Without eBay keys, Magic cards are still valued via
+Scryfall; other cards will show no estimate until you add eBay keys.
 """,
 
     "Scanning Cards": """
@@ -154,16 +154,20 @@ professional grading. You can override the grade in a card's detail view.
     "Valuation": """
 # Valuation
 
-Estimated values come from real market data:
+Lorebox shows an **estimated** market value drawn from public data:
 
-- **Magic: The Gathering** → **Scryfall** (official, free, accurate USD prices).
+- **Magic: The Gathering** → **Scryfall** (official, free USD pricing).
 - **Other cards** → **eBay** current listings (if you've added eBay keys).
-- **Fallback** → **PriceCharting** historical prices.
 
-The value shown is adjusted for the card's condition grade. Use **Re-value
-Selected** in the Collection to refresh prices anytime. A value of **$0.00**
-usually means no market data was found (a token, an obscure card, or a
-misidentified name).
+The figure is adjusted for the card's condition grade. Use **Re-value Selected**
+in the Collection to refresh anytime. A value of **$0.00** usually means no
+market data was found (a token, an obscure card, or a misidentified name).
+
+> **Estimates only — not guaranteed.** Card prices change constantly and vary by
+> grade, seller, and marketplace. The value shown is an approximate guide based
+> on available listings, **not** a guaranteed sale price, a professional
+> appraisal, or financial/investment advice. Always confirm against live
+> listings before buying or selling.
 """,
 
     "Dashboard": """
@@ -228,7 +232,7 @@ Icon-only buttons and image previews are labeled for screen readers (Narrator).
 - Your collection, scans, and settings are stored **only on your computer**
   (under `%APPDATA%\\Lorebox`).
 - Card images go to **Anthropic** for identification and card names go to
-  **eBay/Scryfall/PriceCharting** for pricing — using **your** API keys.
+  **eBay and Scryfall** for pricing — using **your** API keys.
 - API keys are stored **encrypted**. There is **no analytics or tracking**.
 - The full policy is in **Help menu → Privacy Policy**.
 """,

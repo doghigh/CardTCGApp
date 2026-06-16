@@ -45,7 +45,6 @@ those providers and is governed by their privacy policies.
 | **Anthropic (Claude API)** | Images of your cards | Identify the card's name, set, number, year, and game |
 | **eBay (Browse API)** | Card name / search keywords | Fetch current market prices |
 | **Scryfall** | Card name (Magic cards) | Fetch Magic: The Gathering prices |
-| **PriceCharting** | Card name | Fetch historical card prices (fallback) |
 
 - Anthropic states that inputs submitted through its API are **not used to
   train its models**. See Anthropic's Privacy Policy.
@@ -106,5 +105,5 @@ Questions about this policy? Contact the developer at:
 ---
 
 *Lorebox is an independent application and is not affiliated with,
-endorsed by, or sponsored by Anthropic, eBay, Scryfall, PriceCharting, The Topps
+endorsed by, or sponsored by Anthropic, eBay, Scryfall, The Topps
 Company, Wizards of the Coast, or any trading card manufacturer.*

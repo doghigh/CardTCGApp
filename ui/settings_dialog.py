@@ -154,7 +154,8 @@ class SettingsDialog(QDialog):
         e_form.addRow("", self._wrap(e_actions))
 
         note = QLabel("Without eBay keys the app still identifies and grades "
-                      "cards; valuation falls back to PriceCharting.")
+                      "cards, and values Magic cards via Scryfall; other cards "
+                      "show no estimate until eBay keys are added.")
         note.setWordWrap(True)
         note.setStyleSheet("color: #8b8fa8; font-size: 11px;")
         e_form.addRow("", note)
