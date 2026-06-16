@@ -244,25 +244,15 @@ Icon-only buttons and image previews are labeled for screen readers (Narrator).
     "Troubleshooting & FAQ": """
 # Troubleshooting & FAQ
 
-**Cards aren't being identified.**
-Add a valid Anthropic API key in *Settings* and click **Test**.
-
-**Value shows $0.00.**
-No market data was found. Check the card's name/set is correct (edit or
-re-identify it). Tokens and very obscure cards often have no price.
-
-**Everything graded Poor / wrong grade.**
-Grading is automated and approximate — open the card and adjust the grade.
-
-**Front and back imported as two separate cards.**
-In Batch Import, choose the right **pairing mode** (Sequential, By filename, or
-By orientation) for how your files are organized.
-
-**Where are the logs?**
-`%APPDATA%\\Lorebox\\logs\\app.log` — handy if you need to report an issue.
-
-**A scan looks grainy.**
-Make sure your scanner isn't saving compressed JPEGs; the app captures
-uncompressed where possible.
+| Problem | What to do |
+|---------|------------|
+| **Cards aren't being identified** | Add a valid Anthropic API key in *Settings → API Keys* and click **Test**. |
+| **Value shows $0.00** | No market data was found. Confirm the card's name/set is correct (edit or re-identify it). Tokens and very obscure cards often have no listed price. |
+| **Everything graded Poor / wrong grade** | Grading is an automated estimate — open the card's detail view and adjust the grade manually. |
+| **Front and back imported as two cards** | In Batch Import, pick the right **pairing mode** (Sequential, By filename, or By orientation) for how your files are arranged. |
+| **A scan looks grainy** | Make sure your scanner isn't saving compressed JPEGs; Lorebox captures uncompressed where possible. |
+| **eBay valuation isn't working** | Use your **Production** eBay App ID + Cert ID (not Sandbox), and click **Test** in Settings. |
+| **Where are the logs?** | `%APPDATA%\\Lorebox\\logs\\app.log` — attach this if you report an issue. |
+| **Where is my data stored?** | Everything is local under `%APPDATA%\\Lorebox` (collection, scans, settings). |
 """,
 }
