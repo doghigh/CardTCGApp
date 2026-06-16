@@ -69,6 +69,10 @@ def main():
     app.setApplicationName(APP_NAME)
     app.setApplicationVersion(APP_VERSION)
 
+    # Only the main window closing should exit the app — never a child dialog
+    # (Help, Settings, card detail, etc.). MainWindow.closeEvent quits explicitly.
+    app.setQuitOnLastWindowClosed(False)
+
     # Apply beautiful dark theme with accessibility support
     apply_dark_theme(app)
 

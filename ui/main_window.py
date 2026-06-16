@@ -197,6 +197,13 @@ class MainWindow(QMainWindow):
         about_action.triggered.connect(self._about)
         help_menu.addAction(about_action)
 
+    def closeEvent(self, event):
+        """Closing the main window exits the app (quitOnLastWindowClosed is off,
+        so child dialogs closing never quit it — only this does)."""
+        from PyQt6.QtWidgets import QApplication
+        event.accept()
+        QApplication.instance().quit()
+
     def _open_help_center(self, topic: str = None):
         from ui.help_dialog import HelpDialog
         HelpDialog(self, topic if isinstance(topic, str) else None).exec()
