@@ -2,12 +2,8 @@
 <!--
   MSIX manifest for the Microsoft Store build.
 
-  PLACEHOLDERS to fill in before packaging:
-    - Identity Name / Publisher  → copy EXACTLY from Partner Center
-      (Product identity → Package/Identity values). Publisher must match your
-      registered publisher, e.g. "CN=ABCD1234-..."
-    - PublisherDisplayName       → your seller/display name
-    - DisplayName (App + props)  → product name "Lorebox" (set)
+  Identity values below are from Partner Center (Lorebox product) and must match
+  exactly. Package Family Name (reference): 33303JesseCatlow.Lorebox_g2eknspehrr8e
 
   Build (see BUILD.md):
     1. Copy dist/Lorebox/* into a staging folder.
@@ -21,14 +17,14 @@
   IgnorableNamespaces="uap rescap">
 
   <Identity
-    Name="REPLACE-WITH-PARTNER-CENTER-IDENTITY-NAME"
-    Publisher="CN=REPLACE-WITH-PARTNER-CENTER-PUBLISHER-ID"
+    Name="33303JesseCatlow.Lorebox"
+    Publisher="CN=C328C76B-1D97-4428-888E-8AFAA26FBB7B"
     Version="1.1.0.0"
     ProcessorArchitecture="x64" />
 
   <Properties>
     <DisplayName>Lorebox</DisplayName>
-    <PublisherDisplayName>REPLACE-WITH-YOUR-SELLER-NAME</PublisherDisplayName>
+    <PublisherDisplayName>Jesse Catlow</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
     <Description>Catalog, grade, and value your trading card collection.</Description>
   </Properties>
