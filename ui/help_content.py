@@ -234,7 +234,7 @@ Icon-only buttons and image previews are labeled for screen readers (Narrator).
 # Privacy & Data
 
 - Your collection, scans, and settings are stored **only on your computer**
-  (under `%APPDATA%\\Lorebox`).
+  (under `%APPDATA%\\Lorebox` — [📂 open it](lorebox:data)).
 - Card images go to **Anthropic** for identification and card names go to
   **eBay and Scryfall** for pricing — using **your** API keys.
 - API keys are stored **encrypted**. There is **no analytics or tracking**.
@@ -252,7 +252,7 @@ Icon-only buttons and image previews are labeled for screen readers (Narrator).
 | **Front and back imported as two cards** | In Batch Import, pick the right **pairing mode** (Sequential, By filename, or By orientation) for how your files are arranged. |
 | **A scan looks grainy** | Make sure your scanner isn't saving compressed JPEGs; Lorebox captures uncompressed where possible. |
 | **eBay valuation isn't working** | Use your **Production** eBay App ID + Cert ID (not Sandbox), and click **Test** in Settings. |
-| **Where are the logs?** | `%APPDATA%\\Lorebox\\logs\\app.log` — attach this if you report an issue. |
-| **Where is my data stored?** | Everything is local under `%APPDATA%\\Lorebox` (collection, scans, settings). |
+| **Where are the logs?** | [📂 Open the logs folder](lorebox:logs) — attach `app.log` if you report an issue. |
+| **Where is my data stored?** | [📂 Open your data folder](lorebox:data) — everything is local (collection, scans, settings). |
 """,
 }

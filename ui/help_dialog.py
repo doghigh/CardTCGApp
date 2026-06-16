@@ -3,13 +3,19 @@ Help Center dialog — searchable topic list on the left, Markdown content on
 the right (rendered natively via QTextBrowser.setMarkdown, no dependencies).
 """
 
+import os
+from pathlib import Path
+
 from PyQt6.QtWidgets import (
     QDialog, QHBoxLayout, QVBoxLayout, QLineEdit, QListWidget, QListWidgetItem,
     QTextBrowser, QLabel, QPushButton,
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtGui import QDesktopServices
 
 from ui.help_content import HELP_TOPICS
+
+APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "Lorebox"
 
 
 class HelpDialog(QDialog):
@@ -58,7 +64,11 @@ class HelpDialog(QDialog):
         right = QVBoxLayout()
         right.setSpacing(8)
         self.viewer = QTextBrowser()
-        self.viewer.setOpenExternalLinks(True)
+        # Handle links ourselves: "lorebox:" links open local folders; http(s)
+        # links open in the browser.
+        self.viewer.setOpenLinks(False)
+        self.viewer.setOpenExternalLinks(False)
+        self.viewer.anchorClicked.connect(self._on_link)
         self.viewer.setAccessibleName("Help content")
         right.addWidget(self.viewer, 1)
 
@@ -75,6 +85,20 @@ class HelpDialog(QDialog):
             return
         md = HELP_TOPICS.get(current.text(), "")
         self.viewer.setMarkdown(md)
+
+    def _on_link(self, url: QUrl):
+        """Open lorebox: links as local folders; everything else externally."""
+        s = url.toString()
+        if s.startswith("lorebox:"):
+            target = s.split(":", 1)[1].lstrip("/")
+            path = APP_DIR / "logs" if target == "logs" else APP_DIR
+            try:
+                path.mkdir(parents=True, exist_ok=True)
+                os.startfile(str(path))           # Windows
+            except (OSError, AttributeError):
+                QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
+        else:
+            QDesktopServices.openUrl(url)         # http(s), etc.
 
     def _select_topic(self, topic: str):
         items = self.topic_list.findItems(topic, Qt.MatchFlag.MatchExactly)
