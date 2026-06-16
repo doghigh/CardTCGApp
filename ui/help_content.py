@@ -145,10 +145,14 @@ Each card gets a condition **grade** and a **0–100 score** from an automated
 visual inspection that looks at corners, edges, surface, and centering.
 
 Grades range from **Gem Mint** down to **Poor**. The grade adjusts the estimated
-value (a Near Mint card is worth more than a Played one).
+value (a Near Mint card is worth more than a Played one). You can override the
+grade anytime in a card's detail view.
 
-Grading is automated and approximate — it's a helpful guide, not a substitute for
-professional grading. You can override the grade in a card's detail view.
+> **Automated estimate — not guaranteed.** The grade is a software guess from a
+> single image and is **not** a professional grade. It does **not** predict or
+> guarantee what PSA, BGS, SGC, or any grading company would assign, and
+> shouldn't be relied on for buying, selling, or insurance decisions. For an
+> authoritative grade, use a professional grading service.
 """,
 
     "Valuation": """
