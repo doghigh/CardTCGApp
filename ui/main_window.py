@@ -113,8 +113,57 @@ class MainWindow(QMainWindow):
         self._watch_timer.timeout.connect(self._check_watch)
         self._watch_timer.start(60_000)
 
-        # First-run: if no Anthropic key is configured, guide the user to Settings
+        # First-run: welcome / parental-involvement notice, then key setup
+        self._show_first_run_notice()
         self._prompt_for_keys_if_needed()
+
+    def _show_first_run_notice(self):
+        """One-time welcome notice: app opens without a login, and a friendly
+        nudge for parental involvement when the collector is under 16."""
+        from core.config import get_pref, set_pref
+        if get_pref("welcome_ack"):
+            return
+
+        from PyQt6.QtWidgets import (
+            QDialog, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QPushButton
+        )
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Welcome to Lorebox")
+        dlg.setMinimumWidth(480)
+        v = QVBoxLayout(dlg)
+        v.setSpacing(12)
+        v.setContentsMargins(22, 22, 22, 22)
+
+        msg = QLabel(
+            "<b>Welcome to Lorebox! 🃏</b><br><br>"
+            "Lorebox opens without a login and keeps your whole collection "
+            "<b>on this computer</b> — nothing is uploaded to us. By default it "
+            "isn't password-protected.<br><br>"
+            "Collecting is even better together. <b>If the collector is under 16, "
+            "we encourage a parent or guardian to set things up alongside them</b> "
+            "and to approve using Lorebox without a login. Cataloguing a "
+            "collection is a great thing to share."
+        )
+        msg.setWordWrap(True)
+        v.addWidget(msg)
+
+        chk = QCheckBox("I'm 16 or older, or a parent/guardian is involved and approves.")
+        v.addWidget(chk)
+
+        row = QHBoxLayout()
+        row.addStretch()
+        cont = QPushButton("Continue")
+        cont.setProperty("primary", True)
+        cont.setEnabled(False)
+        chk.toggled.connect(cont.setEnabled)
+        cont.clicked.connect(dlg.accept)
+        row.addWidget(cont)
+        v.addLayout(row)
+
+        dlg.exec()
+        if chk.isChecked():
+            from datetime import date
+            set_pref("welcome_ack", date.today().isoformat())
 
     def _prompt_for_keys_if_needed(self):
         """On first run (no API key), offer to open Settings."""

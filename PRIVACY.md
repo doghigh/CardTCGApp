@@ -78,10 +78,14 @@ We do **not** sell, rent, or share your data. The only outbound data is the
 card images and card names you send to the third-party services above, which
 you control through your own API keys and use of the valuation features.
 
-## 7. Children's privacy
+## 7. Children's privacy & parental involvement
 
 The App is not directed to children under 13 and does not knowingly collect
-personal information from them.
+personal information from them. Because the App stores a collection locally and
+opens without a login by default, **we encourage a parent or guardian to be
+involved when the collector is under 16** — setting up the App alongside them
+and approving its use without a login. The App shows a one-time notice to this
+effect on first launch.
 
 ## 8. Your choices and control
 

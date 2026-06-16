@@ -200,9 +200,13 @@ collects no usage data and operates no server that receives your information.</p
 <p>We do not sell, rent, or share your data. The only outbound data is the card
 images and card names you send to the third-party services above.</p>
 
-<h2>7. Children's privacy</h2>
+<h2>7. Children's privacy &amp; parental involvement</h2>
 <p>The App is not directed to children under 13 and does not knowingly collect
-personal information from them.</p>
+personal information from them. Because the App stores a collection locally and
+opens without a login by default, we encourage a parent or guardian to be
+involved when the collector is under 16 — setting up the App alongside them and
+approving its use without a login. A one-time notice to this effect is shown on
+first launch.</p>
 
 <h2>8. Your choices and control</h2>
 <ul>

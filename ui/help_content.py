@@ -238,6 +238,9 @@ Icon-only buttons and image previews are labeled for screen readers (Narrator).
 - Card images go to **Anthropic** for identification and card names go to
   **eBay and Scryfall** for pricing — using **your** API keys.
 - API keys are stored **encrypted**. There is **no analytics or tracking**.
+- Lorebox opens without a login by default. **If the collector is under 16, we
+  encourage a parent or guardian to be involved** and to approve use without a
+  login.
 - The full policy is in **Help menu → Privacy Policy**.
 """,
 
