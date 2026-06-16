@@ -197,6 +197,10 @@ class MainWindow(QMainWindow):
         about_action.triggered.connect(self._about)
         help_menu.addAction(about_action)
 
+        privacy_action = QAction("Privacy Policy", self)
+        privacy_action.triggered.connect(self._open_privacy)
+        help_menu.addAction(privacy_action)
+
     def closeEvent(self, event):
         """Closing the main window exits the app (quitOnLastWindowClosed is off,
         so child dialogs closing never quit it — only this does)."""
@@ -207,11 +211,6 @@ class MainWindow(QMainWindow):
     def _open_help_center(self, topic: str = None):
         from ui.help_dialog import HelpDialog
         HelpDialog(self, topic if isinstance(topic, str) else None).exec()
-
-        help_menu.addSeparator()
-        privacy_action = QAction("Privacy Policy", self)
-        privacy_action.triggered.connect(self._open_privacy)
-        help_menu.addAction(privacy_action)
 
     def _open_privacy(self):
         from PyQt6.QtGui import QDesktopServices
