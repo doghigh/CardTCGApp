@@ -31,20 +31,34 @@ def _rounded(size, radius, fill):
     return img
 
 
-def _card(w, h, radius, fill, stripe=None):
-    """A white card with optional accent stripe near the bottom."""
+def _card(w, h, radius, fill, stripe=None, label=None):
+    """A white card with either an accent stripe or a bold accent monogram."""
     img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
     d.rounded_rectangle([0, 0, w - 1, h - 1], radius=radius, fill=fill)
-    if stripe:
+    if label:
+        from PIL import ImageFont
+        f = None
+        for name in ("segoeuib.ttf", "arialbd.ttf", "calibrib.ttf"):
+            try:
+                f = ImageFont.truetype(rf"C:\Windows\Fonts\{name}", int(h * 0.34))
+                break
+            except OSError:
+                continue
+        if f:
+            bbox = d.textbbox((0, 0), label, font=f)
+            tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+            d.text(((w - tw) // 2 - bbox[0], (h - th) // 2 - bbox[1]),
+                   label, font=f, fill=ACCENT + (255,))
+    elif stripe:
         sy = int(h * 0.72)
         d.rounded_rectangle([int(w * 0.12), sy, int(w * 0.88), sy + int(h * 0.11)],
                             radius=int(h * 0.04), fill=stripe)
     return img
 
 
-def render(size: int) -> Image.Image:
-    """Render the master icon at the given square size."""
+def render(size: int, monogram: bool = False) -> Image.Image:
+    """Render the master icon. monogram=True puts 'LB' on the front card."""
     S = 1024
     base = _rounded(S, radius=int(S * 0.18), fill=ACCENT)
     draw = ImageDraw.Draw(base)
@@ -58,8 +72,10 @@ def render(size: int) -> Image.Image:
     back = back.rotate(14, expand=True, resample=Image.BICUBIC)
     base.alpha_composite(back, (int(S * 0.30), int(S * 0.20)))
 
-    # Front card — upright, with an accent stripe (team-banner vibe)
-    front = _card(cw, ch, int(cw * 0.10), WHITE, stripe=ACCENT)
+    # Front card — 'LB' monogram (small sizes) or accent stripe (default)
+    front = _card(cw, ch, int(cw * 0.10), WHITE,
+                  stripe=None if monogram else ACCENT,
+                  label="LB" if monogram else None)
     front = front.rotate(-6, expand=True, resample=Image.BICUBIC)
     base.alpha_composite(front, (int(S * 0.27), int(S * 0.21)))
 
@@ -150,8 +166,47 @@ def main():
     # PNG icon for general use
     render(256).save(OUT / "icon.png")
 
+    _build_store_display_images()
+
     print("Generated:", ", ".join(sorted(p.name for p in OUT.glob("*.png"))),
-          "+ icon.ico")
+          "+ icon.ico  + store/")
+
+
+def _build_store_display_images():
+    """Partner Center 'Store display images' set (separate from package tiles)."""
+    store = OUT / "store"
+    store.mkdir(exist_ok=True)
+
+    # Small square Store icons → 'LB' monogram (legible when tiny)
+    for px in (300, 150, 71):
+        render(px, monogram=True).save(store / f"AppTileIcon_{px}x{px}.png")
+
+    # 1:1 Box art (1080) — glyph + 'Lorebox' wordmark, centered on accent
+    box = Image.new("RGBA", (1080, 1080), ACCENT + (255,))
+    g = render(560)
+    box.alpha_composite(g, ((1080 - 560) // 2, 150))
+    d = ImageDraw.Draw(box)
+    f = _font(150)
+    bb = d.textbbox((0, 0), "Lorebox", font=f)
+    d.text(((1080 - (bb[2] - bb[0])) // 2 - bb[0], 760), "Lorebox",
+           font=f, fill=WHITE + (255,))
+    box.save(store / "BoxArt_1080x1080.png")
+
+    # 9:16 Poster art (720x1080) — main Store logo: glyph over wordmark on accent
+    poster = Image.new("RGBA", (720, 1080), ACCENT + (255,))
+    pg = render(440)
+    poster.alpha_composite(pg, ((720 - 440) // 2, 250))
+    d = ImageDraw.Draw(poster)
+    f = _font(110)
+    bb = d.textbbox((0, 0), "Lorebox", font=f)
+    d.text(((720 - (bb[2] - bb[0])) // 2 - bb[0], 740), "Lorebox",
+           font=f, fill=WHITE + (255,))
+    f2 = _font(40)
+    tag = "Catalog · Grade · Value"
+    bb2 = d.textbbox((0, 0), tag, font=f2)
+    d.text(((720 - (bb2[2] - bb2[0])) // 2 - bb2[0], 880), tag,
+           font=f2, fill=(230, 232, 245, 255))
+    poster.save(store / "PosterArt_720x1080.png")
 
 
 if __name__ == "__main__":
