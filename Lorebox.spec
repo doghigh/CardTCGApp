@@ -62,6 +62,8 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon="assets/icon.ico",
+    # Per-Monitor-V2 DPI awareness (passes WACK DPIAwarenessValidation).
+    manifest="packaging/Lorebox.exe.manifest",
 )
 
 coll = COLLECT(
