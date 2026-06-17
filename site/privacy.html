@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy — Lorebox</title>
+<link rel="icon" href="icon.png">
+<style>
+  :root{--bg:#0d0f18;--panel:#13151f;--raised:#1c1f2e;--border:#2a2d3e;
+        --accent:#5865f2;--accent2:#6b77f5;--text:#e8eaf0;--muted:#8b8fa8}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+       background:var(--bg);color:var(--text);line-height:1.65}
+  a{color:var(--accent2)} a:hover{text-decoration:underline}
+  .wrap{max-width:780px;margin:0 auto;padding:30px 22px 70px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:18px;margin-bottom:8px}
+  .brand img{width:30px;height:30px;border-radius:8px}
+  h1{font-size:30px;margin:18px 0 4px;letter-spacing:-.3px}
+  h2{font-size:20px;margin:30px 0 8px;border-bottom:1px solid var(--border);padding-bottom:6px}
+  p,li{color:#cfd2e0;font-size:15px;margin:8px 0}
+  small{color:var(--muted)}
+  ul{margin:8px 0 8px 22px}
+  table{border-collapse:collapse;width:100%;margin:12px 0}
+  th,td{border:1px solid var(--border);padding:9px 11px;text-align:left;font-size:14px}
+  th{background:var(--raised);color:var(--text)}
+  td{color:#cfd2e0}
+  .summary{background:var(--panel);border-left:3px solid var(--accent);border-radius:8px;
+           padding:14px 16px;margin:14px 0}
+  code{background:var(--raised);padding:1px 6px;border-radius:4px;font-size:90%}
+  a.back{display:inline-block;margin-bottom:6px;font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><img src="icon.png" alt="Lorebox"> Lorebox</div>
+  <a class="back" href="index.html">← Back to home</a>
+
+  <h1>Privacy Policy</h1>
+  <p><small><b>Effective date:</b> June 16, 2026 &nbsp;•&nbsp; <b>Last updated:</b> June 16, 2026</small></p>
+
+  <p class="summary"><b>Summary:</b> Your collection lives on your own computer. Lorebox has no
+  servers and collects no analytics. Card images and card names are sent to third-party services
+  only to identify and price cards, using API keys you supply. We do not sell or share your data.</p>
+
+  <h2>1. Information stored on your device</h2>
+  <p>All of the following is stored locally on your computer (under <code>%APPDATA%\Lorebox</code>)
+  and is never transmitted to the developer:</p>
+  <ul>
+    <li><b>Collection data</b> — card names, sets, numbers, grades, condition scores, estimated values,
+        purchase prices, quantities, and notes.</li>
+    <li><b>Card scan images</b> — the front/back images you scan or import.</li>
+    <li><b>Settings</b> — your preferences, including watch-folder configuration.</li>
+    <li><b>API keys</b> — your Anthropic and eBay credentials, stored encrypted.</li>
+    <li><b>Security data</b> — any master password is stored only as a salted PBKDF2-SHA256 hash;
+        any two-factor secret is encrypted; recovery codes are hashed. None are reversible.</li>
+  </ul>
+
+  <h2>2. Information sent to third parties</h2>
+  <p>Lorebox sends data to these services only to identify and value cards, and only when you use
+  those features. Because you provide your own API keys, this activity occurs under your own accounts
+  and is governed by their privacy policies.</p>
+  <table>
+    <tr><th>Service</th><th>What is sent</th><th>Purpose</th></tr>
+    <tr><td>Anthropic (Claude API)</td><td>Images of your cards</td><td>Identify name, set, number, year, game</td></tr>
+    <tr><td>eBay (Browse API)</td><td>Card name / keywords</td><td>Current market prices</td></tr>
+    <tr><td>Scryfall</td><td>Card name (Magic cards)</td><td>Magic: The Gathering prices</td></tr>
+  </table>
+  <p>Anthropic states that inputs submitted through its API are not used to train its models. No payment
+  information, account credentials, or personal identifiers are sent to these services by Lorebox —
+  only card images and card names.</p>
+
+  <h2>3. Biometric authentication (Windows Hello)</h2>
+  <p>If you enable Windows Hello sign-in, your fingerprint/face data is handled entirely by Windows and
+  never leaves your device. Lorebox only receives a success/failure result and never sees or stores
+  biometric data.</p>
+
+  <h2>4. Analytics and tracking</h2>
+  <p>Lorebox contains no analytics, telemetry, advertising, or tracking. The developer collects no usage
+  data and operates no server that receives your information.</p>
+
+  <h2>5. Data sharing and sale</h2>
+  <p>We do not sell, rent, or share your data. The only outbound data is the card images and card names
+  you send to the third-party services above.</p>
+
+  <h2>6. Children's privacy &amp; parental involvement</h2>
+  <p>Lorebox is not directed to children under 13 and does not knowingly collect personal information
+  from them. Because the app stores a collection locally and opens without a login by default, we
+  encourage a parent or guardian to be involved when the collector is under 16 — setting up the app
+  alongside them and approving its use without a login. A one-time notice to this effect is shown on
+  first launch.</p>
+
+  <h2>7. Estimates are not guarantees</h2>
+  <p>Estimated values and condition grades are automated and approximate. They are not guaranteed sale
+  prices, professional appraisals, or a substitute for a professional grading service, and should not be
+  relied upon for buying, selling, or insurance decisions.</p>
+
+  <h2>8. Your choices and control</h2>
+  <ul>
+    <li>Use Lorebox without API keys — identification and valuation are simply disabled.</li>
+    <li>Remove or change your API keys at any time in Settings.</li>
+    <li>Delete individual cards, or your entire local database, from within the app.</li>
+    <li>Uninstalling and deleting <code>%APPDATA%\Lorebox</code> removes all local data.</li>
+  </ul>
+
+  <h2>9. Changes to this policy</h2>
+  <p>We may update this policy as the app evolves; material changes update the "Last updated" date above.</p>
+
+  <h2>10. Contact</h2>
+  <p>Questions about this policy? Contact us at <a href="mailto:contact@loreboxapp.dev">contact@loreboxapp.dev</a>.</p>
+
+  <hr style="border:none;border-top:1px solid var(--border);margin:28px 0">
+  <p><small>Lorebox is an independent application and is not affiliated with, endorsed by, or sponsored by
+  Anthropic, eBay, Scryfall, The Topps Company, Wizards of the Coast, or any trading card manufacturer.</small></p>
+</div>
+</body>
+</html>
