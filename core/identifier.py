@@ -101,16 +101,27 @@ class CardIdentifier:
 
     def identify_card(self, front_img: np.ndarray,
                       back_img: Optional[np.ndarray] = None) -> Dict:
-        """Identify a card using Claude vision, falling back to OCR."""
+        """Identify a card using Claude vision, falling back to OCR.
+
+        The result includes a 'source' key: 'claude' for a genuine vision
+        identification, or 'ocr' for the degraded Tesseract fallback (e.g. when
+        the API is unavailable or out of credits). Callers must treat 'ocr'
+        results as low-confidence and must NOT let them overwrite good data.
+        """
         result = self._identify_with_claude(front_img, back_img)
         if result and result.get('name'):
+            result['source'] = 'claude'
             return result
 
-        # OCR fallback
+        # OCR fallback — degraded mode. Only the (header-OCR) name is reasonably
+        # reliable; set/number/rarity are not, so parse_card_info no longer
+        # fabricates them. Flagged 'ocr' so callers can warn / avoid clobbering.
         front_text = self.extract_text(front_img)
         back_text = self.extract_text(back_img) if back_img is not None else ""
         header_text = self.extract_header_text(back_img) if back_img is not None else ""
-        return self.parse_card_info(front_text, back_text, header_text)
+        info = self.parse_card_info(front_text, back_text, header_text)
+        info['source'] = 'ocr'
+        return info
 
     # ------------------------------------------------------------------
     # Claude vision
@@ -321,19 +332,10 @@ class CardIdentifier:
             if m and not info['card_number']:
                 info['card_number'] = m.group(1)
                 break
-        if not info['card_number']:
-            for line in lines:
-                if re.fullmatch(r'\d{1,4}', line):
-                    info['card_number'] = line
-                    break
-        if not info['card_number'] and header_text:
-            m = re.search(r'\b(\d{1,4})\b', header_text)
-            if m:
-                info['card_number'] = m.group(1)
-
-        rarity_m = re.search(r'\b(SR|UR|SEC|PR|SP|RR|CHR|Rare|Common|Uncommon)\b', combined, re.I)
-        if rarity_m:
-            info['rarity'] = rarity_m.group(1)
+        # NOTE: no bare-digit / header-digit card_number fallback, and no
+        # short-code rarity guess — on degraded OCR these match noise and
+        # pollute the record (garbage card numbers / "Sp"/"RR" rarities).
+        # Leave them null; Claude fills them reliably when available.
 
         header_lines = [ln.strip() for ln in header_text.split('\n') if ln.strip()] if header_text else []
         header_caps = [ln for ln in header_lines
@@ -359,13 +361,9 @@ class CardIdentifier:
                         info['name'] = line[:80]
                         break
 
-        set_exclude = ['copyright', '©', 'illustration', 'artist', 'tm', 'printed', 'corp']
-        for line in lines[:25]:
-            if (4 <= len(line) <= 40 and re.search(r'[A-Za-z]{3,}', line)
-                    and not any(x in line.lower() for x in set_exclude)
-                    and line != info.get('name')):
-                info['set_name'] = line[:40]
-                break
+        # NOTE: set_name is intentionally NOT guessed from OCR text. On worn or
+        # set-symbol-less cards this just grabbed a random body line (flavour
+        # text, type line) and wrote garbage into the Set column. Leave it null.
 
         if not info['name'] and lines:
             info['name'] = lines[0][:80]

@@ -112,7 +112,7 @@ class BatchProcessWorker(QThread):
             'set_name':   info.get('set_name') or '',
             'card_number':info.get('card_number') or '',
             'game':       info.get('game') or 'Other',
-            'year':       info.get('year') or datetime.now().year,
+            'year':       info.get('year') or None,   # don't fake the current year
             'rarity':     info.get('rarity') or '',
             'grade':      inspection.get('grade', ''),
             'score':      inspection.get('score', 0.0),
@@ -125,7 +125,7 @@ class BatchProcessWorker(QThread):
     def _empty_result(idx: int, error: str) -> dict:
         return {
             'index': idx, 'images': [], 'name': '', 'set_name': '',
-            'card_number': '', 'game': 'Other', 'year': datetime.now().year,
+            'card_number': '', 'game': 'Other', 'year': None,
             'rarity': '', 'grade': '', 'score': 0.0, 'defects': [],
             'estimated_value': 0.0, 'val_source': f'Error: {error}',
         }

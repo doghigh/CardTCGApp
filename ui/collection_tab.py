@@ -116,13 +116,19 @@ class ReidentifyWorker(QThread):
 
             try:
                 info = self.identifier.identify_card(front, back)
-                # Only overwrite fields the model actually returned
                 updates = {}
-                for key in ('name', 'set_name', 'card_number', 'rarity', 'game'):
-                    if info.get(key):
-                        updates[key] = info[key]
-                if info.get('year'):
-                    updates['year'] = info['year']
+                if info.get('source') == 'claude' and info.get('name'):
+                    # Genuine re-identification — treat it as the source of
+                    # truth so stale junk (e.g. OCR-fallback set_name) is
+                    # cleared, not preserved. Passing None clears the column.
+                    updates['name'] = info['name']
+                    for key in ('set_name', 'card_number', 'rarity', 'year'):
+                        updates[key] = info.get(key) or None
+                    if info.get('game'):
+                        updates['game'] = info['game']
+                # If source == 'ocr' (Claude unavailable / out of credits), the
+                # re-identify effectively failed — leave the card untouched
+                # rather than overwriting it with low-confidence OCR data.
                 if updates:
                     self.db.update_card(cid, updates)
                     updated += 1
