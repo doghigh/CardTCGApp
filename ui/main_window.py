@@ -136,11 +136,12 @@ class MainWindow(QMainWindow):
 
         msg = QLabel(
             "<b>Welcome to Lorebox! 🃏</b><br><br>"
-            "Lorebox opens without a login and keeps your whole collection "
-            "<b>on this computer</b> — nothing is uploaded to us.<br><br>"
+            "<b>There's no login</b> — no account to create and no password to "
+            "set up. Lorebox opens straight to your collection, which stays "
+            "<b>on this computer</b>; nothing is uploaded to us.<br><br>"
             "Collecting is even better together — if a younger collector is using "
             "Lorebox, we'd love for a parent or guardian to dive in alongside "
-            "them. Cataloguing a collection is a great thing to share."
+            "them. Cataloging a collection is a great thing to share."
         )
         msg.setWordWrap(True)
         v.addWidget(msg)
