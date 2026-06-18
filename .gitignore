@@ -75,3 +75,6 @@ dist/
 # MSIX staging output
 packaging/staging/
 packaging/*.msix
+packaging/*.pfx
+packaging/*.cer
+lorebox_test.*
