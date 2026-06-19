@@ -1,14 +1,14 @@
 @echo off
-title Trading Card Manager - Launcher
+title Lorebox - Launcher
 echo.
 echo ================================================
-echo    Trading Card Manager v1.1.0
+echo    Lorebox v1.1.0
 echo    Privacy-First TCG Collection App
 echo ================================================
 echo.
 
 :: Set working directory to script location
-cd /d "%\~dp0"
+cd /d "%~dp0"
 
 :: Check Python
 where python >nul 2>nul
@@ -45,12 +45,12 @@ if %errorlevel% neq 0 (
 )
 
 :: Create required folders
-mkdir "%APPDATA%\TradingCardManager\scans" 2>nul
-mkdir "%APPDATA%\TradingCardManager\reports" 2>nul
+mkdir "%APPDATA%\Lorebox\scans" 2>nul
+mkdir "%APPDATA%\Lorebox\reports" 2>nul
 
 echo.
 echo ================================================
-echo    Starting Trading Card Manager...
+echo    Starting Lorebox...
 echo    Press Ctrl+C in this window to stop
 echo ================================================
 echo.
@@ -58,29 +58,9 @@ echo.
 :: Launch the app
 python main.py
 
-echo.
-echo Application closed.
-pausepython -m pip install -r requirements.txt
-
-if %errorlevel% neq 0 (
-    echo [WARNING] Some dependencies failed to install.
-    echo Make sure Tesseract OCR is installed for full functionality.
-)
-
-:: Create necessary directories
-if not exist "%APPDATA%\TradingCardManager\scans" mkdir "%APPDATA%\TradingCardManager\scans"
-if not exist "%APPDATA%\TradingCardManager\reports" mkdir "%APPDATA%\TradingCardManager\reports"
-
-echo.
-echo ================================================
-echo    Starting Trading Card Manager...
-echo ================================================
-echo.
-
-:: Run the application
-python main.py
-
 :: Deactivate when closed
 deactivate
 
+echo.
+echo Application closed.
 pause
