@@ -86,7 +86,16 @@ card value tracker
 
 ---
 
-## What's new in this version  (release notes — v1.1.0)
+## What's new in this version  (release notes — v1.1.0.2)
+- More reliable card identification, with clearer handling when the AI service
+  is briefly unavailable.
+- Fixed an issue where cards identified during a service interruption could be
+  saved with incorrect set, number, or year details.
+- Re-identifying a card now properly refreshes its details from the scan.
+- Clarified that Lorebox opens without a login — no account or password needed.
+- High-DPI display and packaging fixes, plus minor wording and stability tweaks.
+
+## What's new  (release notes — v1.1.0)
 First release of Lorebox! Scan or import your trading cards, identify them
 automatically, estimate condition and value, and organize everything in a
 private, local collection with dashboards and reports.
