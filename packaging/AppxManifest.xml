@@ -19,7 +19,7 @@
   <Identity
     Name="33303JesseCatlow.Lorebox"
     Publisher="CN=C328C76B-1D97-4428-888E-8AFAA26FBB7B"
-    Version="1.1.0.2"
+    Version="1.1.1.0"
     ProcessorArchitecture="x64" />
 
   <Properties>
