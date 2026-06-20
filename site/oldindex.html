@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lorebox — Catalog, grade & value your trading cards</title>
+<meta name="description" content="Lorebox is a privacy-first Windows app to scan, identify, grade, and value your trading card collection — sports cards, Magic, Pokémon and more. Everything stays on your computer.">
+<link rel="icon" href="icon.png">
+<style>
+  :root{
+    --bg:#0d0f18; --panel:#13151f; --raised:#1c1f2e; --border:#2a2d3e;
+    --accent:#5865f2; --accent2:#6b77f5; --text:#e8eaf0; --muted:#8b8fa8;
+    --green:#43b581;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+       background:var(--bg);color:var(--text);line-height:1.6;-webkit-font-smoothing:antialiased}
+  a{color:var(--accent2);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:980px;margin:0 auto;padding:0 22px}
+
+  header{display:flex;align-items:center;justify-content:space-between;
+         padding:20px 0}
+  .brand{display:flex;align-items:center;gap:12px;font-weight:700;font-size:20px}
+  .brand img{width:36px;height:36px;border-radius:9px}
+  nav a{color:var(--muted);margin-left:20px;font-size:14px}
+
+  .hero{text-align:center;padding:70px 0 50px}
+  .hero img{width:104px;height:104px;border-radius:24px;box-shadow:0 12px 40px rgba(88,101,242,.35)}
+  .hero h1{font-size:44px;line-height:1.15;margin:26px 0 12px;letter-spacing:-.5px}
+  .hero p.lead{font-size:19px;color:var(--muted);max-width:640px;margin:0 auto 28px}
+  .badge{display:inline-block;background:var(--raised);border:1px solid var(--border);
+         color:var(--muted);font-size:13px;padding:6px 14px;border-radius:999px;margin-bottom:8px}
+  .cta{display:inline-block;background:var(--accent);color:#fff;font-weight:600;
+       padding:13px 26px;border-radius:10px;font-size:16px}
+  .cta:hover{background:var(--accent2);text-decoration:none}
+  .cta.secondary{background:transparent;border:1px solid var(--border);color:var(--text);margin-left:10px}
+
+  section{padding:48px 0}
+  h2{font-size:28px;text-align:center;margin-bottom:8px;letter-spacing:-.3px}
+  .sub{text-align:center;color:var(--muted);margin-bottom:36px}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px}
+  .card{background:var(--raised);border:1px solid var(--border);border-radius:14px;padding:22px}
+  .card h3{font-size:17px;margin-bottom:8px}
+  .card p{color:var(--muted);font-size:14.5px}
+  .emoji{font-size:24px;display:block;margin-bottom:10px}
+
+  .note{background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--accent);
+        border-radius:10px;padding:16px 18px;color:var(--muted);font-size:14px;max-width:760px;margin:14px auto}
+
+  footer{border-top:1px solid var(--border);padding:30px 0 50px;color:var(--muted);font-size:13.5px;text-align:center}
+  footer a{margin:0 8px}
+  .disclaim{font-size:12.5px;color:#6a6e82;margin-top:14px;max-width:760px;margin-left:auto;margin-right:auto}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand"><img src="icon.png" alt="Lorebox logo"> Lorebox</div>
+    <nav>
+      <a href="#features">Features</a>
+      <a href="privacy.html">Privacy</a>
+    </nav>
+  </header>
+
+  <section class="hero">
+    <img src="icon.png" alt="Lorebox icon">
+    <div style="margin-top:18px"><span class="badge">Windows desktop • Privacy-first</span></div>
+    <h1>Your card collection,<br>cataloged and valued.</h1>
+    <p class="lead">Scan or import your trading cards — Lorebox identifies each one, estimates its
+       condition and market value, and keeps your whole collection organized.
+       <strong>Everything stays on your computer.</strong></p>
+    <a class="cta" href="https://apps.microsoft.com/store/detail/9N94V4458M3V">Get it on the Microsoft Store</a>
+    <a class="cta secondary" href="#features">See features</a>
+    <p style="color:var(--muted);font-size:13px;margin-top:14px">Sports cards · Magic: The Gathering · Pokémon · and more</p>
+  </section>
+
+  <section id="features">
+    <h2>What Lorebox does</h2>
+    <p class="sub">A complete, local-first toolkit for collectors.</p>
+    <div class="grid">
+      <div class="card"><span class="emoji">🔎</span><h3>Smart identification</h3>
+        <p>Scan a card or import an image and Lorebox reads the name, set, number, year, and game automatically.</p></div>
+      <div class="card"><span class="emoji">📊</span><h3>Condition grading</h3>
+        <p>An automated visual inspection estimates each card's condition — corners, edges, surface, centering.</p></div>
+      <div class="card"><span class="emoji">💰</span><h3>Market value estimates</h3>
+        <p>Live pricing from official sources (Scryfall for Magic, eBay for the rest), adjusted for condition.</p></div>
+      <div class="card"><span class="emoji">📦</span><h3>Batch &amp; PDF import</h3>
+        <p>Import whole folders or PDFs, pair fronts and backs automatically, and even auto-import on a schedule.</p></div>
+      <div class="card"><span class="emoji">📈</span><h3>Dashboard &amp; reports</h3>
+        <p>See total value, value over time, breakdowns by game and grade, and set-completion progress.</p></div>
+      <div class="card"><span class="emoji">🔒</span><h3>Private by design</h3>
+        <p>No accounts, no tracking, no cloud. Your collection lives in a local database on your PC.</p></div>
+    </div>
+
+    <div class="note">
+      <strong>Estimates, not guarantees.</strong> Values and condition grades are automated estimates to
+      help you organize and explore your collection — they are not guaranteed sale prices, professional
+      appraisals, or a substitute for a professional grading service.
+    </div>
+  </section>
+
+  <footer>
+    <div>
+      <a href="privacy.html">Privacy Policy</a> ·
+      <a href="mailto:contact@loreboxapp.dev">contact@loreboxapp.dev</a> ·
+      <a href="https://github.com/doghigh/CardTCGApp">Open source (AGPL-3.0)</a>
+    </div>
+    <p class="disclaim">© 2026 Jesse Catlow. Lorebox is an independent application and is not affiliated with,
+       endorsed by, or sponsored by Anthropic, eBay, Scryfall, The Topps Company, Wizards of the Coast,
+       or any trading card manufacturer. Product names and trademarks are the property of their respective owners.</p>
+  </footer>
+
+</div>
+</body>
+</html>

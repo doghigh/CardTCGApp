@@ -1,118 +1,287 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Lorebox — Catalog, grade & value your trading cards</title>
-<meta name="description" content="Lorebox is a privacy-first Windows app to scan, identify, grade, and value your trading card collection — sports cards, Magic, Pokémon and more. Everything stays on your computer.">
-<link rel="icon" href="icon.png">
-<style>
-  :root{
-    --bg:#0d0f18; --panel:#13151f; --raised:#1c1f2e; --border:#2a2d3e;
-    --accent:#5865f2; --accent2:#6b77f5; --text:#e8eaf0; --muted:#8b8fa8;
-    --green:#43b581;
-  }
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-       background:var(--bg);color:var(--text);line-height:1.6;-webkit-font-smoothing:antialiased}
-  a{color:var(--accent2);text-decoration:none}
-  a:hover{text-decoration:underline}
-  .wrap{max-width:980px;margin:0 auto;padding:0 22px}
-
-  header{display:flex;align-items:center;justify-content:space-between;
-         padding:20px 0}
-  .brand{display:flex;align-items:center;gap:12px;font-weight:700;font-size:20px}
-  .brand img{width:36px;height:36px;border-radius:9px}
-  nav a{color:var(--muted);margin-left:20px;font-size:14px}
-
-  .hero{text-align:center;padding:70px 0 50px}
-  .hero img{width:104px;height:104px;border-radius:24px;box-shadow:0 12px 40px rgba(88,101,242,.35)}
-  .hero h1{font-size:44px;line-height:1.15;margin:26px 0 12px;letter-spacing:-.5px}
-  .hero p.lead{font-size:19px;color:var(--muted);max-width:640px;margin:0 auto 28px}
-  .badge{display:inline-block;background:var(--raised);border:1px solid var(--border);
-         color:var(--muted);font-size:13px;padding:6px 14px;border-radius:999px;margin-bottom:8px}
-  .cta{display:inline-block;background:var(--accent);color:#fff;font-weight:600;
-       padding:13px 26px;border-radius:10px;font-size:16px}
-  .cta:hover{background:var(--accent2);text-decoration:none}
-  .cta.secondary{background:transparent;border:1px solid var(--border);color:var(--text);margin-left:10px}
-
-  section{padding:48px 0}
-  h2{font-size:28px;text-align:center;margin-bottom:8px;letter-spacing:-.3px}
-  .sub{text-align:center;color:var(--muted);margin-bottom:36px}
-
-  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px}
-  .card{background:var(--raised);border:1px solid var(--border);border-radius:14px;padding:22px}
-  .card h3{font-size:17px;margin-bottom:8px}
-  .card p{color:var(--muted);font-size:14.5px}
-  .emoji{font-size:24px;display:block;margin-bottom:10px}
-
-  .note{background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--accent);
-        border-radius:10px;padding:16px 18px;color:var(--muted);font-size:14px;max-width:760px;margin:14px auto}
-
-  footer{border-top:1px solid var(--border);padding:30px 0 50px;color:var(--muted);font-size:13.5px;text-align:center}
-  footer a{margin:0 8px}
-  .disclaim{font-size:12.5px;color:#6a6e82;margin-top:14px;max-width:760px;margin-left:auto;margin-right:auto}
-</style>
+<script src="./support.js"></script>
 </head>
 <body>
-<div class="wrap">
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  html, body { margin: 0; padding: 0; background: #0B0E15; }
+  ::selection { background: rgba(110,123,242,.35); color: #fff; }
+  a { text-decoration: none; }
+  @keyframes lb-rise { from { transform: translateY(12px); } to { transform: none; } }
+</style>
+</helmet>
 
-  <header>
-    <div class="brand"><img src="icon.png" alt="Lorebox logo"> Lorebox</div>
-    <nav>
-      <a href="#features">Features</a>
-      <a href="privacy.html">Privacy</a>
-    </nav>
+<div style="background:#0B0E15; color:#C2C9D6; font-family:'IBM Plex Sans',sans-serif; -webkit-font-smoothing:antialiased; min-height:100vh; overflow-x:hidden;">
+
+  <!-- ============ NAV ============ -->
+  <header style="position:sticky; top:0; z-index:50; backdrop-filter:blur(14px); background:rgba(11,14,21,.78); border-bottom:1px solid rgba(255,255,255,.07);">
+    <div style="max-width:1200px; margin:0 auto; padding:15px 40px; display:flex; align-items:center; justify-content:space-between;">
+      <a href="#top" style="display:flex; align-items:center; gap:13px;">
+        <svg viewBox="0 0 48 48" fill="none" style="width:32px; height:32px;">
+          <rect x="19.5" y="5.5" width="17" height="24" rx="2.6" transform="rotate(8 28 17.5)" fill="#2BD17E"/>
+          <rect x="11.5" y="6.5" width="17" height="24" rx="2.6" transform="rotate(-7 20 18.5)" fill="var(--accent,#6E7BF2)"/>
+          <path d="M5.5 23 L42.5 23 L39.6 41.4 Q39.3 43.5 37.1 43.5 L10.9 43.5 Q8.7 43.5 8.4 41.4 Z" fill="#0B0E15" stroke="rgba(255,255,255,.16)" stroke-width="1.4"/>
+          <path d="M5.5 23 L24 28 L42.5 23" fill="none" stroke="rgba(255,255,255,.26)" stroke-width="1.4" stroke-linejoin="round"/>
+        </svg>
+        <span style="font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:21px; color:#EEF1F7; letter-spacing:-.01em;">Lorebox</span>
+      </a>
+      <nav style="display:flex; align-items:center; gap:30px;">
+        <a href="#features" style="font-size:14.5px; color:#9AA2B5;">Features</a>
+        <a href="#privacy" style="font-size:14.5px; color:#9AA2B5;">Privacy</a>
+        <a href="https://apps.microsoft.com/store/detail/9N94V4458M3V" style="display:inline-flex; align-items:center; gap:9px; font-weight:600; font-size:14px; color:#fff; background:var(--accent,#6E7BF2); padding:10px 18px; border-radius:9px;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="#fff"><path d="M3 3h8v8H3V3Zm10 0h8v8h-8V3ZM3 13h8v8H3v-8Zm10 0h8v8h-8v-8Z"/></svg>
+          Microsoft Store
+        </a>
+      </nav>
+    </div>
   </header>
 
-  <section class="hero">
-    <img src="icon.png" alt="Lorebox icon">
-    <div style="margin-top:18px"><span class="badge">Windows desktop • Privacy-first</span></div>
-    <h1>Your card collection,<br>cataloged and valued.</h1>
-    <p class="lead">Scan or import your trading cards — Lorebox identifies each one, estimates its
-       condition and market value, and keeps your whole collection organized.
-       <strong>Everything stays on your computer.</strong></p>
-    <a class="cta" href="https://apps.microsoft.com/store/detail/9N94V4458M3V">Get it on the Microsoft Store</a>
-    <a class="cta secondary" href="#features">See features</a>
-    <p style="color:var(--muted);font-size:13px;margin-top:14px">Sports cards · Magic: The Gathering · Pokémon · and more</p>
+  <!-- ============ HERO ============ -->
+  <section id="top" style="position:relative; padding:84px 40px 0; overflow:hidden;">
+    <div style="position:absolute; top:-180px; left:50%; transform:translateX(-50%); width:1100px; height:680px; background:radial-gradient(ellipse at center, rgba(110,123,242,.16), rgba(110,123,242,0) 60%); pointer-events:none;"></div>
+    <div style="position:absolute; inset:0; background-image:linear-gradient(rgba(255,255,255,.02) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.02) 1px,transparent 1px); background-size:52px 52px; mask-image:linear-gradient(to bottom,#000,transparent 60%); pointer-events:none;"></div>
+
+    <div style="position:relative; max-width:1000px; margin:0 auto; text-align:center;">
+      <div style="display:inline-flex; align-items:center; gap:9px; padding:7px 15px; border-radius:100px; background:#141925; border:1px solid rgba(255,255,255,.08); font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:.06em; color:#9AA2B5; margin-bottom:30px; animation:lb-rise .5s ease both;">
+        <span style="width:7px; height:7px; border-radius:50%; background:#2BD17E; box-shadow:0 0 8px #2BD17E;"></span>
+        Windows desktop · Privacy-first
+      </div>
+      <h1 style="font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:68px; line-height:1.04; letter-spacing:-.028em; color:#EEF1F7; margin:0 0 24px; text-wrap:balance; animation:lb-rise .5s ease .05s both;">Your card collection,<br>cataloged and valued.</h1>
+      <p style="font-size:19px; line-height:1.6; color:#9AA2B5; max-width:62ch; margin:0 auto 14px; animation:lb-rise .5s ease .1s both;">Scan or import your trading cards — Lorebox identifies each one, estimates its condition and market value, and keeps your whole collection organized.</p>
+      <p style="font-size:19px; line-height:1.6; color:#EEF1F7; font-weight:600; max-width:62ch; margin:0 auto 38px; animation:lb-rise .5s ease .12s both;">Everything stays on your computer.</p>
+
+      <div style="display:flex; align-items:center; justify-content:center; gap:14px; flex-wrap:wrap; animation:lb-rise .5s ease .15s both;">
+        <a href="https://apps.microsoft.com/store/detail/9N94V4458M3V" style="display:inline-flex; align-items:center; gap:11px; font-weight:600; font-size:15.5px; color:#fff; background:var(--accent,#6E7BF2); padding:15px 26px; border-radius:11px; box-shadow:0 10px 30px -10px var(--accent,#6E7BF2);">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M3 3h8v8H3V3Zm10 0h8v8h-8V3ZM3 13h8v8H3v-8Zm10 0h8v8h-8v-8Z"/></svg>
+          Get it on the Microsoft Store
+        </a>
+        <a href="#features" style="display:inline-flex; align-items:center; gap:9px; font-weight:600; font-size:15.5px; color:#C2C9D6; background:#161B26; border:1px solid rgba(255,255,255,.1); padding:15px 24px; border-radius:11px;">See features</a>
+      </div>
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:12.5px; letter-spacing:.04em; color:#586074; margin-top:26px; animation:lb-rise .5s ease .2s both;">Sports cards · Magic: The Gathering · Pokémon · and more</div>
+    </div>
+
+    <!-- ===== RECREATED DASHBOARD ===== -->
+    <div style="position:relative; max-width:1180px; margin:62px auto 0; animation:lb-rise .7s ease .25s both;">
+      <div id="lb-dash" style="border-radius:14px; overflow:hidden; border:1px solid rgba(255,255,255,.1); background:#0B0E15; box-shadow:0 50px 100px -40px rgba(0,0,0,.8), 0 0 0 1px rgba(110,123,242,.08), 0 -2px 60px -20px rgba(110,123,242,.25); transform-origin:center top;">
+        <!-- titlebar -->
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:9px 14px; background:#10141D; border-bottom:1px solid rgba(255,255,255,.06);">
+          <div style="display:flex; align-items:center; gap:11px;">
+            <svg viewBox="0 0 48 48" fill="none" style="width:16px; height:16px;"><rect x="19.5" y="5.5" width="17" height="24" rx="2.6" transform="rotate(8 28 17.5)" fill="#2BD17E"/><rect x="11.5" y="6.5" width="17" height="24" rx="2.6" transform="rotate(-7 20 18.5)" fill="var(--accent,#6E7BF2)"/><path d="M5.5 23 L42.5 23 L39.6 41.4 Q39.3 43.5 37.1 43.5 L10.9 43.5 Q8.7 43.5 8.4 41.4 Z" fill="#10141D" stroke="rgba(255,255,255,.2)" stroke-width="1.6"/></svg>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:#828BA0;">Lorebox</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:16px; color:#586074;">
+            <span style="width:11px; height:1.5px; background:#586074;"></span>
+            <span style="width:9px; height:9px; border:1.5px solid #586074;"></span>
+            <span style="font-size:13px; line-height:1;">✕</span>
+          </div>
+        </div>
+        <!-- tabs -->
+        <div style="display:flex; align-items:center; gap:2px; padding:0 12px; background:#0E121A; border-bottom:1px solid rgba(255,255,255,.06);">
+          <span style="padding:13px 16px; font-size:13px; color:#EEF1F7; border-bottom:2px solid var(--accent,#6E7BF2);">Dashboard</span>
+          <span style="padding:13px 16px; font-size:13px; color:#828BA0;">Scan &amp; Add</span>
+          <span style="padding:13px 16px; font-size:13px; color:#828BA0;">Batch Import</span>
+          <span style="padding:13px 16px; font-size:13px; color:#828BA0;">Collection</span>
+          <span style="padding:13px 16px; font-size:13px; color:#828BA0;">Reports</span>
+        </div>
+        <!-- body -->
+        <div style="padding:22px; background:#0B0E15;">
+          <!-- stat tiles -->
+          <div style="display:grid; grid-template-columns:repeat(6,1fr); gap:11px; margin-bottom:18px;">
+            <div style="padding:14px 15px; border-radius:11px; background:#141925; border:1px solid rgba(255,255,255,.06);"><div style="font-family:'IBM Plex Mono',monospace; font-weight:500; font-size:22px; color:#EEF1F7;">10</div><div style="font-size:11px; color:#828BA0; margin-top:4px;">Unique cards</div></div>
+            <div style="padding:14px 15px; border-radius:11px; background:#141925; border:1px solid rgba(255,255,255,.06);"><div style="font-family:'IBM Plex Mono',monospace; font-weight:500; font-size:22px; color:#EEF1F7;">10</div><div style="font-size:11px; color:#828BA0; margin-top:4px;">Total quantity</div></div>
+            <div style="padding:14px 15px; border-radius:11px; background:#141925; border:1px solid rgba(255,255,255,.06);"><div style="font-family:'IBM Plex Mono',monospace; font-weight:500; font-size:22px; color:#2BD17E;">$157.90</div><div style="font-size:11px; color:#828BA0; margin-top:4px;">Estimated value</div></div>
+            <div style="padding:14px 15px; border-radius:11px; background:#141925; border:1px solid rgba(255,255,255,.06);"><div style="font-family:'IBM Plex Mono',monospace; font-weight:500; font-size:22px; color:#EEF1F7;">$76.85</div><div style="font-size:11px; color:#828BA0; margin-top:4px;">Total cost</div></div>
+            <div style="padding:14px 15px; border-radius:11px; background:#141925; border:1px solid rgba(255,255,255,.06);"><div style="font-family:'IBM Plex Mono',monospace; font-weight:500; font-size:22px; color:#2BD17E;">+$81.05</div><div style="font-size:11px; color:#828BA0; margin-top:4px;">Net P&amp;L</div></div>
+            <div style="padding:14px 15px; border-radius:11px; background:#141925; border:1px solid rgba(255,255,255,.06);"><div style="font-family:'IBM Plex Mono',monospace; font-weight:500; font-size:22px; color:#EEF1F7;">81<span style="font-size:15px; color:#586074;">/100</span></div><div style="font-size:11px; color:#828BA0; margin-top:4px;">Avg condition</div></div>
+          </div>
+          <!-- chart -->
+          <div style="padding:18px 20px 12px; border-radius:12px; background:#101521; border:1px solid rgba(255,255,255,.06); margin-bottom:18px;">
+            <div style="font-size:12.5px; color:#9AA2B5; margin-bottom:10px;">Collection Value Over Time</div>
+            <div style="position:relative;">
+              <svg viewBox="0 0 1000 200" preserveAspectRatio="none" style="width:100%; height:150px; display:block;">
+                <defs>
+                  <linearGradient id="lbArea" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="var(--accent,#6E7BF2)" stop-opacity="0.28"/>
+                    <stop offset="100%" stop-color="var(--accent,#6E7BF2)" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+                <path d="M8,150 L130,142 L250,134 L370,132 L500,110 L620,98 L740,72 L860,52 L992,30 L992,195 L8,195 Z" fill="url(#lbArea)"/>
+                <path d="M8,150 L130,142 L250,134 L370,132 L500,110 L620,98 L740,72 L860,52 L992,30" fill="none" stroke="var(--accent,#6E7BF2)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="992" cy="30" r="4" fill="#EEF1F7"/>
+              </svg>
+              <span style="position:absolute; top:0; left:0; font-family:'IBM Plex Mono',monospace; font-size:10px; color:#586074;">$158</span>
+              <span style="position:absolute; bottom:18px; left:0; font-family:'IBM Plex Mono',monospace; font-size:10px; color:#586074;">$126</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; font-family:'IBM Plex Mono',monospace; font-size:10px; color:#586074; margin-top:2px;"><span>06-05</span><span>06-18</span></div>
+          </div>
+          <!-- two columns -->
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+            <div style="padding:16px 18px; border-radius:12px; background:#101521; border:1px solid rgba(255,255,255,.06);">
+              <div style="font-size:12.5px; color:#9AA2B5; margin-bottom:14px;">Value by Game</div>
+              <div style="display:flex; flex-direction:column; gap:11px;">
+                <div style="display:flex; align-items:center; gap:12px;"><span style="font-size:12px; color:#C2C9D6; width:80px; flex:none;">Fantasy TCG</span><span style="flex:1; height:8px; border-radius:5px; background:#1A2030; overflow:hidden;"><span style="display:block; height:100%; width:90%; border-radius:5px; background:var(--accent,#6E7BF2);"></span></span><span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#828BA0; width:30px; text-align:right;">$58</span></div>
+                <div style="display:flex; align-items:center; gap:12px;"><span style="font-size:12px; color:#C2C9D6; width:80px; flex:none;">Basketball</span><span style="flex:1; height:8px; border-radius:5px; background:#1A2030; overflow:hidden;"><span style="display:block; height:100%; width:71%; border-radius:5px; background:var(--accent,#6E7BF2);"></span></span><span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#828BA0; width:30px; text-align:right;">$46</span></div>
+                <div style="display:flex; align-items:center; gap:12px;"><span style="font-size:12px; color:#C2C9D6; width:80px; flex:none;">Sci-Fi TCG</span><span style="flex:1; height:8px; border-radius:5px; background:#1A2030; overflow:hidden;"><span style="display:block; height:100%; width:57%; border-radius:5px; background:var(--accent,#6E7BF2);"></span></span><span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#828BA0; width:30px; text-align:right;">$37</span></div>
+                <div style="display:flex; align-items:center; gap:12px;"><span style="font-size:12px; color:#C2C9D6; width:80px; flex:none;">Baseball</span><span style="flex:1; height:8px; border-radius:5px; background:#1A2030; overflow:hidden;"><span style="display:block; height:100%; width:28%; border-radius:5px; background:var(--accent,#6E7BF2);"></span></span><span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#828BA0; width:30px; text-align:right;">$18</span></div>
+              </div>
+            </div>
+            <div style="padding:16px 18px; border-radius:12px; background:#101521; border:1px solid rgba(255,255,255,.06);">
+              <div style="font-size:12.5px; color:#9AA2B5; margin-bottom:14px;">Cards by Grade</div>
+              <div style="display:flex; flex-direction:column; gap:11px;">
+                <div style="display:flex; align-items:center; gap:12px;"><span style="font-size:12px; color:#C2C9D6; width:74px; flex:none;">Gem Mint</span><span style="flex:1; height:8px; border-radius:5px; background:#1A2030; overflow:hidden;"><span style="display:block; height:100%; width:60%; border-radius:5px; background:#2BD17E;"></span></span><span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#828BA0; width:14px; text-align:right;">2</span></div>
+                <div style="display:flex; align-items:center; gap:12px;"><span style="font-size:12px; color:#C2C9D6; width:74px; flex:none;">Mint</span><span style="flex:1; height:8px; border-radius:5px; background:#1A2030; overflow:hidden;"><span style="display:block; height:100%; width:32%; border-radius:5px; background:#5BE08A;"></span></span><span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#828BA0; width:14px; text-align:right;">1</span></div>
+                <div style="display:flex; align-items:center; gap:12px;"><span style="font-size:12px; color:#C2C9D6; width:74px; flex:none;">Near Mint</span><span style="flex:1; height:8px; border-radius:5px; background:#1A2030; overflow:hidden;"><span style="display:block; height:100%; width:100%; border-radius:5px; background:#A7E05A;"></span></span><span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#828BA0; width:14px; text-align:right;">4</span></div>
+                <div style="display:flex; align-items:center; gap:12px;"><span style="font-size:12px; color:#C2C9D6; width:74px; flex:none;">Excellent</span><span style="flex:1; height:8px; border-radius:5px; background:#1A2030; overflow:hidden;"><span style="display:block; height:100%; width:60%; border-radius:5px; background:#F5C842;"></span></span><span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#828BA0; width:14px; text-align:right;">2</span></div>
+                <div style="display:flex; align-items:center; gap:12px;"><span style="font-size:12px; color:#C2C9D6; width:74px; flex:none;">Very Good</span><span style="flex:1; height:8px; border-radius:5px; background:#1A2030; overflow:hidden;"><span style="display:block; height:100%; width:32%; border-radius:5px; background:#F2A33C;"></span></span><span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#828BA0; width:14px; text-align:right;">1</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </section>
 
-  <section id="features">
-    <h2>What Lorebox does</h2>
-    <p class="sub">A complete, local-first toolkit for collectors.</p>
-    <div class="grid">
-      <div class="card"><span class="emoji">🔎</span><h3>Smart identification</h3>
-        <p>Scan a card or import an image and Lorebox reads the name, set, number, year, and game automatically.</p></div>
-      <div class="card"><span class="emoji">📊</span><h3>Condition grading</h3>
-        <p>An automated visual inspection estimates each card's condition — corners, edges, surface, centering.</p></div>
-      <div class="card"><span class="emoji">💰</span><h3>Market value estimates</h3>
-        <p>Live pricing from official sources (Scryfall for Magic, eBay for the rest), adjusted for condition.</p></div>
-      <div class="card"><span class="emoji">📦</span><h3>Batch &amp; PDF import</h3>
-        <p>Import whole folders or PDFs, pair fronts and backs automatically, and even auto-import on a schedule.</p></div>
-      <div class="card"><span class="emoji">📈</span><h3>Dashboard &amp; reports</h3>
-        <p>See total value, value over time, breakdowns by game and grade, and set-completion progress.</p></div>
-      <div class="card"><span class="emoji">🔒</span><h3>Private by design</h3>
-        <p>No accounts, no tracking, no cloud. Your collection lives in a local database on your PC.</p></div>
-    </div>
+  <!-- ============ FEATURES ============ -->
+  <section id="features" style="padding:120px 40px 96px;">
+    <div style="max-width:1200px; margin:0 auto;">
+      <div style="text-align:center; margin-bottom:56px;">
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:.2em; color:var(--accent,#6E7BF2); margin-bottom:16px;">WHAT LOREBOX DOES</div>
+        <h2 style="font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:42px; letter-spacing:-.02em; color:#EEF1F7; margin:0;">A complete, local-first toolkit for collectors</h2>
+      </div>
 
-    <div class="note">
-      <strong>Estimates, not guarantees.</strong> Values and condition grades are automated estimates to
-      help you organize and explore your collection — they are not guaranteed sale prices, professional
-      appraisals, or a substitute for a professional grading service.
+      <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:18px;">
+        <!-- 1 -->
+        <div style="padding:30px; border-radius:15px; background:#141925; border:1px solid rgba(255,255,255,.07);">
+          <div style="width:46px; height:46px; border-radius:12px; background:rgba(110,123,242,.14); display:flex; align-items:center; justify-content:center; margin-bottom:22px;"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="var(--accent,#6E7BF2)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="12" r="3"/></svg></div>
+          <h3 style="font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:20px; color:#EEF1F7; margin:0 0 10px;">Smart identification</h3>
+          <p style="font-size:14.5px; line-height:1.62; color:#828BA0; margin:0;">Scan a card or import an image and Lorebox reads the name, set, number, year, and game automatically.</p>
+        </div>
+        <!-- 2 -->
+        <div style="padding:30px; border-radius:15px; background:#141925; border:1px solid rgba(255,255,255,.07);">
+          <div style="width:46px; height:46px; border-radius:12px; background:rgba(43,209,126,.13); display:flex; align-items:center; justify-content:center; margin-bottom:22px;"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#2BD17E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></div>
+          <h3 style="font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:20px; color:#EEF1F7; margin:0 0 10px;">Condition grading</h3>
+          <p style="font-size:14.5px; line-height:1.62; color:#828BA0; margin:0;">An automated visual inspection estimates each card's condition — corners, edges, surface, centering.</p>
+        </div>
+        <!-- 3 -->
+        <div style="padding:30px; border-radius:15px; background:#141925; border:1px solid rgba(255,255,255,.07);">
+          <div style="width:46px; height:46px; border-radius:12px; background:rgba(245,200,66,.12); display:flex; align-items:center; justify-content:center; margin-bottom:22px;"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#F5C842" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 4 4 8-9"/><path d="M16 7h5v5"/></svg></div>
+          <h3 style="font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:20px; color:#EEF1F7; margin:0 0 10px;">Market value estimates</h3>
+          <p style="font-size:14.5px; line-height:1.62; color:#828BA0; margin:0;">Live pricing from official sources (Scryfall for Magic, eBay for the rest), adjusted for condition.</p>
+        </div>
+        <!-- 4 -->
+        <div style="padding:30px; border-radius:15px; background:#141925; border:1px solid rgba(255,255,255,.07);">
+          <div style="width:46px; height:46px; border-radius:12px; background:rgba(110,123,242,.14); display:flex; align-items:center; justify-content:center; margin-bottom:22px;"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="var(--accent,#6E7BF2)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 9 4.5-9 4.5-9-4.5L12 2Z"/><path d="m3 12 9 4.5 9-4.5M3 17l9 4.5 9-4.5"/></svg></div>
+          <h3 style="font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:20px; color:#EEF1F7; margin:0 0 10px;">Batch &amp; PDF import</h3>
+          <p style="font-size:14.5px; line-height:1.62; color:#828BA0; margin:0;">Import whole folders or PDFs, pair fronts and backs automatically, and even auto-import on a schedule.</p>
+        </div>
+        <!-- 5 -->
+        <div style="padding:30px; border-radius:15px; background:#141925; border:1px solid rgba(255,255,255,.07);">
+          <div style="width:46px; height:46px; border-radius:12px; background:rgba(43,209,126,.13); display:flex; align-items:center; justify-content:center; margin-bottom:22px;"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#2BD17E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6"/><rect x="12.5" y="7" width="3" height="10"/><rect x="18" y="13" width="3" height="4"/></svg></div>
+          <h3 style="font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:20px; color:#EEF1F7; margin:0 0 10px;">Dashboard &amp; reports</h3>
+          <p style="font-size:14.5px; line-height:1.62; color:#828BA0; margin:0;">See total value, value over time, breakdowns by game and grade, and set-completion progress.</p>
+        </div>
+        <!-- 6 -->
+        <div style="padding:30px; border-radius:15px; background:#141925; border:1px solid rgba(255,255,255,.07);">
+          <div style="width:46px; height:46px; border-radius:12px; background:rgba(245,200,66,.12); display:flex; align-items:center; justify-content:center; margin-bottom:22px;"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#F5C842" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg></div>
+          <h3 style="font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:20px; color:#EEF1F7; margin:0 0 10px;">Private by design</h3>
+          <p style="font-size:14.5px; line-height:1.62; color:#828BA0; margin:0;">No accounts, no tracking, no cloud. Your collection lives in a local database on your PC.</p>
+        </div>
+      </div>
     </div>
   </section>
 
-  <footer>
-    <div>
-      <a href="privacy.html">Privacy Policy</a> ·
-      <a href="mailto:contact@loreboxapp.dev">contact@loreboxapp.dev</a> ·
-      <a href="https://github.com/doghigh/CardTCGApp">Open source (AGPL-3.0)</a>
+  <!-- ============ PRIVACY BAND ============ -->
+  <section id="privacy" style="padding:30px 40px 96px;">
+    <div style="max-width:1200px; margin:0 auto; border-radius:20px; overflow:hidden; border:1px solid rgba(110,123,242,.2); background:linear-gradient(135deg,#161B2C,#0E121C); position:relative;">
+      <div style="position:absolute; top:-120px; right:-60px; width:420px; height:420px; border-radius:50%; background:radial-gradient(circle, rgba(110,123,242,.16), transparent 65%);"></div>
+      <div style="position:relative; display:grid; grid-template-columns:1.1fr .9fr; gap:40px; align-items:center; padding:54px 56px;">
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:.18em; color:var(--accent,#6E7BF2); margin-bottom:18px;">PRIVATE BY DESIGN</div>
+          <h2 style="font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:36px; line-height:1.15; letter-spacing:-.02em; color:#EEF1F7; margin:0 0 18px;">Your collection never leaves your computer.</h2>
+          <p style="font-size:16px; line-height:1.62; color:#9AA2B5; margin:0 0 24px;">No account required. No subscription. No cloud sync. Even the AI identification runs against your own API key — your scans are never collected or sold.</p>
+          <div style="display:flex; flex-wrap:wrap; gap:10px;">
+            <span style="display:inline-flex; align-items:center; gap:8px; padding:9px 14px; border-radius:9px; background:#11151F; border:1px solid rgba(255,255,255,.08); font-size:13px; color:#C2C9D6;"><span style="width:7px;height:7px;border-radius:50%;background:#2BD17E;"></span>Local database</span>
+            <span style="display:inline-flex; align-items:center; gap:8px; padding:9px 14px; border-radius:9px; background:#11151F; border:1px solid rgba(255,255,255,.08); font-size:13px; color:#C2C9D6;"><span style="width:7px;height:7px;border-radius:50%;background:#2BD17E;"></span>No tracking</span>
+            <span style="display:inline-flex; align-items:center; gap:8px; padding:9px 14px; border-radius:9px; background:#11151F; border:1px solid rgba(255,255,255,.08); font-size:13px; color:#C2C9D6;"><span style="width:7px;height:7px;border-radius:50%;background:#2BD17E;"></span>Open source · AGPL-3.0</span>
+          </div>
+        </div>
+        <div style="display:flex; align-items:center; justify-content:center;">
+          <div style="position:relative; width:170px; height:170px;">
+            <div style="position:absolute; inset:0; border-radius:24px; background:#11151F; border:1px solid rgba(255,255,255,.08); display:flex; align-items:center; justify-content:center;">
+              <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--accent,#6E7BF2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4.5"/></svg>
+            </div>
+            <div style="position:absolute; top:-12px; right:-12px; padding:7px 12px; border-radius:100px; background:#0B0E15; border:1px solid rgba(255,255,255,.1); font-family:'IBM Plex Mono',monospace; font-size:11px; color:#2BD17E;">100% local</div>
+          </div>
+        </div>
+      </div>
     </div>
-    <p class="disclaim">© 2026 Jesse Catlow. Lorebox is an independent application and is not affiliated with,
-       endorsed by, or sponsored by Anthropic, eBay, Scryfall, The Topps Company, Wizards of the Coast,
-       or any trading card manufacturer. Product names and trademarks are the property of their respective owners.</p>
+  </section>
+
+  <!-- ============ DISCLAIMER ============ -->
+  <section style="padding:0 40px 80px;">
+    <div style="max-width:900px; margin:0 auto; padding:22px 26px; border-radius:13px; background:#101521; border:1px solid rgba(255,255,255,.07); display:flex; gap:16px; align-items:flex-start;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#828BA0" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex:none; margin-top:2px;"><circle cx="12" cy="12" r="10"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+      <p style="font-size:13.5px; line-height:1.6; color:#828BA0; margin:0;"><span style="color:#C2C9D6; font-weight:600;">Estimates, not guarantees.</span> Values and condition grades are automated estimates to help you organize and explore your collection — they are not guaranteed sale prices, professional appraisals, or a substitute for a professional grading service.</p>
+    </div>
+  </section>
+
+  <!-- ============ FINAL CTA ============ -->
+  <section style="padding:0 40px 110px;">
+    <div style="max-width:1200px; margin:0 auto; text-align:center; padding:80px 40px; border-radius:22px; background:radial-gradient(ellipse at center top, rgba(110,123,242,.16), transparent 70%), #0E121C; border:1px solid rgba(255,255,255,.08);">
+      <h2 style="font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:48px; letter-spacing:-.025em; color:#EEF1F7; margin:0 0 18px; text-wrap:balance;">Start cataloging in minutes.</h2>
+      <p style="font-size:18px; color:#9AA2B5; margin:0 auto 36px; max-width:48ch;">Free, open source, and entirely yours. Download Lorebox from the Microsoft Store.</p>
+      <a href="https://apps.microsoft.com/store/detail/9N94V4458M3V" style="display:inline-flex; align-items:center; gap:11px; font-weight:600; font-size:16px; color:#fff; background:var(--accent,#6E7BF2); padding:17px 30px; border-radius:12px; box-shadow:0 14px 40px -12px var(--accent,#6E7BF2);">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="#fff"><path d="M3 3h8v8H3V3Zm10 0h8v8h-8V3ZM3 13h8v8H3v-8Zm10 0h8v8h-8v-8Z"/></svg>
+        Get it on the Microsoft Store
+      </a>
+    </div>
+  </section>
+
+  <!-- ============ FOOTER ============ -->
+  <footer style="border-top:1px solid rgba(255,255,255,.07); padding:50px 40px 60px;">
+    <div style="max-width:1200px; margin:0 auto;">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:22px; padding-bottom:32px; border-bottom:1px solid rgba(255,255,255,.06);">
+        <div style="display:flex; align-items:center; gap:13px;">
+          <svg viewBox="0 0 48 48" fill="none" style="width:30px; height:30px;"><rect x="19.5" y="5.5" width="17" height="24" rx="2.6" transform="rotate(8 28 17.5)" fill="#2BD17E"/><rect x="11.5" y="6.5" width="17" height="24" rx="2.6" transform="rotate(-7 20 18.5)" fill="var(--accent,#6E7BF2)"/><path d="M5.5 23 L42.5 23 L39.6 41.4 Q39.3 43.5 37.1 43.5 L10.9 43.5 Q8.7 43.5 8.4 41.4 Z" fill="#0B0E15" stroke="rgba(255,255,255,.16)" stroke-width="1.4"/><path d="M5.5 23 L24 28 L42.5 23" fill="none" stroke="rgba(255,255,255,.26)" stroke-width="1.4" stroke-linejoin="round"/></svg>
+          <span style="font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:19px; color:#EEF1F7;">Lorebox</span>
+        </div>
+        <div style="display:flex; gap:28px; align-items:center;">
+          <a href="https://loreboxapp.dev/privacy.html" style="font-size:14px; color:#9AA2B5;">Privacy Policy</a>
+          <a href="https://github.com/doghigh/CardTCGApp" style="font-size:14px; color:#9AA2B5;">Open source (AGPL-3.0)</a>
+          <a href="https://apps.microsoft.com/store/detail/9N94V4458M3V" style="font-size:14px; color:#9AA2B5;">Microsoft Store</a>
+        </div>
+      </div>
+      <p style="font-size:12.5px; line-height:1.65; color:#586074; margin:26px 0 0; max-width:90ch;">© 2026 Jesse Catlow. Lorebox is an independent application and is not affiliated with, endorsed by, or sponsored by Anthropic, eBay, Scryfall, The Topps Company, Wizards of the Coast, or any trading card manufacturer. Product names and trademarks are the property of their respective owners.</p>
+    </div>
   </footer>
 
 </div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;accentColor&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#6E7BF2&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;#6E7BF2&quot;,&quot;#22D3EE&quot;,&quot;#34D399&quot;,&quot;#C99A4B&quot;,&quot;#F472B6&quot;]},&quot;tiltHero&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic {
+  componentDidMount() { this.apply(); }
+  componentDidUpdate() { this.apply(); }
+  apply() {
+    const a = this.props.accentColor || '#6E7BF2';
+    document.documentElement.style.setProperty('--accent', a);
+    const dash = document.getElementById('lb-dash');
+    if (dash) {
+      const tilt = this.props.tiltHero ?? true;
+      dash.style.transform = tilt ? 'perspective(2200px) rotateX(3deg)' : 'none';
+    }
+  }
+  renderVals() { return {}; }
+}
+</script>
 </body>
 </html>
