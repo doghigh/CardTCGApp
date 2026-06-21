@@ -132,7 +132,7 @@
   }
 
   /* ── SCENE 3: SCAN & ADD ── */
-  #s3 { background: #0d0e22; padding: 20px; }
+  #s3 { background: #0d0e22; padding: 16px; justify-content: flex-start; padding-top: 22px; }
 
   .scene-label {
     font-size: 0.7rem;
@@ -140,16 +140,16 @@
     text-transform: uppercase;
     color: #7c4dff;
     font-weight: 700;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
     align-self: flex-start;
     animation: fadeUp 0.4s ease both;
   }
   .scene-title {
-    font-size: 1.5rem;
+    font-size: 1.35rem;
     font-weight: 800;
     color: #fff;
     align-self: flex-start;
-    margin-bottom: 18px;
+    margin-bottom: 12px;
     line-height: 1.2;
     animation: fadeUp 0.4s 0.1s ease both;
   }
@@ -159,17 +159,18 @@
     background: #13142a;
     border-radius: 12px;
     border: 1px solid #2a2a4a;
-    padding: 14px;
+    padding: 10px;
     animation: fadeUp 0.4s 0.2s ease both;
+    margin-bottom: 12px;
   }
   .scan-panels {
     display: flex;
-    gap: 10px;
-    margin-bottom: 12px;
+    gap: 8px;
+    margin-bottom: 10px;
   }
   .scan-panel {
     flex: 1;
-    aspect-ratio: 2/3;
+    height: 80px;
     background: #0a0b1a;
     border-radius: 8px;
     border: 2px dashed #2a2a4a;
@@ -180,22 +181,41 @@
     color: #444;
     flex-direction: column;
     gap: 4px;
+    position: relative;
+    overflow: hidden;
   }
   .scan-panel .label { color: #555; font-size: 0.55rem; }
-  .card-icon { font-size: 1.2rem; }
+  .card-icon { font-size: 1.1rem; }
+
+  /* scan line sweep */
+  .scan-line {
+    position: absolute;
+    left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #7c4dff, #06b6d4, transparent);
+    box-shadow: 0 0 8px #7c4dff;
+    animation: scanSweep 1.2s ease-in-out infinite;
+    top: 0;
+  }
+  @keyframes scanSweep {
+    0%   { top: 0%;   opacity: 0; }
+    10%  { opacity: 1; }
+    90%  { opacity: 1; }
+    100% { top: 100%; opacity: 0; }
+  }
 
   .card-details {
     background: #0a0b1a;
     border-radius: 8px;
-    padding: 10px;
+    padding: 8px;
     border: 1px solid #1e1e3a;
   }
   .detail-row {
     display: flex;
     justify-content: space-between;
-    padding: 4px 0;
+    padding: 3px 0;
     border-bottom: 1px solid #1a1a30;
-    font-size: 0.65rem;
+    font-size: 0.62rem;
   }
   .detail-row:last-child { border-bottom: none; }
   .detail-key { color: #666; }
@@ -203,13 +223,65 @@
   .detail-val.accent { color: #7c4dff; }
   .detail-val.gold { color: #f0b429; }
 
+  /* ── COLLECTION GRID ── */
+  .collection-section {
+    width: 100%;
+    animation: fadeUp 0.4s 0.5s ease both;
+  }
+  .collection-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .collection-header-label {
+    font-size: 0.62rem;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+  }
+  .coll-counter {
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: #7c4dff;
+    transition: transform 0.15s ease;
+  }
+  .coll-counter.bump { transform: scale(1.4); }
+
+  .collection-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+  }
+  .coll-card {
+    aspect-ratio: 2/3;
+    border-radius: 5px;
+    border: 1.5px solid rgba(255,255,255,0.08);
+    opacity: 0;
+    transform: scale(0.5) translateY(10px);
+    transition: opacity 0.25s ease, transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    position: relative;
+    overflow: hidden;
+  }
+  .coll-card.popped {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  .coll-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, transparent 60%);
+  }
+  /* flash on pop */
+  .coll-card.flash { box-shadow: 0 0 10px var(--accent-color, #7c4dff); }
+
   .scan-cta {
-    margin-top: 14px;
-    font-size: 1rem;
+    margin-top: 10px;
+    font-size: 0.9rem;
     font-weight: 700;
     color: #fff;
     text-align: center;
-    animation: fadeUp 0.4s 0.4s ease both;
   }
   .scan-cta span { color: #7c4dff; }
 
@@ -496,14 +568,16 @@
   <!-- SCENE 3: SCAN & ADD -->
   <div class="scene" id="s3">
     <div class="scene-label">Feature 01</div>
-    <div class="scene-title">Scan &amp; Identify<br>Any Card</div>
+    <div class="scene-title">Scan &amp; Add<br>Any Card</div>
     <div class="scan-ui">
       <div class="scan-panels">
         <div class="scan-panel">
+          <div class="scan-line"></div>
           <div class="card-icon">🃏</div>
           <div class="label">Front</div>
         </div>
         <div class="scan-panel">
+          <div class="scan-line" style="animation-delay:0.6s"></div>
           <div class="card-icon">🃏</div>
           <div class="label">Back</div>
         </div>
@@ -512,11 +586,20 @@
         <div class="detail-row"><span class="detail-key">Name</span><span class="detail-val accent">Aetherwing Drake</span></div>
         <div class="detail-row"><span class="detail-key">Set</span><span class="detail-val">Mythic Origins</span></div>
         <div class="detail-row"><span class="detail-key">Rarity</span><span class="detail-val gold">Mythic Rare</span></div>
-        <div class="detail-row"><span class="detail-key">Game</span><span class="detail-val">Fantasy TCG</span></div>
         <div class="detail-row"><span class="detail-key">Foil</span><span class="detail-val accent">Holographic</span></div>
       </div>
     </div>
-    <div class="scan-cta">Details fill <span>instantly.</span></div>
+
+    <!-- COLLECTION POPULATING -->
+    <div class="collection-section">
+      <div class="collection-header">
+        <span class="collection-header-label">Your Collection</span>
+        <span class="coll-counter" id="collCount">0 cards</span>
+      </div>
+      <div class="collection-grid" id="collGrid"></div>
+    </div>
+
+    <div class="scan-cta">Cards added <span>instantly.</span></div>
   </div>
 
   <!-- SCENE 4: DASHBOARD -->
@@ -632,6 +715,53 @@ function setupVortex() {
   }
 }
 
+// ── Collection card data ──
+const COLL_CARDS = [
+  { bg: 'linear-gradient(135deg,#2a1a5a,#1a2a6a)', accent: '#7c4dff' },
+  { bg: 'linear-gradient(135deg,#1a3a1a,#1a4a2a)', accent: '#22c55e' },
+  { bg: 'linear-gradient(135deg,#3a1a1a,#4a2a1a)', accent: '#f0b429' },
+  { bg: 'linear-gradient(135deg,#1a2a3a,#1a3a4a)', accent: '#06b6d4' },
+  { bg: 'linear-gradient(135deg,#3a2a1a,#4a1a1a)', accent: '#f97316' },
+  { bg: 'linear-gradient(135deg,#2a1a4a,#1a1a5a)', accent: '#a78bfa' },
+  { bg: 'linear-gradient(135deg,#1a3a2a,#0a4a3a)', accent: '#34d399' },
+  { bg: 'linear-gradient(135deg,#3a1a2a,#4a1a3a)', accent: '#f472b6' },
+  { bg: 'linear-gradient(135deg,#2a2a1a,#3a3a1a)', accent: '#facc15' },
+  { bg: 'linear-gradient(135deg,#1a1a3a,#2a1a5a)', accent: '#818cf8' },
+];
+
+let collTimer = null;
+
+function buildCollGrid() {
+  const grid = document.getElementById('collGrid');
+  grid.innerHTML = '';
+  COLL_CARDS.forEach((c) => {
+    const el = document.createElement('div');
+    el.className = 'coll-card';
+    el.style.background = c.bg;
+    el.style.setProperty('--accent-color', c.accent);
+    grid.appendChild(el);
+  });
+}
+
+function startCollAnimation() {
+  clearInterval(collTimer);
+  const counter = document.getElementById('collCount');
+  const cards = document.querySelectorAll('.coll-card');
+  cards.forEach(c => { c.classList.remove('popped', 'flash'); });
+  counter.textContent = '0 cards';
+  let idx = 0;
+  collTimer = setInterval(() => {
+    if (idx >= cards.length) { clearInterval(collTimer); return; }
+    const card = cards[idx];
+    card.classList.add('popped', 'flash');
+    setTimeout(() => card.classList.remove('flash'), 300);
+    idx++;
+    counter.textContent = idx + (idx === 1 ? ' card' : ' cards');
+    counter.classList.add('bump');
+    setTimeout(() => counter.classList.remove('bump'), 200);
+  }, 420);
+}
+
 // ── Counter animation ──
 function animateCounter(el, target, duration) {
   const start = performance.now();
@@ -684,6 +814,7 @@ function tick(ts) {
   if (target !== currentScene) {
     currentScene = target;
     showScene(currentScene);
+    if (currentScene === 2) startCollAnimation(); // scene index 2 = s3
   }
 
   if (elapsed >= TOTAL) {
@@ -701,6 +832,8 @@ document.getElementById('replay-btn').addEventListener('click', () => {
   elapsed = 0;
   startTime = null;
   running = true;
+  clearInterval(collTimer);
+  buildCollGrid();
   showScene(0);
   requestAnimationFrame(tick);
 });
@@ -708,6 +841,7 @@ document.getElementById('replay-btn').addEventListener('click', () => {
 // ── Init ──
 setupRain();
 setupVortex();
+buildCollGrid();
 requestAnimationFrame(tick);
 </script>
 </body>
