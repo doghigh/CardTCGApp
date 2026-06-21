@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lorebox – Short Form Promo</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+  }
+
+  #stage {
+    width: 405px;
+    height: 720px;
+    position: relative;
+    overflow: hidden;
+    background: #0a0b1a;
+    border-radius: 24px;
+    box-shadow: 0 0 80px #5b3ef855;
+  }
+
+  /* ── SCENES ── */
+  .scene {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .scene.active { opacity: 1; pointer-events: auto; }
+
+  /* ── SCENE 1: HOOK ── */
+  #s1 { background: #06071a; }
+
+  .card-rain {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .rain-card {
+    position: absolute;
+    width: 52px;
+    height: 72px;
+    border-radius: 5px;
+    border: 1.5px solid rgba(255,255,255,0.15);
+    background: linear-gradient(135deg, #1a1a3a, #2a1a4a);
+    animation: fall linear infinite;
+    opacity: 0;
+  }
+  @keyframes fall {
+    0%   { transform: translateY(-80px) rotate(var(--r)); opacity: 0; }
+    10%  { opacity: 0.85; }
+    90%  { opacity: 0.85; }
+    100% { transform: translateY(780px) rotate(calc(var(--r) + 30deg)); opacity: 0; }
+  }
+
+  .hook-text {
+    position: relative;
+    z-index: 10;
+    text-align: center;
+    animation: punchIn 0.4s cubic-bezier(0.22,1,0.36,1) both;
+  }
+  .hook-text h1 {
+    font-size: 2.4rem;
+    font-weight: 900;
+    color: #fff;
+    line-height: 1.1;
+    letter-spacing: -1px;
+    text-shadow: 0 0 30px #7c4dff88;
+  }
+  .hook-text h1 span { color: #7c4dff; }
+  .hook-text p {
+    margin-top: 14px;
+    font-size: 1.1rem;
+    color: #aaa;
+    font-weight: 500;
+  }
+  @keyframes punchIn {
+    0%   { transform: scale(1.5); opacity: 0; }
+    100% { transform: scale(1);   opacity: 1; }
+  }
+
+  /* ── SCENE 2: TRANSITION ── */
+  #s2 { background: radial-gradient(ellipse at center, #150d30 0%, #06071a 100%); }
+
+  .vortex {
+    width: 200px;
+    height: 200px;
+    position: relative;
+    margin-bottom: 28px;
+    animation: spinVortex 1.2s linear infinite;
+  }
+  @keyframes spinVortex {
+    to { transform: rotate(360deg); }
+  }
+  .vortex-card {
+    position: absolute;
+    width: 36px;
+    height: 50px;
+    border-radius: 4px;
+    background: linear-gradient(135deg, #3a1a6a, #1a2a6a);
+    border: 1px solid #7c4dff55;
+  }
+
+  #s2 h2 {
+    font-size: 2rem;
+    font-weight: 800;
+    color: #fff;
+    text-align: center;
+    animation: fadeUp 0.5s ease both;
+  }
+  #s2 h2 span { color: #7c4dff; }
+  #s2 p {
+    margin-top: 10px;
+    color: #888;
+    font-size: 0.95rem;
+    animation: fadeUp 0.5s 0.2s ease both;
+  }
+  @keyframes fadeUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to   { transform: translateY(0);    opacity: 1; }
+  }
+
+  /* ── SCENE 3: SCAN & ADD ── */
+  #s3 { background: #0d0e22; padding: 16px; justify-content: flex-start; padding-top: 22px; }
+
+  .scene-label {
+    font-size: 0.7rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #7c4dff;
+    font-weight: 700;
+    margin-bottom: 6px;
+    align-self: flex-start;
+    animation: fadeUp 0.4s ease both;
+  }
+  .scene-title {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: #fff;
+    align-self: flex-start;
+    margin-bottom: 12px;
+    line-height: 1.2;
+    animation: fadeUp 0.4s 0.1s ease both;
+  }
+
+  .scan-ui {
+    width: 100%;
+    background: #13142a;
+    border-radius: 12px;
+    border: 1px solid #2a2a4a;
+    padding: 10px;
+    animation: fadeUp 0.4s 0.2s ease both;
+    margin-bottom: 12px;
+  }
+  .scan-panels {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .scan-panel {
+    flex: 1;
+    height: 80px;
+    background: #0a0b1a;
+    border-radius: 8px;
+    border: 2px dashed #2a2a4a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.6rem;
+    color: #444;
+    flex-direction: column;
+    gap: 4px;
+    position: relative;
+    overflow: hidden;
+  }
+  .scan-panel .label { color: #555; font-size: 0.55rem; }
+  .card-icon { font-size: 1.1rem; }
+
+  /* scan line sweep */
+  .scan-line {
+    position: absolute;
+    left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #7c4dff, #06b6d4, transparent);
+    box-shadow: 0 0 8px #7c4dff;
+    animation: scanSweep 1.2s ease-in-out infinite;
+    top: 0;
+  }
+  @keyframes scanSweep {
+    0%   { top: 0%;   opacity: 0; }
+    10%  { opacity: 1; }
+    90%  { opacity: 1; }
+    100% { top: 100%; opacity: 0; }
+  }
+
+  .card-details {
+    background: #0a0b1a;
+    border-radius: 8px;
+    padding: 8px;
+    border: 1px solid #1e1e3a;
+  }
+  .detail-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 0;
+    border-bottom: 1px solid #1a1a30;
+    font-size: 0.62rem;
+  }
+  .detail-row:last-child { border-bottom: none; }
+  .detail-key { color: #666; }
+  .detail-val { color: #ccc; font-weight: 600; }
+  .detail-val.accent { color: #7c4dff; }
+  .detail-val.gold { color: #f0b429; }
+
+  /* ── COLLECTION GRID ── */
+  .collection-section {
+    width: 100%;
+    animation: fadeUp 0.4s 0.5s ease both;
+  }
+  .collection-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .collection-header-label {
+    font-size: 0.62rem;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+  }
+  .coll-counter {
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: #7c4dff;
+    transition: transform 0.15s ease;
+  }
+  .coll-counter.bump { transform: scale(1.4); }
+
+  .collection-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+  }
+  .coll-card {
+    aspect-ratio: 2/3;
+    border-radius: 5px;
+    border: 1.5px solid rgba(255,255,255,0.08);
+    opacity: 0;
+    transform: scale(0.5) translateY(10px);
+    transition: opacity 0.25s ease, transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    position: relative;
+    overflow: hidden;
+  }
+  .coll-card.popped {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  .coll-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, transparent 60%);
+  }
+  /* flash on pop */
+  .coll-card.flash { box-shadow: 0 0 10px var(--accent-color, #7c4dff); }
+
+  .scan-cta {
+    margin-top: 10px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #fff;
+    text-align: center;
+  }
+  .scan-cta span { color: #7c4dff; }
+
+  /* ── SCENE 4: DASHBOARD ── */
+  #s4 { background: #0d0e22; padding: 20px; }
+
+  .stat-row {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+    margin-bottom: 14px;
+    animation: fadeUp 0.4s 0.15s ease both;
+  }
+  .stat-box {
+    flex: 1;
+    background: #13142a;
+    border-radius: 10px;
+    padding: 10px 8px;
+    border: 1px solid #2a2a4a;
+    text-align: center;
+  }
+  .stat-val {
+    font-size: 1rem;
+    font-weight: 800;
+    color: #fff;
+  }
+  .stat-val.green { color: #22c55e; }
+  .stat-val.purple { color: #7c4dff; }
+  .stat-key {
+    font-size: 0.55rem;
+    color: #555;
+    margin-top: 2px;
+  }
+
+  .chart-box {
+    width: 100%;
+    background: #13142a;
+    border-radius: 10px;
+    padding: 12px;
+    border: 1px solid #2a2a4a;
+    margin-bottom: 12px;
+    animation: fadeUp 0.4s 0.25s ease both;
+  }
+  .chart-label { font-size: 0.6rem; color: #555; margin-bottom: 8px; }
+  .chart-line {
+    width: 100%;
+    height: 50px;
+  }
+
+  .grade-box {
+    width: 100%;
+    background: #13142a;
+    border-radius: 10px;
+    padding: 12px;
+    border: 1px solid #2a2a4a;
+    animation: fadeUp 0.4s 0.35s ease both;
+  }
+  .grade-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .grade-row:last-child { margin-bottom: 0; }
+  .grade-name { font-size: 0.62rem; color: #aaa; width: 70px; flex-shrink: 0; }
+  .grade-bar-bg { flex: 1; height: 8px; background: #1a1a35; border-radius: 4px; overflow: hidden; }
+  .grade-bar { height: 100%; border-radius: 4px; animation: growBar 1s ease both; }
+  @keyframes growBar {
+    from { width: 0 !important; }
+  }
+  .grade-bar.gem  { background: #22c55e; width: 35%; animation-delay: 0.5s; }
+  .grade-bar.mint { background: #4ade80; width: 10%; animation-delay: 0.6s; }
+  .grade-bar.near { background: #86efac; width: 40%; animation-delay: 0.7s; }
+  .grade-bar.exc  { background: #fbbf24; width: 20%; animation-delay: 0.8s; }
+
+  /* ── SCENE 5: VALUE ── */
+  #s5 { background: #0d0e22; padding: 24px; }
+
+  .big-counter {
+    font-size: 3.8rem;
+    font-weight: 900;
+    color: #22c55e;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    animation: countUp 2s ease both;
+    text-shadow: 0 0 40px #22c55e55;
+  }
+  @keyframes countUp {
+    0%   { opacity: 0; transform: scale(0.8); }
+    20%  { opacity: 1; transform: scale(1); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+  .big-label {
+    font-size: 0.75rem;
+    letter-spacing: 2px;
+    color: #555;
+    text-align: center;
+    margin-bottom: 28px;
+    text-transform: uppercase;
+    animation: fadeUp 0.4s 0.1s ease both;
+  }
+
+  .top-cards {
+    width: 100%;
+    background: #13142a;
+    border-radius: 12px;
+    padding: 14px;
+    border: 1px solid #2a2a4a;
+    animation: fadeUp 0.5s 0.3s ease both;
+  }
+  .top-cards-title { font-size: 0.65rem; color: #555; margin-bottom: 10px; letter-spacing: 1px; text-transform: uppercase; }
+  .top-card-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 7px 0;
+    border-bottom: 1px solid #1a1a30;
+  }
+  .top-card-row:last-child { border-bottom: none; }
+  .top-card-name { font-size: 0.7rem; color: #ccc; font-weight: 600; }
+  .top-card-set  { font-size: 0.58rem; color: #555; margin-top: 2px; }
+  .top-card-val  { font-size: 0.85rem; font-weight: 800; color: #22c55e; }
+
+  .value-cta {
+    margin-top: 18px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #fff;
+    text-align: center;
+    line-height: 1.4;
+    animation: fadeUp 0.5s 0.5s ease both;
+  }
+  .value-cta span { color: #22c55e; }
+
+  /* ── SCENE 6: CTA ── */
+  #s6 { background: radial-gradient(ellipse at center, #150d30 0%, #06071a 100%); }
+
+  .glow-border {
+    position: absolute;
+    inset: 8px;
+    border-radius: 20px;
+    border: 2px solid transparent;
+    background: linear-gradient(#06071a, #06071a) padding-box,
+                linear-gradient(135deg, #7c4dff, #06b6d4, #7c4dff) border-box;
+    animation: glowPulse 2s ease-in-out infinite;
+  }
+  @keyframes glowPulse {
+    0%, 100% { opacity: 0.5; box-shadow: 0 0 20px #7c4dff33; }
+    50%       { opacity: 1;   box-shadow: 0 0 50px #7c4dff88; }
+  }
+
+  .cta-logo {
+    font-size: 2.8rem;
+    font-weight: 900;
+    color: #fff;
+    letter-spacing: -2px;
+    position: relative;
+    z-index: 2;
+    animation: punchIn 0.5s ease both;
+  }
+  .cta-logo span { color: #7c4dff; }
+
+  .cta-tagline {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #fff;
+    text-align: center;
+    position: relative;
+    z-index: 2;
+    margin-top: 16px;
+    animation: fadeUp 0.5s 0.3s ease both;
+    line-height: 1.3;
+  }
+  .cta-sub {
+    font-size: 0.8rem;
+    color: #666;
+    text-align: center;
+    position: relative;
+    z-index: 2;
+    margin-top: 10px;
+    animation: fadeUp 0.5s 0.5s ease both;
+  }
+  .cta-badge {
+    margin-top: 28px;
+    background: #7c4dff;
+    color: #fff;
+    font-size: 0.85rem;
+    font-weight: 700;
+    padding: 12px 32px;
+    border-radius: 999px;
+    position: relative;
+    z-index: 2;
+    animation: fadeUp 0.5s 0.7s ease both;
+    letter-spacing: 0.5px;
+  }
+
+  /* ── PROGRESS BAR ── */
+  #progress-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #7c4dff, #06b6d4);
+    transition: width 0.1s linear;
+    z-index: 100;
+  }
+
+  /* ── REPLAY BUTTON ── */
+  #replay-btn {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.7);
+    z-index: 200;
+    flex-direction: column;
+    gap: 14px;
+    cursor: pointer;
+  }
+  #replay-btn.show { display: flex; }
+  #replay-btn span {
+    font-size: 1.1rem;
+    color: #fff;
+    font-weight: 700;
+  }
+  #replay-icon {
+    width: 60px;
+    height: 60px;
+    background: #7c4dff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6rem;
+  }
+
+  /* ── SVG CHART ── */
+  .chart-svg { overflow: visible; }
+  .chart-path {
+    fill: none;
+    stroke: url(#chartGrad);
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 300;
+    stroke-dashoffset: 300;
+    animation: drawLine 1.5s ease forwards;
+    animation-delay: 0.4s;
+  }
+  .chart-fill {
+    fill: url(#fillGrad);
+    opacity: 0;
+    animation: fadeIn 0.5s 1.8s ease forwards;
+  }
+  @keyframes drawLine {
+    to { stroke-dashoffset: 0; }
+  }
+  @keyframes fadeIn {
+    to { opacity: 0.3; }
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="progress-bar" style="width:0%"></div>
+
+  <!-- SCENE 1: HOOK -->
+  <div class="scene active" id="s1">
+    <div class="card-rain" id="cardRain"></div>
+    <div class="hook-text">
+      <h1>TOO MANY<br><span>CARDS.</span></h1>
+      <p>Not enough control.</p>
+    </div>
+  </div>
+
+  <!-- SCENE 2: TRANSITION -->
+  <div class="scene" id="s2">
+    <div class="vortex" id="vortex"></div>
+    <h2>Meet <span>Lorebox.</span></h2>
+    <p>Your collection. Organized. Valued.</p>
+  </div>
+
+  <!-- SCENE 3: SCAN & ADD -->
+  <div class="scene" id="s3">
+    <div class="scene-label">Feature 01</div>
+    <div class="scene-title">Scan &amp; Add<br>Any Card</div>
+    <div class="scan-ui">
+      <div class="scan-panels">
+        <div class="scan-panel">
+          <div class="scan-line"></div>
+          <div class="card-icon">🃏</div>
+          <div class="label">Front</div>
+        </div>
+        <div class="scan-panel">
+          <div class="scan-line" style="animation-delay:0.6s"></div>
+          <div class="card-icon">🃏</div>
+          <div class="label">Back</div>
+        </div>
+      </div>
+      <div class="card-details">
+        <div class="detail-row"><span class="detail-key">Name</span><span class="detail-val accent">Aetherwing Drake</span></div>
+        <div class="detail-row"><span class="detail-key">Set</span><span class="detail-val">Mythic Origins</span></div>
+        <div class="detail-row"><span class="detail-key">Rarity</span><span class="detail-val gold">Mythic Rare</span></div>
+        <div class="detail-row"><span class="detail-key">Foil</span><span class="detail-val accent">Holographic</span></div>
+      </div>
+    </div>
+
+    <!-- COLLECTION POPULATING -->
+    <div class="collection-section">
+      <div class="collection-header">
+        <span class="collection-header-label">Your Collection</span>
+        <span class="coll-counter" id="collCount">0 cards</span>
+      </div>
+      <div class="collection-grid" id="collGrid"></div>
+    </div>
+
+    <div class="scan-cta">Cards added <span>instantly.</span></div>
+  </div>
+
+  <!-- SCENE 4: DASHBOARD -->
+  <div class="scene" id="s4">
+    <div class="scene-label">Feature 02</div>
+    <div class="scene-title">Auto-Graded.<br>Auto-Valued.</div>
+    <div class="stat-row">
+      <div class="stat-box"><div class="stat-val purple">10</div><div class="stat-key">Unique Cards</div></div>
+      <div class="stat-box"><div class="stat-val">$157.90</div><div class="stat-key">Est. Value</div></div>
+      <div class="stat-box"><div class="stat-val green">+$81.05</div><div class="stat-key">Net P&amp;L</div></div>
+    </div>
+    <div class="chart-box">
+      <div class="chart-label">Collection Value Over Time</div>
+      <svg class="chart-svg" width="100%" height="60" viewBox="0 0 340 60">
+        <defs>
+          <linearGradient id="chartGrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#7c4dff"/>
+            <stop offset="100%" stop-color="#06b6d4"/>
+          </linearGradient>
+          <linearGradient id="fillGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#7c4dff" stop-opacity="0.4"/>
+            <stop offset="100%" stop-color="#7c4dff" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <path class="chart-fill" d="M0,55 C40,50 80,45 120,38 C160,31 200,25 240,18 C280,11 310,8 340,5 L340,60 L0,60 Z"/>
+        <path class="chart-path" d="M0,55 C40,50 80,45 120,38 C160,31 200,25 240,18 C280,11 310,8 340,5"/>
+      </svg>
+    </div>
+    <div class="grade-box">
+      <div class="grade-row"><span class="grade-name">Gem Mint</span><div class="grade-bar-bg"><div class="grade-bar gem"></div></div></div>
+      <div class="grade-row"><span class="grade-name">Near Mint</span><div class="grade-bar-bg"><div class="grade-bar near"></div></div></div>
+      <div class="grade-row"><span class="grade-name">Excellent</span><div class="grade-bar-bg"><div class="grade-bar exc"></div></div></div>
+    </div>
+  </div>
+
+  <!-- SCENE 5: VALUE -->
+  <div class="scene" id="s5">
+    <div class="big-label">Your Collection Is Estimated At</div>
+    <div class="big-counter" id="counter">$0.00</div>
+    <div class="top-cards">
+      <div class="top-cards-title">Most Valuable Cards</div>
+      <div class="top-card-row">
+        <div><div class="top-card-name">Aetherwing Drake</div><div class="top-card-set">Mythic Origins · Gem Mint</div></div>
+        <div class="top-card-val">$49.00</div>
+      </div>
+      <div class="top-card-row">
+        <div><div class="top-card-name">Orbital Dreadnought</div><div class="top-card-set">Nova Frontier · Mint</div></div>
+        <div class="top-card-val">$23.00</div>
+      </div>
+      <div class="top-card-row">
+        <div><div class="top-card-name">Eli Townsend</div><div class="top-card-set">Hardcourt Legends · Gem Mint</div></div>
+        <div class="top-card-val">$27.50</div>
+      </div>
+    </div>
+    <div class="value-cta">Always know what your<br>collection is <span>worth.</span></div>
+  </div>
+
+  <!-- SCENE 6: CTA -->
+  <div class="scene" id="s6">
+    <div class="glow-border"></div>
+    <div class="cta-logo">Lore<span>box</span></div>
+    <div class="cta-tagline">Stop guessing.<br>Start knowing.</div>
+    <div class="cta-sub">Free on Windows · Microsoft Store</div>
+    <div class="cta-badge">Get Lorebox Free →</div>
+  </div>
+
+  <!-- REPLAY -->
+  <div id="replay-btn">
+    <div id="replay-icon">↺</div>
+    <span>Watch Again</span>
+  </div>
+</div>
+
+<script>
+// Scene durations in ms
+const SCENES = [
+  { id: 's1', duration: 5000 },
+  { id: 's2', duration: 4000 },
+  { id: 's3', duration: 6000 },
+  { id: 's4', duration: 7000 },
+  { id: 's5', duration: 7000 },
+  { id: 's6', duration: 6000 },
+];
+const TOTAL = SCENES.reduce((a, s) => a + s.duration, 0);
+
+// ── Card rain setup ──
+function setupRain() {
+  const rain = document.getElementById('cardRain');
+  for (let i = 0; i < 22; i++) {
+    const c = document.createElement('div');
+    c.className = 'rain-card';
+    const left = Math.random() * 100;
+    const delay = Math.random() * 4;
+    const dur = 1.8 + Math.random() * 2.2;
+    const rot = (Math.random() - 0.5) * 60;
+    c.style.cssText = `left:${left}%;--r:${rot}deg;animation-duration:${dur}s;animation-delay:${-delay}s;`;
+    rain.appendChild(c);
+  }
+}
+
+// ── Vortex setup ──
+function setupVortex() {
+  const v = document.getElementById('vortex');
+  for (let i = 0; i < 8; i++) {
+    const c = document.createElement('div');
+    c.className = 'vortex-card';
+    const angle = (i / 8) * 360;
+    const r = 80;
+    const x = 82 + r * Math.cos(angle * Math.PI / 180) - 18;
+    const y = 75 + r * Math.sin(angle * Math.PI / 180) - 25;
+    c.style.cssText = `left:${x}px;top:${y}px;transform:rotate(${angle}deg);opacity:${0.4 + (i % 3) * 0.2}`;
+    v.appendChild(c);
+  }
+}
+
+// ── Collection card data ──
+const COLL_CARDS = [
+  { bg: 'linear-gradient(135deg,#2a1a5a,#1a2a6a)', accent: '#7c4dff' },
+  { bg: 'linear-gradient(135deg,#1a3a1a,#1a4a2a)', accent: '#22c55e' },
+  { bg: 'linear-gradient(135deg,#3a1a1a,#4a2a1a)', accent: '#f0b429' },
+  { bg: 'linear-gradient(135deg,#1a2a3a,#1a3a4a)', accent: '#06b6d4' },
+  { bg: 'linear-gradient(135deg,#3a2a1a,#4a1a1a)', accent: '#f97316' },
+  { bg: 'linear-gradient(135deg,#2a1a4a,#1a1a5a)', accent: '#a78bfa' },
+  { bg: 'linear-gradient(135deg,#1a3a2a,#0a4a3a)', accent: '#34d399' },
+  { bg: 'linear-gradient(135deg,#3a1a2a,#4a1a3a)', accent: '#f472b6' },
+  { bg: 'linear-gradient(135deg,#2a2a1a,#3a3a1a)', accent: '#facc15' },
+  { bg: 'linear-gradient(135deg,#1a1a3a,#2a1a5a)', accent: '#818cf8' },
+];
+
+let collTimer = null;
+
+function buildCollGrid() {
+  const grid = document.getElementById('collGrid');
+  grid.innerHTML = '';
+  COLL_CARDS.forEach((c) => {
+    const el = document.createElement('div');
+    el.className = 'coll-card';
+    el.style.background = c.bg;
+    el.style.setProperty('--accent-color', c.accent);
+    grid.appendChild(el);
+  });
+}
+
+function startCollAnimation() {
+  clearInterval(collTimer);
+  const counter = document.getElementById('collCount');
+  const cards = document.querySelectorAll('.coll-card');
+  cards.forEach(c => { c.classList.remove('popped', 'flash'); });
+  counter.textContent = '0 cards';
+  let idx = 0;
+  collTimer = setInterval(() => {
+    if (idx >= cards.length) { clearInterval(collTimer); return; }
+    const card = cards[idx];
+    card.classList.add('popped', 'flash');
+    setTimeout(() => card.classList.remove('flash'), 300);
+    idx++;
+    counter.textContent = idx + (idx === 1 ? ' card' : ' cards');
+    counter.classList.add('bump');
+    setTimeout(() => counter.classList.remove('bump'), 200);
+  }, 420);
+}
+
+// ── Counter animation ──
+function animateCounter(el, target, duration) {
+  const start = performance.now();
+  function tick(now) {
+    const t = Math.min((now - start) / duration, 1);
+    const ease = 1 - Math.pow(1 - t, 3);
+    const val = ease * target;
+    el.textContent = '$' + val.toFixed(2);
+    if (t < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+// ── Scene sequencer ──
+let currentScene = 0;
+let elapsed = 0;
+let startTime = null;
+let running = true;
+
+function showScene(idx) {
+  SCENES.forEach((s, i) => {
+    const el = document.getElementById(s.id);
+    el.classList.toggle('active', i === idx);
+  });
+  // Trigger counter on scene 5
+  if (idx === 4) {
+    setTimeout(() => {
+      animateCounter(document.getElementById('counter'), 157.90, 2000);
+    }, 400);
+  }
+}
+
+function tick(ts) {
+  if (!running) return;
+  if (!startTime) startTime = ts;
+  elapsed = ts - startTime;
+
+  // Progress bar
+  const pct = Math.min(elapsed / TOTAL * 100, 100);
+  document.getElementById('progress-bar').style.width = pct + '%';
+
+  // Which scene?
+  let acc = 0;
+  let target = 0;
+  for (let i = 0; i < SCENES.length; i++) {
+    acc += SCENES[i].duration;
+    if (elapsed < acc) { target = i; break; }
+    target = SCENES.length - 1;
+  }
+  if (target !== currentScene) {
+    currentScene = target;
+    showScene(currentScene);
+    if (currentScene === 2) startCollAnimation(); // scene index 2 = s3
+  }
+
+  if (elapsed >= TOTAL) {
+    running = false;
+    document.getElementById('replay-btn').classList.add('show');
+    return;
+  }
+  requestAnimationFrame(tick);
+}
+
+// ── Replay ──
+document.getElementById('replay-btn').addEventListener('click', () => {
+  document.getElementById('replay-btn').classList.remove('show');
+  currentScene = 0;
+  elapsed = 0;
+  startTime = null;
+  running = true;
+  clearInterval(collTimer);
+  buildCollGrid();
+  showScene(0);
+  requestAnimationFrame(tick);
+});
+
+// ── Init ──
+setupRain();
+setupVortex();
+buildCollGrid();
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
