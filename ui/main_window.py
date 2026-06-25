@@ -214,6 +214,10 @@ class MainWindow(QMainWindow):
         settings_action.setShortcut("Ctrl+,")
         settings_action.triggered.connect(self._open_settings)
         file_menu.addAction(settings_action)
+
+        pair_action = QAction("📱 Pair phone…", self)
+        pair_action.triggered.connect(self._open_pair_dialog)
+        file_menu.addAction(pair_action)
         file_menu.addSeparator()
 
         open_data = QAction("Open Data Folder", self)
@@ -350,6 +354,11 @@ class MainWindow(QMainWindow):
             self.identifier.reload_credentials()
             self.valuator.reload_credentials()
             self.statusBar().showMessage("✅ API keys updated", 3000)
+
+    def _open_pair_dialog(self):
+        """Open the Pair phone QR dialog for Android key provisioning."""
+        from ui.pair_dialog import PairPhoneDialog
+        PairPhoneDialog(self).exec()
 
     def _new_card(self):
         """Ctrl+N - New card."""
