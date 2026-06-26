@@ -218,6 +218,10 @@ class MainWindow(QMainWindow):
         pair_action = QAction("📱 Pair phone…", self)
         pair_action.triggered.connect(self._open_pair_dialog)
         file_menu.addAction(pair_action)
+
+        receive_action = QAction("📡 Receive from phone…", self)
+        receive_action.triggered.connect(self._open_receive_dialog)
+        file_menu.addAction(receive_action)
         file_menu.addSeparator()
 
         open_data = QAction("Open Data Folder", self)
@@ -359,6 +363,10 @@ class MainWindow(QMainWindow):
         """Open the Pair phone QR dialog for Android key provisioning."""
         from ui.pair_dialog import PairPhoneDialog
         PairPhoneDialog(self).exec()
+
+    def _open_receive_dialog(self):
+        from ui.sync_receive_dialog import ReceiveFromPhoneDialog
+        ReceiveFromPhoneDialog(self.db, self).exec()
 
     def _new_card(self):
         """Ctrl+N - New card."""
