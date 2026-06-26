@@ -78,3 +78,19 @@ packaging/*.msix
 packaging/*.pfx
 packaging/*.cer
 lorebox_test.*
+
+# Local Claude worktrees & settings
+.claude/
+
+# Test / session log output
+*.log
+android/.run_screens/
+
+# Local screenshot backups
+screenshots/_backup_premsfix/
+
+# Business plan — kept local, not versioned
+docs/LoreBox_Business_Plan.docx
+
+# Windows App Certification Kit report (build artifact)
+packaging/loreboxappcert.xml
