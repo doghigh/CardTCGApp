@@ -186,3 +186,12 @@ docs so phone and desktop can't drift.
 1. Two-way sync (PC → phone; edits/deletes; conflict resolution).
 2. mDNS/NSD zero-config discovery (drop the QR step for repeat syncs).
 3. Background/always-available receive mode if desired.
+4. **"Storage saver" image compression** (standalone-only concern, considered and
+   deferred). For a phone used *without* a PC, scanned cards accumulate and their
+   images consume storage. A later setting could downsize a card's stored image to a
+   display thumbnail (~700px / q70) **after all detail-dependent analysis is done**.
+   Crucially this must run only after **grading** (a planned feature needing
+   corner/edge/surface detail) — compressing right after identify+value would
+   irreversibly destroy detail a future grade pass needs. Deferred because: images are
+   already downscaled at capture (≤1600px/q85, ~200–400 KB), LAN sync is the primary
+   memory strategy, and the correct compression threshold depends on grading existing.
