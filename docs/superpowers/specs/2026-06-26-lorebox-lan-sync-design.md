@@ -56,9 +56,12 @@ there is no idempotency/double-count problem and no conflict resolution.
 
 Three units with one clear responsibility each:
 
-1. **Desktop sync server** (`CardTCGApp`) — a small Flask app on a background thread,
-   bound to `0.0.0.0:<port>`, token-gated, that ingests cards and images into the
-   existing `Database`. Lifecycle owned by the receive dialog.
+1. **Desktop sync server** (`CardTCGApp`) — a small **stdlib `http.server`** (no new
+   dependency) on a background thread, bound to `0.0.0.0:<port>`, token-gated, that
+   ingests cards and images into the existing `Database`. Lifecycle owned by the
+   receive dialog. Images travel as **base64 inside the JSON body** (reusing the same
+   base64-image pattern the Android app already uses for the Claude vision call), so no
+   multipart parsing is required.
 2. **Desktop receive UI** (`CardTCGApp`) — a "Receive from phone" dialog that starts/stops
    the server, renders the connection QR, and shows a live "received N cards" log.
 3. **Phone sync client** (`LoreBox-Mobile`) — selection UI + a `SyncClient` that pushes
@@ -72,15 +75,21 @@ The server rejects missing/invalid tokens with `401` (constant-time compare).
 
 - **`GET /sync/ping`** → `200 {"app":"lorebox","proto":1}`. Used right after a QR scan
   (and before each sync session) to verify the host is reachable and the token is valid.
-- **`POST /sync/card`** — one card per request, `multipart/form-data`:
-  - part `meta` (application/json): the card fields mirroring the schema —
-    `name, set_name, card_number, rarity, game, year, language, foil,
-    condition_grade, condition_score, defects_json, estimated_value,
-    purchase_price, purchase_date, notes, quantity`.
-  - part `front` (image/jpeg): required.
-  - part `back` (image/jpeg): optional.
-  - Server: validate token → save image(s) to the desktop scans dir → call
-    `db.add_card({...meta, front_scan_path, back_scan_path}, merge_duplicates=True)`
+- **`POST /sync/card`** — one card per request, `application/json` body:
+  ```json
+  {
+    "client_uid": "<random per-card id>",
+    "card": { "name": "...", "set_name": "...", "card_number": "...", "rarity": "...",
+              "game": "...", "year": 1994, "language": "English", "foil": 0,
+              "condition_grade": null, "condition_score": null, "defects_json": null,
+              "estimated_value": 1.49, "purchase_price": 0, "purchase_date": null,
+              "notes": null, "quantity": 1 },
+    "front_jpeg_b64": "<base64>",
+    "back_jpeg_b64": "<base64 or null>"
+  }
+  ```
+  - Server: validate token → decode + save image(s) to the desktop scans dir → call
+    `db.add_card({...card, front_scan_path, back_scan_path}, merge_duplicates=True)`
     → return `200 {"id": <card_id>}` (the ack). On error return `4xx/5xx` with a message.
 
 One card per request gives natural per-card acks and partial-failure resilience:
@@ -153,8 +162,9 @@ reuses `Database.add_card`/`find_duplicate` unchanged.
 - Connection logic: stored host → ping ok path; ping fail → re-scan required.
 
 **Desktop (`CardTCGApp`)**
-- Server endpoint tests (Flask test client): `401` without/with-wrong token; `/sync/ping` ok;
-  `/sync/card` calls `add_card(merge_duplicates=True)` with the right dict, saves images, returns id;
+- Server endpoint tests (start the server on `127.0.0.1:0`, hit it with `urllib`/`requests`):
+  `401` without/with-wrong token; `/sync/ping` ok; `/sync/card` calls
+  `add_card(merge_duplicates=True)` with the right dict, saves images, returns id;
   duplicate `client_uid` is idempotent.
 - LAN IP detection util; constant-time token compare; QR payload builder.
 
@@ -164,7 +174,7 @@ real device; verify cards land/merge on the PC, images render, and synced cards 
 ## Repo split
 
 **Desktop — `CardTCGApp`:**
-- `core/sync_server.py` — Flask app + background-thread lifecycle + token auth + card/image ingest.
+- `core/sync_server.py` — stdlib `http.server` (ThreadingHTTPServer) + background-thread lifecycle + token auth + JSON/base64 card+image ingest.
 - `core/net_utils.py` (or similar) — LAN IP detection.
 - `ui/sync_receive_dialog.py` — "Receive from phone" dialog: start/stop server, render QR
   (reuse `pair_dialog`'s QR rendering), live received-cards log.
