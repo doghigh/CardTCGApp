@@ -146,13 +146,19 @@ class AuthManager:
         self.salt_file         = APP_DIR / ".salt"
         self.totp_secret_file  = APP_DIR / ".totp_secret"
         self.recovery_file     = APP_DIR / ".recovery_codes"
+        self.lockout_file      = APP_DIR / ".auth.lockout"
 
-        # In-memory only — never persisted
+        # Session key is in-memory only and never persisted.
         self._session_key: Optional[bytes] = None
-        self._failed_attempts: int = 0
+
+        # Brute-force state IS persisted (see _load_lockout_state) so a restart
+        # cannot reset the counter and bypass the lockout.
+        self._failed_attempts: int = 0          # failures in the current window
+        self._lockout_count: int = 0            # lockouts so far (escalates backoff)
         self._lockout_until: Optional[datetime] = None
 
         self._ensure_salt()
+        self._load_lockout_state()
 
     # ── Salt / key derivation ────────────────────────────────────────────────
 
@@ -197,9 +203,13 @@ class AuthManager:
         Returns True on success, False on failure.
         First run (no key file) always returns True and logs a warning.
         """
+        # If a prior lockout has elapsed, clear the current attempt window so the
+        # user regains a full allowance (the escalating lockout_count is kept).
+        self._clear_expired_lockout()
+
         # Lockout check
         if self._lockout_until and datetime.now() < self._lockout_until:
-            remaining = int((self._lockout_until - datetime.now()).total_seconds())
+            remaining = int((self._lockout_until - datetime.now()).total_seconds()) + 1
             raise AuthLockedError(
                 f"Too many failed attempts. Try again in {remaining} second(s)."
             )
@@ -225,8 +235,10 @@ class AuthManager:
 
         if success:
             self._failed_attempts = 0
+            self._lockout_count   = 0
             self._lockout_until   = None
             self._session_key     = derived
+            self._persist_lockout_state()
             logger.info("Login successful.")
         else:
             self._failed_attempts += 1
@@ -234,12 +246,16 @@ class AuthManager:
                 "Failed login attempt %d/%d.", self._failed_attempts, self.MAX_ATTEMPTS
             )
             if self._failed_attempts >= self.MAX_ATTEMPTS:
+                # Escalate by how many times we have locked out, not by raw
+                # attempt count — this survives the per-window reset on expiry.
+                self._lockout_count += 1
                 backoff = min(
                     self.MAX_LOCKOUT,
-                    self.BASE_LOCKOUT * (2 ** (self._failed_attempts - self.MAX_ATTEMPTS)),
+                    self.BASE_LOCKOUT * (2 ** (self._lockout_count - 1)),
                 )
                 self._lockout_until = datetime.now() + timedelta(seconds=backoff)
                 logger.warning("Account locked for %ds.", backoff)
+            self._persist_lockout_state()
 
         return success
 
@@ -248,6 +264,47 @@ class AuthManager:
 
     def has_password(self) -> bool:
         return self.key_file.exists()
+
+    # ── Lockout persistence ───────────────────────────────────────────────────
+
+    def _load_lockout_state(self):
+        """Load persisted brute-force state so a restart cannot reset it."""
+        if not self.lockout_file.exists():
+            return
+        try:
+            data = json.loads(self.lockout_file.read_text())
+            self._failed_attempts = int(data.get("failed_attempts", 0))
+            self._lockout_count   = int(data.get("lockout_count", 0))
+            until = data.get("lockout_until")
+            self._lockout_until = datetime.fromisoformat(until) if until else None
+        except (json.JSONDecodeError, OSError, ValueError, TypeError) as exc:
+            logger.error("Could not read lockout state (%s) — starting fresh.", exc)
+            self._failed_attempts = 0
+            self._lockout_count   = 0
+            self._lockout_until   = None
+
+    def _persist_lockout_state(self):
+        """Write brute-force state to disk. Best-effort; never blocks login."""
+        try:
+            self.lockout_file.write_text(json.dumps({
+                "failed_attempts": self._failed_attempts,
+                "lockout_count":   self._lockout_count,
+                "lockout_until":   self._lockout_until.isoformat()
+                                   if self._lockout_until else None,
+            }))
+        except OSError as exc:
+            logger.error("Could not persist lockout state: %s", exc)
+
+    def _clear_expired_lockout(self):
+        """
+        When a lockout has elapsed, reset the per-window attempt counter so the
+        user regains a full allowance. The escalating lockout_count is preserved
+        so repeated lockouts keep backing off (30s … 5min).
+        """
+        if self._lockout_until and datetime.now() >= self._lockout_until:
+            self._failed_attempts = 0
+            self._lockout_until   = None
+            self._persist_lockout_state()
 
     # ── TOTP ─────────────────────────────────────────────────────────────────
 
