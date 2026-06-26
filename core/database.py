@@ -226,7 +226,7 @@ class Database:
                 card.get('back_scan_path'),
                 card.get('condition_grade'),
                 card.get('condition_score'),
-                json.dumps(card.get('defects', [])),
+                card.get('defects_json') if card.get('defects_json') is not None else json.dumps(card.get('defects', [])),
                 card.get('estimated_value', 0.0),
                 card.get('purchase_price', 0.0),
                 card.get('purchase_date'),

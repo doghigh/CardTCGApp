@@ -63,3 +63,11 @@ def test_http_ping_and_auth(tmp_path):
         assert len(db.get_all_cards()) == 1
     finally:
         srv.stop()
+
+def test_ingest_preserves_defects_json(tmp_path):
+    db = Database(tmp_path / "t.db"); scans = tmp_path / "scans"; scans.mkdir(); seen = {}
+    p = _payload(uid="dj1")
+    p["card"]["defects_json"] = '[{"type":"scratch","severity":2}]'
+    ingest_card(db, scans, p, seen)
+    row = db.get_all_cards()[0]
+    assert row["defects_json"] == '[{"type":"scratch","severity":2}]'
