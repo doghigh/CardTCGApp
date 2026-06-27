@@ -366,7 +366,12 @@ class MainWindow(QMainWindow):
 
     def _open_receive_dialog(self):
         from ui.sync_receive_dialog import ReceiveFromPhoneDialog
-        ReceiveFromPhoneDialog(self.db, self).exec()
+        dialog = ReceiveFromPhoneDialog(self.db, self)
+        # Refresh the collection/dashboard/reports live as cards arrive from the phone.
+        dialog._card_received.connect(lambda _name: self.collection_tab.refresh())
+        dialog._card_received.connect(lambda _name: self.dashboard_tab.refresh())
+        dialog._card_received.connect(lambda _name: self.reports_tab.refresh())
+        dialog.exec()
 
     def _new_card(self):
         """Ctrl+N - New card."""
