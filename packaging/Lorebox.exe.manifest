@@ -7,7 +7,7 @@
   the static cert check looks for and ensures correct PerMonitorV2 behavior.
 -->
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
-  <assemblyIdentity version="1.1.1.0"
+  <assemblyIdentity version="1.2.0.0"
                     processorArchitecture="amd64"
                     name="Lorebox"
                     type="win32" />
