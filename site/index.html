@@ -14,6 +14,34 @@
 <title>Lorebox — Grade, value, and catalog your card collection. Privately.</title>
 <meta name="description" content="Lorebox scans your trading cards, identifies each one, estimates condition and market value, and keeps your whole collection cataloged — on your phone and your PC, synced over your own WiFi. No cloud, no account.">
 <link rel="icon" type="image/png" href="./icon.png">
+<link rel="apple-touch-icon" href="./icon.png">
+<link rel="canonical" href="https://loreboxapp.dev/">
+<!-- Open Graph / social sharing -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Lorebox">
+<meta property="og:title" content="Lorebox — Grade, value &amp; catalog your card collection. Privately.">
+<meta property="og:description" content="Scan trading cards to identify, grade, and value them, and catalog your collection on phone and PC — synced over your own WiFi. No cloud, no account.">
+<meta property="og:url" content="https://loreboxapp.dev/">
+<meta property="og:image" content="https://loreboxapp.dev/icon.png">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Lorebox — Grade, value &amp; catalog your card collection. Privately.">
+<meta name="twitter:description" content="Scan, grade, value, and catalog your trading cards on phone and PC — synced over your own WiFi. No cloud, no account.">
+<meta name="twitter:image" content="https://loreboxapp.dev/icon.png">
+<!-- Structured data -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Lorebox",
+  "applicationCategory": "UtilitiesApplication",
+  "operatingSystem": "Windows",
+  "description": "Scan trading cards to identify, grade, and value them, and catalog your collection on phone and PC — synced over your own WiFi. No cloud, no account.",
+  "url": "https://loreboxapp.dev/",
+  "downloadUrl": "https://apps.microsoft.com/store/detail/9N94V4458M3V",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "author": { "@type": "Person", "name": "Jesse Catlow" }
+}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Archivo+Expanded:wght@600;700;800&family=Martian+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -242,6 +270,17 @@
     .priv-panel{grid-template-columns:1fr; text-align:center;}
     .chips{justify-content:center;}
     .nav-links a.txt{display:none;}
+  }
+  @media (max-width:480px){
+    .wrap{padding:0 18px;}
+    .hero{padding:40px 0 18px;}
+    .sec{padding:58px 0 0;}
+    .privacy{margin-top:58px;}
+    .priv-panel{padding:30px;}
+    .sync-panel{padding:24px;}
+    .cta{padding:52px 20px;}
+    .feat,.steps{gap:12px;}
+    .nav-row{padding:11px 0;}
   }
   @media (prefers-reduced-motion:reduce){
     html{scroll-behavior:auto;}
