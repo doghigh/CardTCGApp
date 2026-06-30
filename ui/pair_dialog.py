@@ -6,6 +6,7 @@ transit a network. See docs/superpowers/specs/2026-06-22-lorebox-android-v1-desi
 """
 
 import io
+import os
 import json
 import qrcode
 from PyQt6.QtCore import Qt
@@ -43,8 +44,14 @@ class PairPhoneDialog(QDialog):
 
     @staticmethod
     def _payload() -> dict:
+        # Prefer the saved (encrypted) config, but fall back to the live
+        # environment so keys loaded from a .env file at startup also transfer
+        # — otherwise Pair shows empty keys when they were set via .env.
+        def eff(key: str) -> str:
+            return config.get(key) or os.environ.get(key, "")
+
         return {
-            "anthropicKey": config.get("ANTHROPIC_API_KEY") or "",
-            "ebayAppId": config.get("EBAY_APP_ID") or "",
-            "ebayCertId": config.get("EBAY_CERT_ID") or "",
+            "anthropicKey": eff("ANTHROPIC_API_KEY"),
+            "ebayAppId": eff("EBAY_APP_ID"),
+            "ebayCertId": eff("EBAY_CERT_ID"),
         }
