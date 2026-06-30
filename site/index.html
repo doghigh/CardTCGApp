@@ -14,6 +14,34 @@
 <title>Lorebox — Grade, value, and catalog your card collection. Privately.</title>
 <meta name="description" content="Lorebox scans your trading cards, identifies each one, estimates condition and market value, and keeps your whole collection cataloged — on your phone and your PC, synced over your own WiFi. No cloud, no account.">
 <link rel="icon" type="image/png" href="./icon.png">
+<link rel="apple-touch-icon" href="./icon.png">
+<link rel="canonical" href="https://loreboxapp.dev/">
+<!-- Open Graph / social sharing -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Lorebox">
+<meta property="og:title" content="Lorebox — Grade, value &amp; catalog your card collection. Privately.">
+<meta property="og:description" content="Scan trading cards to identify, grade, and value them, and catalog your collection on phone and PC — synced over your own WiFi. No cloud, no account.">
+<meta property="og:url" content="https://loreboxapp.dev/">
+<meta property="og:image" content="https://loreboxapp.dev/icon.png">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Lorebox — Grade, value &amp; catalog your card collection. Privately.">
+<meta name="twitter:description" content="Scan, grade, value, and catalog your trading cards on phone and PC — synced over your own WiFi. No cloud, no account.">
+<meta name="twitter:image" content="https://loreboxapp.dev/icon.png">
+<!-- Structured data -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Lorebox",
+  "applicationCategory": "UtilitiesApplication",
+  "operatingSystem": "Windows",
+  "description": "Scan trading cards to identify, grade, and value them, and catalog your collection on phone and PC — synced over your own WiFi. No cloud, no account.",
+  "url": "https://loreboxapp.dev/",
+  "downloadUrl": "https://apps.microsoft.com/store/detail/9N94V4458M3V",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "author": { "@type": "Person", "name": "Jesse Catlow" }
+}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Archivo+Expanded:wght@600;700;800&family=Martian+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -243,6 +271,17 @@
     .chips{justify-content:center;}
     .nav-links a.txt{display:none;}
   }
+  @media (max-width:480px){
+    .wrap{padding:0 18px;}
+    .hero{padding:40px 0 18px;}
+    .sec{padding:58px 0 0;}
+    .privacy{margin-top:58px;}
+    .priv-panel{padding:30px;}
+    .sync-panel{padding:24px;}
+    .cta{padding:52px 20px;}
+    .feat,.steps{gap:12px;}
+    .nav-row{padding:11px 0;}
+  }
   @media (prefers-reduced-motion:reduce){
     html{scroll-behavior:auto;}
     .holo,.card-foil,.link-card{animation:none;}
@@ -301,8 +340,8 @@
     <!-- featured graded-card slab -->
     <div class="slab card-slab">
       <div class="slab-label">
-        <span class="cert">Lorebox · Graded</span>
-        <span class="cert">Cert 0001&nbsp;2026</span>
+        <span class="cert">Lorebox · Condition estimate</span>
+        <span class="cert">Sample card</span>
       </div>
       <div class="card-face">
         <div class="card-foil"></div>
@@ -375,6 +414,79 @@
         <div class="n">STEP 03</div>
         <h3>Catalog &amp; sync</h3>
         <p>Everything files into one collection with totals, trends, and set progress. Phone captures sync to your PC over the local network.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ BULK SCANNING ============ -->
+<section class="sec" id="scanning">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="cert" style="color:var(--accent)">Bulk scanning</span>
+      <h2>Digitize a whole box — not one card at a time.</h2>
+      <p class="lede" style="max-width:64ch">Pair Lorebox with a sheet-fed <b>document scanner</b> (like the Epson DS-575W). Point the <b>watch folder</b> at its output and every card is identified, graded, and valued as it lands — no clicking card by card.</p>
+    </div>
+    <div class="steps">
+      <div class="slab step">
+        <div class="n">FEED</div>
+        <h3>Run the stack</h3>
+        <p>Load a batch of cards into a sheet-fed scanner and let it rip — fronts and backs together.</p>
+      </div>
+      <div class="slab step">
+        <div class="n">WATCH</div>
+        <h3>Lorebox auto-imports</h3>
+        <p>The watch folder picks up each scan the moment it's saved and processes it in the background.</p>
+      </div>
+      <div class="slab step">
+        <div class="n">REVIEW</div>
+        <h3>Check the batch</h3>
+        <p>Fronts and backs are auto-paired, then identified, graded, and valued — you just confirm.</p>
+      </div>
+    </div>
+
+    <!-- choosing a scanner -->
+    <div style="margin-top:34px;">
+      <span class="cert" style="color:var(--accent)">Choosing a scanner</span>
+      <h3 style="font-family:'Archivo Expanded',sans-serif; font-weight:700; font-size:clamp(22px,3vw,30px); letter-spacing:-.02em; margin:12px 0 0;">From your phone to high-volume.</h3>
+    </div>
+    <div style="margin-top:20px; display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px; align-items:stretch;">
+      <div class="slab" style="padding:20px;">
+        <div class="cert" style="color:var(--grade)">$0 · Your phone</div>
+        <div style="font-family:'Archivo Expanded',sans-serif; font-weight:700; font-size:15px; margin:9px 0 6px;">LoreBox app</div>
+        <p style="margin:0; font-size:13.5px; color:var(--muted);">Snap cards with the phone camera — no extra hardware. Great for small batches or trying it out.</p>
+      </div>
+      <div class="slab" style="padding:20px;">
+        <div class="cert" style="color:var(--muted)">$ · Flatbed</div>
+        <div style="font-family:'Archivo Expanded',sans-serif; font-weight:700; font-size:15px; margin:9px 0 6px;">e.g. Epson Perfection V39 II</div>
+        <p style="margin:0; font-size:13.5px; color:var(--muted);">Scan one or two cards on the glass. Cheap and sharp — slower, and no jig needed.</p>
+      </div>
+      <div class="slab" style="padding:20px; border-color:var(--accent); box-shadow:0 1px 0 #fff inset, 0 0 0 1px var(--accent), 0 18px 40px -28px rgba(20,18,12,.5);">
+        <div class="cert" style="color:var(--accent); display:flex; justify-content:space-between; gap:8px;"><span>$$ · Sheet-fed</span><span>Recommended</span></div>
+        <div style="font-family:'Archivo Expanded',sans-serif; font-weight:700; font-size:15px; margin:9px 0 6px;">e.g. Epson DS-575W</div>
+        <p style="margin:0; font-size:13.5px; color:var(--muted);">Duplex auto-feed for fast stacks. The free card jig is dimensioned for this one — the sweet spot.</p>
+      </div>
+      <div class="slab" style="padding:20px;">
+        <div class="cert" style="color:var(--ink)">$$$ · High-volume</div>
+        <div style="font-family:'Archivo Expanded',sans-serif; font-weight:700; font-size:15px; margin:9px 0 6px;">e.g. Fujitsu ScanSnap iX1600</div>
+        <p style="margin:0; font-size:13.5px; color:var(--muted);">Big hoppers and the fastest feed — for digitizing large collections in one sitting.</p>
+      </div>
+    </div>
+    <p style="margin:14px 0 0; font-size:12.5px; color:var(--faint); max-width:90ch;">Prices vary — these are examples, not endorsements. The printed jig is dimensioned for the Epson DS-575W's output slot; other sheet-fed scanners work too, but the fit is best on that model.</p>
+
+    <!-- card jig callout -->
+    <div class="slab" style="margin-top:18px; padding:28px; display:flex; gap:24px; align-items:center; flex-wrap:wrap;">
+      <div style="flex:1; min-width:260px;">
+        <span class="cert" style="color:var(--grade)">Free · 3D-printable</span>
+        <h3 style="font-family:'Archivo Expanded',sans-serif; font-weight:700; font-size:21px; margin:10px 0 8px;">Print the card jig</h3>
+        <p style="color:var(--muted); margin:0; font-size:14.5px; max-width:54ch;">A catch jig so ejected cards decelerate and land square, flat, and in order instead of scattering across the desk. Designed for sheet-fed document scanners.</p>
+      </div>
+      <div style="display:flex; gap:12px; flex-wrap:wrap;">
+        <a class="btn btn-primary" href="./cardjig.stl" download>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+          Download the jig (STL)
+        </a>
+        <a class="btn btn-ghost" href="https://github.com/doghigh/CardTCGApp/tree/main/hardware">Source files (.scad)</a>
       </div>
     </div>
   </div>
@@ -479,6 +591,35 @@
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--faint)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:2px" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
       <p><b>Estimates, not guarantees.</b> Values and condition grades are automated estimates to help you organize and explore your collection — not guaranteed sale prices, professional appraisals, or a substitute for a professional grading service.</p>
     </div>
+  </div>
+</section>
+
+<!-- ============ BEFORE YOU START ============ -->
+<section class="sec" id="setup">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="cert" style="color:var(--accent)">Before you start</span>
+      <h2>Bring your own keys — and yes, it's real setup.</h2>
+      <p class="lede" style="max-width:64ch">Lorebox stays private because it runs on <b>your</b> accounts, not ours. That means a bit of work up front: two developer accounts, not a one-click signup. Here's exactly what you'll need.</p>
+    </div>
+    <div class="steps">
+      <div class="slab step">
+        <div class="n">NEEDED TO IDENTIFY</div>
+        <h3>Anthropic API key</h3>
+        <p>Create an account at console.anthropic.com, add billing, and generate a key. Card identification is pay-as-you-go — about <b>$0.006 per card</b>.</p>
+      </div>
+      <div class="slab step">
+        <div class="n">NEEDED FOR NON-MAGIC VALUES</div>
+        <h3>eBay developer keys</h3>
+        <p>Sign up for the eBay developer program, create an application, and copy its App ID and Cert ID. This is the more involved step — plan a few minutes for it.</p>
+      </div>
+      <div class="slab step">
+        <div class="n" style="color:var(--grade)">NO KEY NEEDED</div>
+        <h3>Magic values are free</h3>
+        <p>Magic: The Gathering prices come from Scryfall — no account, no key. You can catalog and value Magic cards with zero setup.</p>
+      </div>
+    </div>
+    <p style="margin:18px 0 0; font-size:13.5px; color:var(--muted); max-width:88ch;">It's a few setup steps rather than an instant signup — but that's the trade for keeping your collection, your scans, and your keys entirely on your own machines.</p>
   </div>
 </section>
 
