@@ -16,6 +16,7 @@ saved config, so developers can still override locally without touching the UI.
 import json
 import logging
 import os
+import secrets
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -108,6 +109,14 @@ class AppConfig:
 
     def has_ebay_keys(self) -> bool:
         return bool(os.environ.get("EBAY_APP_ID") and os.environ.get("EBAY_CERT_ID"))
+
+    def get_or_create_sync_token(self) -> str:
+        """Return the persistent LAN-sync bearer token, creating it on first use."""
+        token = self._data.get("SYNC_TOKEN", "")
+        if not token:
+            token = secrets.token_urlsafe(32)
+            self.save({"SYNC_TOKEN": token})
+        return token
 
 
 # Module-level singleton
