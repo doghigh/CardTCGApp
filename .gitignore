@@ -91,6 +91,12 @@ screenshots/_backup_premsfix/
 
 # Business plan — kept local, not versioned
 docs/LoreBox_Business_Plan.docx
+screenshots/LoreBox_Business_Plan.docx
+site/businessplan.md
+site/businessplan2.md
 
 # Windows App Certification Kit report (build artifact)
 packaging/loreboxappcert.xml
+
+# Personal editor workspace file (local machine paths, not project config)
+*.code-workspace
