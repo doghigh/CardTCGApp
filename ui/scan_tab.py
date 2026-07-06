@@ -91,6 +91,7 @@ class ImageViewer(QLabel):
 
 class ScanTab(QWidget):
     card_added = pyqtSignal()
+    open_settings_requested = pyqtSignal()
 
     def __init__(self, db: Database, scanner: ScannerInterface,
                  inspector: CardInspector, identifier: CardIdentifier,
@@ -115,6 +116,26 @@ class ScanTab(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(14)
+
+        # No-API-key banner (hidden once a key is present)
+        self.api_key_banner = QFrame()
+        self.api_key_banner.setStyleSheet(
+            "background-color: #3a2f1a; border: 1px solid #6b5324; border-radius: 8px;"
+        )
+        banner_layout = QHBoxLayout(self.api_key_banner)
+        banner_layout.setContentsMargins(12, 8, 12, 8)
+        banner_label = QLabel(
+            "No Anthropic API key set — auto-identify on scan is disabled. "
+            "You can still scan and enter card details manually."
+        )
+        banner_label.setWordWrap(True)
+        banner_label.setStyleSheet("color: #e8eaf0;")
+        banner_layout.addWidget(banner_label, 1)
+        settings_link_btn = QPushButton("Set Up Key…")
+        settings_link_btn.clicked.connect(self.open_settings_requested.emit)
+        banner_layout.addWidget(settings_link_btn)
+        layout.addWidget(self.api_key_banner)
+        self.refresh_api_key_banner()
 
         # Scanner controls
         bar = QHBoxLayout()
@@ -271,6 +292,10 @@ class ScanTab(QWidget):
 
         self.status_label = QLabel("Ready.")
         layout.addWidget(self.status_label)
+
+    def refresh_api_key_banner(self):
+        """Show/hide the no-API-key banner based on current env state."""
+        self.api_key_banner.setVisible(not os.environ.get('ANTHROPIC_API_KEY'))
 
     def _scan_card(self):
         source = self.source_combo.currentText()

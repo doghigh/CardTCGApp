@@ -70,6 +70,7 @@ class MainWindow(QMainWindow):
 
         self.dashboard_tab = DashboardTab(self.db)
         self.scan_tab = ScanTab(self.db, self.scanner, self.inspector, self.identifier, self.valuator)
+        self.scan_tab.open_settings_requested.connect(self._open_settings)
         self.batch_tab = BatchTab(self.db, self.scanner, self.inspector, self.identifier,
                                   self.valuator, self.watch_config, self._run_watch_import)
         self.collection_tab = CollectionTab(self.db, self.valuator, self.identifier)
@@ -357,6 +358,7 @@ class MainWindow(QMainWindow):
             # New keys are already in os.environ — refresh the live components
             self.identifier.reload_credentials()
             self.valuator.reload_credentials()
+            self.scan_tab.refresh_api_key_banner()
             self.statusBar().showMessage("✅ API keys updated", 3000)
 
     def _open_pair_dialog(self):

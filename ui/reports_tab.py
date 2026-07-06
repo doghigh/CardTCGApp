@@ -25,7 +25,7 @@ class ReportsTab(QWidget):
         layout.setSpacing(14)
 
         # Header
-        title = QLabel("📊 Reports")
+        title = QLabel("Reports")
         title.setStyleSheet("font-size: 20px; font-weight: 600; color: #e8eaf0;")
         layout.addWidget(title)
 
@@ -63,7 +63,7 @@ class ReportsTab(QWidget):
         self.month_combo.setFixedWidth(130)
         controls.addWidget(self.month_combo)
 
-        self.gen_btn = QPushButton("📄 Generate PDF Report")
+        self.gen_btn = QPushButton("Generate PDF Report")
         self.gen_btn.setMinimumHeight(38)
         self.gen_btn.setProperty("primary", True)
         self.gen_btn.clicked.connect(self._generate_report)
@@ -122,10 +122,10 @@ class ReportsTab(QWidget):
             net = value - cost
             sign = "+" if net >= 0 else ""
             self.stats_bar.setText(
-                f"🃏  {unique} unique  •  {total} total cards  "
-                f"   |   💰  Est. value  ${value:,.2f}  "
-                f"   |   🧾  Cost  ${cost:,.2f}  "
-                f"   |   📈  Net  {sign}${net:,.2f}"
+                f"{unique} unique  •  {total} total cards  "
+                f"   |   Est. value  ${value:,.2f}  "
+                f"   |   Cost  ${cost:,.2f}  "
+                f"   |   Net  {sign}${net:,.2f}"
             )
         except Exception:
             self.stats_bar.setText("Collection stats unavailable.")

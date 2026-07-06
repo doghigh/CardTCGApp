@@ -1,49 +1,77 @@
 # Lorebox — TODO
 
-**Repository:** https://github.com/doghigh/CardTCGApp  (private)
-**Last updated:** 2026-06-16
+**Repository:** https://github.com/doghigh/CardTCGApp  (**public**)
+**Last updated:** 2026-07-06 (code review pass)
 **Branch:** main
-**Goal:** Ship to the Microsoft Store
+**Version:** 1.2.0.0 (LAN sync release)
+**Goal:** ~~Ship to the Microsoft Store~~ **Shipped** — [live listing](https://apps.microsoft.com/store/detail/9N94V4458M3V).
+Focus now: post-launch polish + the Android companion app / LAN sync loop.
 
 ---
 
 ## 🏪 Microsoft Store status
-- ✅ Developer account **reinstated** (was deactivated; reactivated via reportap@microsoft.com).
-- ⏰ **Must publish within 90 days** of reinstatement to keep the account active.
-- Registration is now **free** (no $19 fee).
-- After publishing, migrate identity from `catsjc1175@hotmail.com` →
-  `jcatlowdev@outlook.com` (separate MSA — support request, do it *after* launch).
+- ✅ **Published and live** — `packaging/AppxManifest.xml` is at `Version="1.2.0.0"`,
+  Identity/Publisher are filled in (`33303JesseCatlow.Lorebox`), and the site's
+  "Get it on the Microsoft Store" buttons point at a real listing ID. All of the
+  "remaining path to submission" items from the last pass (product name, MSIX
+  build, WACK, listing screenshots) are done.
+- ⚠️ **Unverified — no commit trail:** identity migration from
+  `catsjc1175@hotmail.com` → `jcatlowdev@outlook.com` was planned for
+  *after* launch. Nothing in git/docs confirms it happened — check Partner
+  Center directly.
+- [x] `PRIVACY.md` placeholder `[YOUR-CONTACT-EMAIL]` swapped for
+      `contact@loreboxapp.dev`, matching the live site's privacy page
+      (`site/privacy.html:109`).
 
 ### Licensing & Store-agreement compliance (reviewed against ADA v8.11)
-- [x] **Open source — AGPL-3.0** (`LICENSE`). Resolves PyQt6's GPL obligation
-      (shipping on PyQt6 requires GPL-compatible licensing OR a commercial Qt
-      license; open-sourcing satisfies it). Author retains copyright (commercial
-      dual-licensing stays possible).
-- [x] **Retired PriceCharting web scrape** — valuation now uses official APIs
-      only (Scryfall + eBay Browse); avoids ToS/indemnification exposure.
-      `search_pricecharting()` is a safe no-op. TradingCardAPI to be added later.
-- [x] Privacy policy exists (`PRIVACY.md` + Render `/privacy`); affiliation
+- [x] **Open source — AGPL-3.0** (`LICENSE`).
+- [x] **Retired PriceCharting web scrape** — valuation uses official APIs only
+      (Scryfall + eBay Browse); `search_pricecharting()` is a safe no-op.
+      TradingCardAPI still noted as a future source, not yet added.
+- [x] Privacy policy exists (`PRIVACY.md` + site `/privacy.html`); affiliation
       disclaimer in README + privacy policy.
-- [ ] **Store listing screenshots** must use non-branded/your-own cards (don't
-      feature Topps/Pokémon/Magic art as the hero image). — your task
-- [ ] **Website** on loreboxapp.dev hosting privacy + contact info. — your task
-- [ ] Put privacy-policy URL + contact email in the Store listing fields.
-
-### Remaining path to submission (needs you)
-- [ ] **Decide the final product name / branding** — reserve it in Partner Center
-      (gives the Identity Name + Publisher ID). One-line change in
-      `packaging/AppxManifest.xml` + rerun `assets/generate_assets.py` (or drop in
-      a real logo with the same filenames).
-- [ ] Fill `AppxManifest.xml` Identity/Publisher from Partner Center.
-- [ ] Build MSIX: `pyinstaller Lorebox.spec --noconfirm` →
-      `packaging/build_msix.ps1` (needs Windows SDK / `makeappx`).
-- [ ] Pass **WACK** (Windows App Certification Kit).
-- [ ] Store listing: screenshots, description, category, age rating.
-- [ ] Confirm privacy policy URL live + swap `[YOUR-CONTACT-EMAIL]` in PRIVACY.
+- [x] Store listing screenshots — trademark-free demo data (`screenshots/sc1-4.png`).
+- [x] Website live at loreboxapp.dev with privacy + (real) contact info.
+- [ ] Confirm privacy-policy URL + contact email are filled into the actual
+      Partner Center listing fields (can't verify from the repo).
 
 ---
 
-## ✅ Completed this session (code review pass)
+## ✅ Completed since last pass (LAN sync + pairing + site relaunch)
+
+### LAN sync (phone → PC)
+- [x] `core/sync_server.py` — stdlib `http.server` receiver, bearer-token auth,
+      idempotent ingest (no Flask dependency).
+- [x] `core/` LAN IP detection + persistent sync token in config.
+- [x] `ui/sync_receive_dialog.py` — "Receive from phone" dialog + menu action;
+      per-card ack deletes the source photo off the phone.
+- [x] Live UI refresh wired up — collection/dashboard/reports update as cards
+      arrive, instead of needing F5/restart.
+- [x] `db`: phone-provided `defects_json` persists on sync (back-compat with
+      the older `defects` list field).
+- [x] `tests/test_sync_server.py`, `tests/test_sync_token.py` added.
+- [x] Companion mobile-side work tracked in the LoreBox-Mobile repo (merged).
+
+### Pairing / provisioning
+- [x] **Pair-phone QR dialog** (`ui/dialogs.py` / `pair_dialog.py`) for Android
+      key provisioning, reusing the same pairing infra as LAN sync's QR connect.
+- [x] Pair-phone QR fixed to source API keys from `.env`, not just the saved
+      config file (was silently omitting keys set only via `.env`).
+- [x] Brute-force lockout state now persists across app restarts
+      (`core/auth.py`).
+
+### Marketing site (loreboxapp.dev)
+- [x] Landing page redesign ("The Slab"), SEO/meta (OG, Twitter Card, JSON-LD,
+      canonical, touch icon), 480px breakpoint, a11y pass.
+- [x] Bulk-scanning section + downloadable card-jig STL.
+- [x] "Choosing a scanner" pricing-tier comparison section.
+- [x] "Before You Start" BYO-keys (Anthropic + eBay) setup section.
+- [x] Removed misleading "Cert 0001 2026" grading-style label from the hero card.
+- [x] "Scanning" added to top nav.
+
+---
+
+## ✅ Completed — prior code review pass
 
 ### Performance
 - [x] **Deskew optimized** — angle is now detected on a downscaled copy
@@ -51,7 +79,8 @@
       no `warpAffine`. Big batch-import win on high-DPI scans. (#3, #7)
 - [x] **add_card single connection** — duplicate check + insert/update now share
       one connection instead of opening two per card (batch-insert win). (#5)
-- [x] Regression tests added for image_ops (now 43 tests total).
+- [x] Regression tests added for image_ops (43 tests then; **51 tests now**
+      with the LAN sync suite — `python -m pytest tests/` all passing).
 
 ### Polish
 - [x] **"Non-Sport" game category** added (scan, batch, detail, vision prompt) —
@@ -60,6 +89,10 @@
 - [x] **requirements pinned** — `anthropic==0.105.2`; **removed unused
       paddleocr/paddlepaddle** (never imported; slims install). (P-2)
 - [x] P-6 (reports_generator header) — verified correct, not an issue.
+- [x] **P-4 re-checked** — `LoginDialog._build_ui()` always creates the password
+      field before `_attempt_hello()` runs; Windows Hello failing/unavailable
+      just leaves the normal password form up. Fallback path is guaranteed —
+      closing this out rather than leaving it in "remaining polish".
 
 ---
 
@@ -71,7 +104,10 @@
 - [x] PyInstaller standalone windowed exe (onedir; see BUILD.md)
 - [x] App icon set + MSIX tiles (`assets/generate_assets.py`)
 - [x] MSIX manifest + pack script (`packaging/`)
-- [x] Unit tests (`tests/`, stdlib unittest) — run `python -m unittest discover -s tests`
+- [x] Unit tests (`tests/`) — run `python -m pytest tests/` (51 tests). Plain
+      `unittest discover` still works but only picks up 43 — the two sync test
+      files (`test_sync_server.py`, `test_sync_token.py`) are pytest-style,
+      not `unittest.TestCase`.
 - [x] In-app Help Center (F1) — 16 searchable topics, offline
 
 ### Features
@@ -105,12 +141,27 @@ if a genuinely large collection shows lag. Documented so the analysis isn't lost
 
 ---
 
-## 🔵 Remaining polish
-| # | Item | Location |
-|---|------|----------|
-| P-4 | Windows Hello has no guaranteed password fallback path | `core/auth.py` |
-| P-8 | Reports stats-bar emojis render as placeholders on some systems | `ui/reports_tab.py` |
-| — | Graceful "no API key" messaging is handled by the first-run prompt + Settings; could add an inline banner on the Scan tab when no key is set | `ui/scan_tab.py` |
+## 🔵 Remaining polish — all closed out this pass
+- [x] **P-8** — removed the header/stats-bar emoji (📊 📄 🃏 💰 🧾 📈) from
+      `ui/reports_tab.py` that rendered as placeholder boxes on some systems;
+      plain text labels instead.
+- [x] **Scan-tab "no API key" banner** — added. `ScanTab` now shows a dismiss-free
+      warning banner ("No Anthropic API key set…") with a **Set Up Key…** button
+      whenever `ANTHROPIC_API_KEY` isn't set; emits `open_settings_requested`,
+      wired to `MainWindow._open_settings` in `ui/main_window.py`, and refreshes
+      itself right after the Settings dialog closes.
+- [x] `PRIVACY.md` contact-email placeholder — done (see Store status above).
+
+### Repo hygiene — all closed out this pass
+- [x] `.github/workflows/prompt_eval.yml` — removed. It referenced files that
+      don't exist in this repo (`output/perplexity_god_mode_v4.py`, etc.),
+      copied from an unrelated project template.
+- [x] `screenshots/New Python.File.py` — deleted (was empty).
+- [ ] `site/businessplan.md`, `site/businessplan2.md`,
+      `screenshots/LoreBox_Business_Plan.docx` — business-plan drafts still
+      sitting in the app repo. Left as-is (content/placement call, not a code
+      fix) — worth deciding whether these belong in `site/`/`screenshots/` at
+      all.
 
 ---
 

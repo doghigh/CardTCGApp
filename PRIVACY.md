@@ -104,7 +104,7 @@ by an updated "Last updated" date above.
 ## 10. Contact
 
 Questions about this policy? Contact the developer at:
-**[YOUR-CONTACT-EMAIL]**
+**contact@loreboxapp.dev**
 
 ---
 
