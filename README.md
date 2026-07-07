@@ -1,10 +1,21 @@
             # Lorebox
 
-            A **privacy-first**, Windows desktop application for managing your physical trading card collection (TCG, Sports Cards, etc.).
+            A **privacy-first**, Windows desktop application for managing your physical 
+            trading card collection (TCG, Sports Cards, etc.).
 
-            You will need developer accounts with Anthropic and Ebay. These are free to enroll. Anthropic charges $0.006 per card submission or 6 cents for 10 cards. 
+            You will need developer accounts with Anthropic and Ebay. 
+            These are free to enroll. Anthropic charges $0.006 per card submission 
+            or 6 cents for 10 cards. 
+            
+https://platform.claude.com/login?returnTo=%2F%3F
 
-            Scan cards with a TWAIN-compatible scanner, automatically identify them with OCR, grade condition using computer vision, fetch live market values, and generate beautiful monthly PDF reports — all **100% locally**.
+https://developer.ebay.com/
+
+            Scan cards with a TWAIN-compatible scanner, 
+            automatically identify them with OCR, 
+            grade condition using computer vision, 
+            fetch live market values, 
+            and generate beautiful monthly PDF reports — all **100% locally**.
 
             ---
 
@@ -31,7 +42,7 @@
 
 ## 🚀 Quick Start
 
-1. Install from Microsoft App Store
+1. Install from Microsoft App Store https://apps.microsoft.com/detail/9N94V4458M3V
 2. Double-click `LoreBox` Icon (first run will assist with links to create dev accounts)
 3. Create API Keys for each, copy and paste into the settings
 4. Start scanning!
