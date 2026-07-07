@@ -2,6 +2,8 @@
 
             A **privacy-first**, Windows desktop application for managing your physical trading card collection (TCG, Sports Cards, etc.).
 
+            You will need developer accounts with Anthropic and Ebay. These are free to enroll. Anthropic charges $0.006 per card submission or 6 cents for 10 cards. 
+
             Scan cards with a TWAIN-compatible scanner, automatically identify them with OCR, grade condition using computer vision, fetch live market values, and generate beautiful monthly PDF reports — all **100% locally**.
 
             ---
@@ -16,7 +18,6 @@
             - **Batch Import** — Import from image folders or CSV with smart column mapping
             - **Continuous Scan Mode** — High-volume scanning with auto-save
             - **Monthly PDF Reports** — Professional reports with charts and summaries
-            - **Windows Hello + TOTP 2FA** — Modern authentication (optional)
             - **Full Keyboard Accessibility** — Ctrl+1–4, Ctrl+N, F1 help, etc.
             - **Single-file .exe** — Easy distribution
 
@@ -30,9 +31,9 @@
 
 ## 🚀 Quick Start
 
-1. **Download or clone** the project
-2. Double-click `run.bat` (first run will install everything)
-3. On first launch, set a master password (optional but recommended)
+1. Install from Microsoft App Store
+2. Double-click `LoreBox` Icon (first run will assist with links to create dev accounts)
+3. Create API Keys for each, copy and paste into the settings
 4. Start scanning!
 
 ### Requirements
@@ -41,8 +42,8 @@
 - Python 3.10+ (included via venv)
 - TWAIN-compatible scanner (optional)
 - [Tesseract OCR](https://github.com/UB-Mannheim/tesseract/wiki) (optional OCR fallback)
-
----
+- Developer Accounts and API keys from Anthropic and Ebay (Anthropic allows for Card Identification, it has identified cards from Dessert Storm, Star Wars, MTG, Sports, Last Air Bender, etc)
+--
 
 ## 📄 License
 
