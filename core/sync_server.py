@@ -47,6 +47,7 @@ def ingest_card(db, scans_dir: Path, payload: dict, seen: Dict[str, int]) -> dic
 
 
 def _make_handler(db, scans_dir: Path, token: str, seen: Dict[str, int],
+                  seen_lock: threading.Lock,
                   on_card: Optional[Callable[[dict], None]]):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):  # silence default stderr logging
@@ -81,7 +82,11 @@ def _make_handler(db, scans_dir: Path, token: str, seen: Dict[str, int],
             try:
                 length = int(self.headers.get("Content-Length", 0))
                 payload = json.loads(self.rfile.read(length).decode())
-                result = ingest_card(db, scans_dir, payload, seen)
+                # ThreadingHTTPServer runs one thread per request — serialize the
+                # check-seen/write/add_card sequence so a retried request for the
+                # same client_uid can't race past the dedup check and double-add.
+                with seen_lock:
+                    result = ingest_card(db, scans_dir, payload, seen)
             except ValueError as exc:
                 return self._send(400, {"error": str(exc)})
             except Exception as exc:  # noqa: BLE001 — never crash the server thread
@@ -107,12 +112,13 @@ class SyncServer:
         self._port = port
         self._on_card = on_card
         self._seen: Dict[str, int] = {}
+        self._seen_lock = threading.Lock()
         self._httpd: Optional[ThreadingHTTPServer] = None
         self._thread: Optional[threading.Thread] = None
 
     def start(self) -> int:
         handler = _make_handler(self._db, self._scans_dir, self._token,
-                                self._seen, self._on_card)
+                                self._seen, self._seen_lock, self._on_card)
         self._httpd = ThreadingHTTPServer((self._host, self._port), handler)
         actual_port = self._httpd.server_address[1]
         self._thread = threading.Thread(target=self._httpd.serve_forever, daemon=True)

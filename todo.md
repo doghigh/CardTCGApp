@@ -157,11 +157,10 @@ if a genuinely large collection shows lag. Documented so the analysis isn't lost
       don't exist in this repo (`output/perplexity_god_mode_v4.py`, etc.),
       copied from an unrelated project template.
 - [x] `screenshots/New Python.File.py` — deleted (was empty).
-- [ ] `site/businessplan.md`, `site/businessplan2.md`,
-      `screenshots/LoreBox_Business_Plan.docx` — business-plan drafts still
-      sitting in the app repo. Left as-is (content/placement call, not a code
-      fix) — worth deciding whether these belong in `site/`/`screenshots/` at
-      all.
+- [x] `site/businessplan.md`, `site/businessplan2.md`,
+      `screenshots/LoreBox_Business_Plan.docx` — moved out of the repo
+      entirely to OneDrive/LoreBox/business; defunct `.gitignore` rules for
+      them removed too.
 
 ---
 
