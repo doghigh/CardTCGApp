@@ -89,6 +89,12 @@ Two independent caps:
 - The Worker enforces a hard monthly identification-count ceiling
   (`MONTHLY_TRIAL_CAP`, a Worker binding the developer sets), backed by a KV
   counter keyed by month (e.g. `trial:2026-07`).
+- **Budget: $100/month worst-case spend**, expressed to the Worker as an
+  identification-count ceiling: at ~$0.006/identification that's ~16,600
+  identifications/month (`MONTHLY_TRIAL_CAP ≈ 16600`). Adjustable via the Worker
+  binding without a redeploy of the desktop app. Because the cap is derived from
+  a dollar budget, revisit the count if Anthropic's per-identification cost
+  changes.
 - This is the **real** backstop and the thing that actually bounds developer
   spend. The threat it defends against is not a human reinstalling the app —
   it's someone scripting the Worker endpoint directly in a loop, bypassing the
@@ -229,8 +235,13 @@ the Worker and Anthropic endpoints, as the sync tests stub things).
 
 ## Open items / follow-ups
 
-- Exact `MONTHLY_TRIAL_CAP` value — set at deploy based on acceptable worst-case
-  monthly spend.
+- `MONTHLY_TRIAL_CAP` derived from a **$100/month** budget (~16,600
+  identifications at ~$0.006 each). This comfortably covers ~1,600 users each
+  consuming a full 10-scan trial per month before the global cap bites — ample
+  headroom at expected scale. Re-derive the count if per-identification cost
+  changes, and monitor actual monthly spend against the $100 target.
+- Consider a Cloudflare billing alert / Anthropic usage alert as a secondary
+  safety net independent of the KV counter.
 - PRIVACY.md + site copy edits — separate change, flagged during implementation.
 - Bundled Worker URL constant — final production URL set once the Worker is
   deployed.
