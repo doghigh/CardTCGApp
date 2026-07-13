@@ -71,6 +71,7 @@ class MainWindow(QMainWindow):
         self.dashboard_tab = DashboardTab(self.db)
         self.scan_tab = ScanTab(self.db, self.scanner, self.inspector, self.identifier, self.valuator)
         self.scan_tab.open_settings_requested.connect(self._open_settings)
+        self.scan_tab.key_setup_requested.connect(self._open_key_setup)
         self.batch_tab = BatchTab(self.db, self.scanner, self.inspector, self.identifier,
                                   self.valuator, self.watch_config, self._run_watch_import)
         self.collection_tab = CollectionTab(self.db, self.valuator, self.identifier)
@@ -114,9 +115,8 @@ class MainWindow(QMainWindow):
         self._watch_timer.timeout.connect(self._check_watch)
         self._watch_timer.start(60_000)
 
-        # First-run: welcome / parental-involvement notice, then key setup
+        # First-run: welcome / parental-involvement notice
         self._show_first_run_notice()
-        self._prompt_for_keys_if_needed()
 
     def _show_first_run_notice(self):
         """One-time, non-blocking welcome notice: the app opens without a login,
@@ -159,22 +159,6 @@ class MainWindow(QMainWindow):
         dlg.exec()
         from datetime import date
         set_pref("welcome_ack", date.today().isoformat())
-
-    def _prompt_for_keys_if_needed(self):
-        """On first run (no API key), offer to open Settings."""
-        from core.config import config
-        if config.has_anthropic_key():
-            return
-        reply = QMessageBox.question(
-            self, "Welcome to Lorebox",
-            "To identify cards you'll need a free Anthropic API key "
-            "(card scanning costs about $0.006 per card).\n\n"
-            "Would you like to enter your API keys now?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.Yes,
-        )
-        if reply == QMessageBox.StandardButton.Yes:
-            self._open_settings()
 
     def _setup_shortcuts(self):
         """Setup global keyboard shortcuts."""
@@ -360,6 +344,16 @@ class MainWindow(QMainWindow):
             self.valuator.reload_credentials()
             self.scan_tab.refresh_api_key_banner()
             self.statusBar().showMessage("✅ API keys updated", 3000)
+
+    def _open_key_setup(self, reason: str):
+        """Open the trial-driven key-setup dialog and apply changes live."""
+        from ui.key_setup_dialog import KeySetupDialog
+        dlg = KeySetupDialog(self, reason=reason)
+        if dlg.exec() == 1:  # Accepted — a key was validated and saved
+            self.identifier.reload_credentials()
+            self.valuator.reload_credentials()
+            self.scan_tab.refresh_api_key_banner()
+            self.statusBar().showMessage("✅ API key added — auto-identify is on", 3000)
 
     def _open_pair_dialog(self):
         """Open the Pair phone QR dialog for Android key provisioning."""
