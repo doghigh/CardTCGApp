@@ -92,6 +92,7 @@ class ImageViewer(QLabel):
 class ScanTab(QWidget):
     card_added = pyqtSignal()
     open_settings_requested = pyqtSignal()
+    key_setup_requested = pyqtSignal(str)
 
     def __init__(self, db: Database, scanner: ScannerInterface,
                  inspector: CardInspector, identifier: CardIdentifier,
@@ -458,6 +459,14 @@ class ScanTab(QWidget):
             return
         try:
             info = self.identifier.identify_card(self.current_front_img, self.current_back_img)
+
+            source = (info or {}).get('source', '')
+            if source.startswith('trial_'):
+                self.status_label.setText(
+                    "Free trial used — add your own key to keep auto-identifying."
+                )
+                self.key_setup_requested.emit(source)
+                return
 
             if info.get('name') and not self.name_edit.text().strip():
                 self.name_edit.setText(info['name'])
