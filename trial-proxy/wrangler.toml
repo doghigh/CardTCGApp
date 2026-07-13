@@ -1,0 +1,15 @@
+# trial-proxy/wrangler.toml
+name = "lorebox-trial"
+main = "src/index.js"
+compatibility_date = "2026-07-01"
+
+# MONTHLY_TRIAL_CAP: $100/month budget / ~$0.006 per identification ≈ 16600.
+# Re-derive if per-identification cost changes.
+[vars]
+MONTHLY_TRIAL_CAP = "16600"
+
+# Create with: wrangler kv namespace create TRIAL_KV
+# then paste the returned id below.
+[[kv_namespaces]]
+binding = "TRIAL_KV"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
