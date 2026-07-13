@@ -7,6 +7,8 @@ import cv2
 import numpy as np
 from typing import Dict, Optional
 
+from core import trial
+
 logger = logging.getLogger(__name__)
 
 try:
@@ -81,15 +83,27 @@ class CardIdentifier:
                 pytesseract.pytesseract.tesseract_cmd = path
                 break
 
-    def _get_client(self):
+    def _resolve_client(self):
+        """Return (client, mode). mode is 'own', 'trial', or 'none'.
+
+        'own'  — user supplied ANTHROPIC_API_KEY; call Anthropic directly.
+        'trial'— no user key but trial credits remain; route via the Worker.
+        'none' — no key and no trial credits left.
+        """
         if not HAS_ANTHROPIC:
-            return None
-        if self._anthropic is None:
-            api_key = os.environ.get('ANTHROPIC_API_KEY')
-            if not api_key:
-                return None
-            self._anthropic = anthropic.Anthropic(api_key=api_key)
-        return self._anthropic
+            return None, 'none'
+        api_key = os.environ.get('ANTHROPIC_API_KEY')
+        if api_key:
+            if self._anthropic is None:
+                self._anthropic = anthropic.Anthropic(api_key=api_key)
+            return self._anthropic, 'own'
+        if trial.trial_remaining() > 0:
+            # Placeholder key — the Worker injects the real one. base_url is the
+            # Worker origin; the SDK appends "/v1/messages".
+            client = anthropic.Anthropic(api_key='trial-proxy',
+                                         base_url=trial.WORKER_BASE_URL)
+            return client, 'trial'
+        return None, 'none'
 
     def reload_credentials(self):
         """Drop the cached client so the next call picks up a new API key."""
@@ -101,13 +115,33 @@ class CardIdentifier:
 
     def identify_card(self, front_img: np.ndarray,
                       back_img: Optional[np.ndarray] = None) -> Dict:
-        """Identify a card using Claude vision, falling back to OCR.
+        """Identify a card. See module docstring for 'source' semantics.
 
-        The result includes a 'source' key: 'claude' for a genuine vision
-        identification, or 'ocr' for the degraded Tesseract fallback (e.g. when
-        the API is unavailable or out of credits). Callers must treat 'ocr'
-        results as low-confidence and must NOT let them overwrite good data.
+        'source' is one of: 'claude' (genuine vision id, direct or trial-proxied),
+        'ocr' (degraded Tesseract fallback), or a 'trial_*' marker meaning the
+        trial is blocked and the UI should offer the add-your-own-key dialog.
         """
+        _, mode = self._resolve_client()
+
+        if mode == 'none':
+            return self._trial_blocked('trial_exhausted')
+
+        if mode == 'trial':
+            try:
+                result = self._identify_with_claude(front_img, back_img)
+            except trial.TrialCapacityReached:
+                return self._trial_blocked('trial_capacity')
+            except trial.TrialUnavailable:
+                return self._trial_blocked('trial_unavailable')
+            if result and result.get('name'):
+                trial.consume_trial()
+                result['source'] = 'claude'
+                return result
+            # Reached the proxy but got no usable data — treat as unavailable,
+            # do not consume a credit, do not fabricate via OCR.
+            return self._trial_blocked('trial_unavailable')
+
+        # mode == 'own': existing behavior, unchanged.
         result = self._identify_with_claude(front_img, back_img)
         if result and result.get('name'):
             result['source'] = 'claude'
@@ -123,13 +157,21 @@ class CardIdentifier:
         info['source'] = 'ocr'
         return info
 
+    @staticmethod
+    def _trial_blocked(reason: str) -> Dict:
+        return {'name': None, 'set_name': None, 'card_number': None,
+                'rarity': None, 'year': None, 'game': None, 'source': reason}
+
     # ------------------------------------------------------------------
     # Claude vision
     # ------------------------------------------------------------------
 
     def _identify_with_claude(self, front_img: np.ndarray,
-                               back_img: Optional[np.ndarray] = None) -> Optional[Dict]:
-        client = self._get_client()
+                               back_img: Optional[np.ndarray] = None,
+                               client=None, trial_mode: bool = False) -> Optional[Dict]:
+        if client is None:
+            client, mode = self._resolve_client()
+            trial_mode = (mode == 'trial')
         if client is None:
             return None
         try:
@@ -173,6 +215,15 @@ class CardIdentifier:
                 'game': data.get('game') or None,
             }
         except Exception as e:
+            if trial_mode:
+                status = getattr(e, "status_code", None)
+                body = getattr(e, "body", None)
+                etype = ""
+                if isinstance(body, dict):
+                    etype = (body.get("error") or {}).get("type", "")
+                if status == 429 and etype == "trial_capacity":
+                    raise trial.TrialCapacityReached() from e
+                raise trial.TrialUnavailable() from e
             logger.warning("Claude vision error: %s", e)
             return None
 
