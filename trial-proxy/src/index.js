@@ -11,6 +11,9 @@ export default {
     }
 
     const cap = parseInt(env.MONTHLY_TRIAL_CAP, 10);
+    if (!Number.isFinite(cap)) {
+      return json(503, { type: 'error', error: { type: 'misconfigured', message: 'Trial cap not configured.' } });
+    }
     const key = monthKey(new Date());
     const count = parseInt((await env.TRIAL_KV.get(key)) || '0', 10);
 

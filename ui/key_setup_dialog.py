@@ -3,7 +3,7 @@
 Shown when the free trial is used up (or at capacity). Three actions:
 deep-link to the console keys page, paste-and-validate inline, or defer.
 """
-from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtCore import QUrl
 from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton
@@ -77,7 +77,12 @@ class KeySetupDialog(QDialog):
         key = self.key_edit.text()
         ok, message = validate_anthropic_key(key)
         if ok:
-            config.save({"ANTHROPIC_API_KEY": key.strip()})
+            try:
+                config.save({"ANTHROPIC_API_KEY": key.strip()})
+            except Exception as exc:  # noqa: BLE001 — surface, don't crash the dialog
+                self.status.setText(f"⚠ Could not save the key: {exc}")
+                self.save_btn.setEnabled(True)
+                return
             self.accept()
             return
         self.status.setText(f"⚠ {message}")
