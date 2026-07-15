@@ -22,3 +22,23 @@ def grade_for_score(score: float) -> str:
         if s >= lower:
             return grade
     return "Poor"
+
+
+def resolve_condition(info, front_img, inspector) -> dict:
+    """Return {'grade','score','defects','source'} for a card.
+
+    Prefers the Claude-vision condition carried in `info['condition']`; falls
+    back to the CV inspector when vision produced no condition. Grade is always
+    derived from the score so the two never disagree.
+    """
+    cond = (info or {}).get('condition') if isinstance(info, dict) else None
+    if cond and isinstance(cond.get('score'), (int, float)):
+        score = float(cond['score'])
+        defects = cond.get('defects') if isinstance(cond.get('defects'), list) else []
+        return {'grade': grade_for_score(score), 'score': score,
+                'defects': defects, 'source': 'vision'}
+
+    inspection = inspector.inspect(front_img)
+    score = float(inspection.get('score', 0.0))
+    return {'grade': grade_for_score(score), 'score': score,
+            'defects': inspection.get('defects', []), 'source': 'cv'}

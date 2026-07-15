@@ -41,3 +41,36 @@ def test_inspector_uses_shared_grade_mapping(monkeypatch):
     out = insp.inspect(np.zeros((100, 100, 3), dtype=np.uint8))
     assert out["score"] == 94.5
     assert out["grade"] == "Mint"   # NOT "Poor"
+
+
+# resolve_condition tests
+class _FakeInspector:
+    def __init__(self, score, defects): self._s, self._d = score, defects
+    def inspect(self, img):
+        return {'grade': 'ignored', 'score': self._s, 'defects': self._d, 'centering_score': 0.0}
+
+
+def test_resolve_condition_prefers_vision():
+    from core.grading import resolve_condition
+    info = {'name': 'x', 'condition': {'score': 35,
+            'defects': [{'type': 'missing_material', 'location': 'top_right', 'severity': 'severe'}]}}
+    out = resolve_condition(info, front_img=None, inspector=_FakeInspector(99, []))
+    assert out['source'] == 'vision'
+    assert out['score'] == 35.0
+    assert out['grade'] == 'Played'          # grade_for_score(35)
+    assert out['defects'][0]['type'] == 'missing_material'
+
+
+def test_resolve_condition_falls_back_to_cv():
+    from core.grading import resolve_condition
+    info = {'name': 'x', 'condition': None}   # no vision condition
+    out = resolve_condition(info, front_img=object(), inspector=_FakeInspector(94.5, []))
+    assert out['source'] == 'cv'
+    assert out['score'] == 94.5
+    assert out['grade'] == 'Mint'            # shared mapping, not "Poor"
+
+
+def test_resolve_condition_handles_missing_info():
+    from core.grading import resolve_condition
+    out = resolve_condition(None, front_img=object(), inspector=_FakeInspector(80, []))
+    assert out['source'] == 'cv' and out['grade'] == 'Near Mint'
