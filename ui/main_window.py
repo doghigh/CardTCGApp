@@ -218,6 +218,12 @@ class MainWindow(QMainWindow):
         quit_action.triggered.connect(self.close)
         file_menu.addAction(quit_action)
 
+        # Tools menu
+        tools_menu = menubar.addMenu("&Tools")
+        regrade_action = QAction("Re-grade Collection…", self)
+        regrade_action.triggered.connect(self._regrade_collection)
+        tools_menu.addAction(regrade_action)
+
         # Help menu
         help_menu = menubar.addMenu("&Help")
         help_center_action = QAction("Help Center\tF1", self)
@@ -354,6 +360,16 @@ class MainWindow(QMainWindow):
             self.valuator.reload_credentials()
             self.scan_tab.refresh_api_key_banner()
             self.statusBar().showMessage("✅ API key added — auto-identify is on", 3000)
+
+    def _regrade_collection(self):
+        from ui.regrade_dialog import RegradeDialog
+        dlg = RegradeDialog(self.db, self.identifier, self.inspector, self)
+        dlg.trial_blocked.connect(self._open_key_setup)
+        dlg.exec()
+        # refresh views to show updated grades
+        self.collection_tab.refresh()
+        self.reports_tab.refresh()
+        self.dashboard_tab.refresh()
 
     def _open_pair_dialog(self):
         """Open the Pair phone QR dialog for Android key provisioning."""
