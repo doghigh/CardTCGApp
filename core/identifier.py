@@ -34,10 +34,15 @@ Fields:
       "Artifact", "Instant"). The type line sits in the MIDDLE of the card,
       below the art, and is NEVER the name.
     * Sports cards: the player's name.
-- set_name: the specific set / expansion name or set code (e.g. "Tempest",
-    "Fallen Empires", "FEM", "Topps", "Fleer"). If you cannot clearly identify
-    the set, use null. NEVER put the game's name (e.g. "Magic: The Gathering")
-    in this field.
+- set_name: a complete, self-contained set label — NOT just a brand name.
+    * Sports cards: "<year> <brand>", e.g. "1987 Topps", "1990 Upper Deck",
+      "1988 Donruss", "1991 Fleer". Put the year FIRST. The brand alone (just
+      "Topps") is NOT an acceptable label — always include the year.
+    * TCG (Magic, Pokémon, Yu-Gi-Oh!, etc.): the full expansion / set name,
+      e.g. "Tempest", "Fallen Empires", "Amonkhet", "Kaladesh". Prefer the full
+      set name over a set code (use "Amonkhet", not "AKH").
+    NEVER put the game's name (e.g. "Magic: The Gathering") in this field.
+    If you cannot clearly identify the set, use null.
 - card_number: the collector number exactly as printed (often a bottom corner,
     e.g. "86", "011/011", "4/5"), else null.
 - rarity: rarity if shown (Common / Uncommon / Rare / Mythic, or a sports
