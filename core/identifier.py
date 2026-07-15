@@ -55,7 +55,23 @@ Important:
 - A token's name is its creature/permanent name at the top (e.g. "Plant").
 - If a field is unreadable or absent, use null rather than guessing.
 
-Example: {"name": "Elvish Farmer", "set_name": "Fallen Empires", "card_number": null, "rarity": "Common", "year": 1994, "game": "Magic: The Gathering"}"""
+Example: {"name": "Elvish Farmer", "set_name": "Fallen Empires", "card_number": null, "rarity": "Common", "year": 1994, "game": "Magic: The Gathering"}
+
+Also grade the card's physical condition from the image(s):
+- condition_score: an integer 0-100 using this scale:
+    95-100 Gem Mint (pristine); 88-94 Mint; 76-87 Near Mint (light wear);
+    64-75 Excellent; 52-63 Very Good; 40-51 Good; 25-39 Played;
+    0-24 Poor. IMPORTANT: if any material is missing — a torn or chipped
+    corner/edge, or exposed cardboard — the card is AT MOST Good (<=51), and
+    large tears/missing chunks are Poor. Heavy creasing or staining is
+    Excellent or lower.
+- defects: a list (possibly empty) of {"type","location","severity"} where
+    type is one of "missing_material","corner_damage","edge_wear",
+    "surface_crease","surface_scratch","staining","print_defect",
+    "off_centering"; location is one of "top_left","top_right","bottom_left",
+    "bottom_right","top","bottom","left","right","center"; severity is
+    "minor","moderate", or "severe".
+Include condition_score and defects as additional fields in the SAME JSON object."""
 
 
 class CardIdentifier:
@@ -189,7 +205,7 @@ class CardIdentifier:
 
             response = client.messages.create(
                 model="claude-haiku-4-5-20251001",
-                max_tokens=256,
+                max_tokens=512,
                 messages=[{"role": "user", "content": content}]
             )
             raw = response.content[0].text.strip()
@@ -206,6 +222,17 @@ class CardIdentifier:
             }:
                 set_name = None
 
+            condition = None
+            cs = data.get('condition_score')
+            if isinstance(cs, bool):
+                cs = None
+            if isinstance(cs, (int, float)) or (isinstance(cs, str) and cs.strip().lstrip('-').isdigit()):
+                score = max(0, min(100, int(float(cs))))
+                defects = data.get('defects')
+                if not isinstance(defects, list):
+                    defects = []
+                condition = {'score': score, 'defects': defects}
+
             return {
                 'name': data.get('name') or None,
                 'set_name': set_name,
@@ -213,6 +240,7 @@ class CardIdentifier:
                 'rarity': data.get('rarity') or None,
                 'year': int(data['year']) if data.get('year') else None,
                 'game': data.get('game') or None,
+                'condition': condition,
             }
         except Exception as e:
             if trial_mode:
