@@ -12,6 +12,8 @@ import cv2
 import numpy as np
 from typing import List, Dict, Tuple
 
+from core.grading import grade_for_score
+
 
 class CardInspector:
     """Computer vision based card condition grading."""
@@ -357,11 +359,7 @@ class CardInspector:
         score -= centering_penalty
         score = max(0.0, min(100.0, score))
 
-        grade = 'Poor'
-        for g, (lo, hi) in self.GRADES.items():
-            if lo <= score <= hi:
-                grade = g
-                break
+        grade = grade_for_score(score)
 
         return {
             'grade': grade,

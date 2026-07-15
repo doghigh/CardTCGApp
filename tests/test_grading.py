@@ -25,3 +25,19 @@ def test_no_score_in_0_100_returns_poor_default_gap():
     # The exact bug-B cases must NOT return "Poor".
     assert grade_for_score(94.5) != "Poor"
     assert grade_for_score(75.4) != "Poor"
+
+
+def test_inspector_uses_shared_grade_mapping(monkeypatch):
+    import numpy as np
+    from core.inspector import CardInspector
+    insp = CardInspector()
+    # Force a known score by stubbing the detectors to yield no defects and a
+    # centering score that lands the total at 94.5 (previously the "Poor" gap).
+    monkeypatch.setattr(insp, "_detect_card_region", lambda img: img)
+    monkeypatch.setattr(insp, "_detect_corner_damage", lambda img: [])
+    monkeypatch.setattr(insp, "_detect_edge_wear", lambda img: [])
+    monkeypatch.setattr(insp, "_detect_surface_defects", lambda img: [])
+    monkeypatch.setattr(insp, "_detect_centering", lambda img: ([], 45.0))  # -> 100 - 5.5 = 94.5
+    out = insp.inspect(np.zeros((100, 100, 3), dtype=np.uint8))
+    assert out["score"] == 94.5
+    assert out["grade"] == "Mint"   # NOT "Poor"
