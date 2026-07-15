@@ -8,7 +8,7 @@ requests==2.32.0
 beautifulsoup4==4.12.3
 pytesseract==0.3.13
 reportlab==4.2.0
-pytwain==2.3.0
+pytwain==2.3.0; sys_platform == "win32"   # flatbed scanning is Windows/TWAIN only; skipped elsewhere
 pyotp==2.9.0
 cryptography==43.0.0
 qrcode[pil]==8.0
