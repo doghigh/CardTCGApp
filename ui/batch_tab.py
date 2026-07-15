@@ -209,7 +209,8 @@ class ImageBatchWorker(QThread):
                 back = self._load(back_desc)
 
                 info = self.identifier.identify_card(front, back)
-                inspection = self.inspector.inspect(front)
+                from core.grading import resolve_condition
+                inspection = resolve_condition(info, front, self.inspector)
 
                 estimate = 0.0
                 if self.auto_value and info.get('name'):

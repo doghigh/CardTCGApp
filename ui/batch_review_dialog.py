@@ -96,7 +96,8 @@ class BatchProcessWorker(QThread):
         back  = chunk[1] if len(chunk) > 1 else None
 
         info       = self.identifier.identify_card(front, back)
-        inspection = self.inspector.inspect(front)
+        from core.grading import resolve_condition
+        inspection = resolve_condition(info, front, self.inspector)
         valuation  = self.valuator.value_summary(
             info.get('name', '') or '',
             info.get('set_name'),

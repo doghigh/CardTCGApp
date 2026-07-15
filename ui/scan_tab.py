@@ -110,6 +110,7 @@ class ScanTab(QWidget):
         self.current_valuations = []
 
         self._accumulated_images = []   # pages collected across multiple scan runs
+        self._last_identify = None
 
         self._build_ui()
 
@@ -459,6 +460,7 @@ class ScanTab(QWidget):
             return
         try:
             info = self.identifier.identify_card(self.current_front_img, self.current_back_img)
+            self._last_identify = info
 
             source = (info or {}).get('source', '')
             if source.startswith('trial_'):
@@ -494,7 +496,9 @@ class ScanTab(QWidget):
         if self.current_front_img is None:
             return
         try:
-            self.current_inspection = self.inspector.inspect(self.current_front_img)
+            from core.grading import resolve_condition
+            self.current_inspection = resolve_condition(
+                getattr(self, '_last_identify', None), self.current_front_img, self.inspector)
             grade = self.current_inspection['grade']
             score = self.current_inspection['score']
             defects = self.current_inspection.get('defects', [])
