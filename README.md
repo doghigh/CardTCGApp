@@ -54,6 +54,12 @@ https://developer.ebay.com/
 - TWAIN-compatible scanner (optional)
 - [Tesseract OCR](https://github.com/UB-Mannheim/tesseract/wiki) (optional OCR fallback)
 - Developer Accounts and API keys from Anthropic and Ebay (Anthropic allows for Card Identification, it has identified cards from Dessert Storm, Star Wars, MTG, Sports, Last Air Bender, etc)
+
+### Running on Linux or macOS
+
+Lorebox also runs from source on Linux and macOS (everything except direct
+flatbed/TWAIN scanning — use file/PDF import there). See
+[README-Linux.md](README-Linux.md) and [README-macOS.md](README-macOS.md).
 --
 
 ## 📄 License
