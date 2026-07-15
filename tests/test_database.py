@@ -11,6 +11,18 @@ class DatabaseTests(unittest.TestCase):
     def setUp(self):
         self.db = Database(Path(tempfile.mktemp(suffix=".db")))
 
+    # ── connection pragmas ───────────────────────────────────────────────────
+
+    def test_connection_uses_wal_and_busy_timeout(self):
+        conn = self.db._conn()
+        try:
+            mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
+            timeout = conn.execute("PRAGMA busy_timeout").fetchone()[0]
+        finally:
+            conn.close()
+        self.assertEqual(str(mode).lower(), "wal")   # readers don't block writer
+        self.assertEqual(timeout, 5000)              # wait on contention, don't hang
+
     # ── validation ──────────────────────────────────────────────────────────
 
     def test_validation_clamps_and_defaults(self):

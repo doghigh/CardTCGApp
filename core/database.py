@@ -20,9 +20,20 @@ class Database:
         self._init_db()
 
     def _conn(self):
-        """Create a new database connection."""
+        """Create a new database connection.
+
+        WAL mode lets readers and a writer proceed concurrently instead of
+        blocking each other (default rollback-journal mode makes them mutually
+        exclusive, which froze the UI thread whenever anything else — a backup,
+        antivirus, cloud sync, or a second connection — touched the file).
+        busy_timeout waits briefly on genuine contention rather than erroring or
+        hanging. journal_mode=WAL persists on the file, so setting it per
+        connection is idempotent (it just returns the current mode).
+        """
         conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
         conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode = WAL")
+        conn.execute("PRAGMA busy_timeout = 5000")
         conn.execute("PRAGMA foreign_keys = ON")
         return conn
 
