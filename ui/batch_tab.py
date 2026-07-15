@@ -25,7 +25,7 @@ from core.watcher import WatchConfig
 from ui.dialogs import CsvMappingDialog
 
 
-SCANS_DIR = Path(os.environ.get('APPDATA', Path.home())) / "Lorebox" / "scans"
+from core.paths import SCANS_DIR
 SCANS_DIR.mkdir(parents=True, exist_ok=True)
 
 

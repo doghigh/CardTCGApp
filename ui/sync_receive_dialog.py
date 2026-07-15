@@ -17,7 +17,7 @@ from core.config import config
 from core.net_utils import detect_lan_ip
 from core.sync_server import SyncServer
 
-SCANS_DIR = Path(os.environ.get("APPDATA", Path.home())) / "Lorebox" / "scans" / "cards"
+from core.paths import SCANS_CARDS_DIR as SCANS_DIR
 DEFAULT_PORT = 8765
 
 

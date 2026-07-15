@@ -15,7 +15,7 @@ from PyQt6.QtGui import QDesktopServices
 
 from ui.help_content import HELP_TOPICS
 
-APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "Lorebox"
+from core.paths import APP_DIR
 
 
 class HelpDialog(QDialog):

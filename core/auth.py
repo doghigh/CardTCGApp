@@ -33,8 +33,7 @@ from PyQt6.QtCore import Qt
 
 logger = logging.getLogger(__name__)
 
-APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "Lorebox"
-APP_DIR.mkdir(parents=True, exist_ok=True)
+from core.paths import APP_DIR
 
 
 # ── Custom exceptions ────────────────────────────────────────────────────────

@@ -28,7 +28,7 @@ from ui.collection_tab import CollectionTab
 from ui.reports_tab import ReportsTab
 
 
-APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "Lorebox"
+from core.paths import APP_DIR
 
 
 class MainWindow(QMainWindow):

@@ -14,7 +14,7 @@ import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "Lorebox"
+from core.paths import APP_DIR
 LOG_DIR = APP_DIR / "logs"
 LOG_FILE = LOG_DIR / "app.log"
 

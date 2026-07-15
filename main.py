@@ -85,8 +85,6 @@ def main():
 
 
 if __name__ == "__main__":
-    # Ensure APP_DIR is available globally if needed
-    APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "Lorebox"
-    APP_DIR.mkdir(parents=True, exist_ok=True)
-
+    # APP_DIR is created on import of core.paths (honoring LOREBOX_DATA_DIR,
+    # which _load_dotenv above loads from .env before any core import).
     main()

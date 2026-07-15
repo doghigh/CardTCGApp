@@ -30,7 +30,7 @@ from core.valuator import CardValuator
 from core.database import Database
 
 
-SCANS_DIR = Path(os.environ.get('APPDATA', Path.home())) / "Lorebox" / "scans"
+from core.paths import SCANS_DIR
 SCANS_DIR.mkdir(parents=True, exist_ok=True)
 
 

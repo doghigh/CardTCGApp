@@ -20,8 +20,7 @@ from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 
-APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "Lorebox"
-APP_DIR.mkdir(parents=True, exist_ok=True)
+from core.paths import APP_DIR
 CONFIG_FILE = APP_DIR / "watch_config.json"
 
 IMAGE_EXTS = ("*.png", "*.jpg", "*.jpeg", "*.pdf")

@@ -24,8 +24,7 @@ from cryptography.fernet import Fernet, InvalidToken
 
 logger = logging.getLogger(__name__)
 
-APP_DIR = Path(os.environ.get('APPDATA', Path.home())) / "Lorebox"
-APP_DIR.mkdir(parents=True, exist_ok=True)
+from core.paths import APP_DIR
 
 CONFIG_FILE = APP_DIR / "config.enc"
 KEY_FILE    = APP_DIR / ".config.key"
