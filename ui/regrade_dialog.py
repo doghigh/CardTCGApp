@@ -10,7 +10,7 @@ import os
 import cv2
 from PyQt6.QtCore import QThread, pyqtSignal
 from PyQt6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QProgressBar, QMessageBox
+    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QProgressBar
 )
 
 from core.grading import resolve_condition
@@ -134,3 +134,11 @@ class RegradeDialog(QDialog):
         self._status.setText("Free trial used up — add your own key to finish re-grading.")
         self._start_btn.setEnabled(True)
         self.trial_blocked.emit(source)
+
+    def closeEvent(self, event):
+        try:
+            if self._worker is not None and self._worker.isRunning():
+                self._worker.cancel()
+                self._worker.wait(5000)
+        finally:
+            super().closeEvent(event)
