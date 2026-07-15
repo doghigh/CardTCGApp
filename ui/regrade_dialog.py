@@ -44,11 +44,18 @@ class _RegradeWorker(QThread):
                 skipped += 1
                 self.progress.emit(i + 1, total)
                 continue
-            front = cv2.cvtColor(cv2.imread(fp), cv2.COLOR_BGR2RGB)
+            front_bgr = cv2.imread(fp)
+            if front_bgr is None:          # exists but unreadable/corrupt — skip, don't crash the run
+                skipped += 1
+                self.progress.emit(i + 1, total)
+                continue
+            front = cv2.cvtColor(front_bgr, cv2.COLOR_BGR2RGB)
             back = None
             bp = card.get('back_scan_path')
             if bp and os.path.exists(bp):
-                back = cv2.cvtColor(cv2.imread(bp), cv2.COLOR_BGR2RGB)
+                back_bgr = cv2.imread(bp)
+                if back_bgr is not None:
+                    back = cv2.cvtColor(back_bgr, cv2.COLOR_BGR2RGB)
             info = self.identifier.identify_card(front, back)
             if str(info.get('source', '')).startswith('trial_'):
                 self.trial_blocked.emit(info['source'])
