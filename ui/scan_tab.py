@@ -111,8 +111,39 @@ class ScanTab(QWidget):
 
         self._accumulated_images = []   # pages collected across multiple scan runs
         self._last_identify = None
+        self._sources_loaded = False
 
         self._build_ui()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        # Enumerate scanners the first time the Scan tab is actually shown — NOT at
+        # app startup. TWAIN driver enumeration can be slow or hang on some
+        # machines; deferring it here keeps launch instant (the default tab is the
+        # Dashboard, so a user who never opens Scan never touches TWAIN).
+        if not self._sources_loaded:
+            self._load_sources()
+
+    def _load_sources(self):
+        """Populate the scanner dropdown from TWAIN.
+
+        Deferred off the startup path (see showEvent) and re-runnable via the 🔄
+        button. Stays on the UI thread because TWAIN is thread-affinity sensitive;
+        the brief pause only happens on the Scan tab, never during app launch.
+        """
+        from PyQt6.QtWidgets import QApplication
+        self._sources_loaded = True
+        self.source_combo.clear()
+        self.source_combo.addItem("Detecting scanners…")
+        self.source_combo.setEnabled(False)
+        QApplication.processEvents()   # render the placeholder before the blocking call
+        try:
+            sources = self.scanner.list_sources()
+        except Exception:
+            sources = []
+        self.source_combo.clear()
+        self.source_combo.addItems(sources if sources else ["(No TWAIN scanner detected)"])
+        self.source_combo.setEnabled(True)
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
@@ -143,8 +174,13 @@ class ScanTab(QWidget):
         bar = QHBoxLayout()
         self.source_combo = QComboBox()
         self.source_combo.setMinimumWidth(220)
-        sources = self.scanner.list_sources()
-        self.source_combo.addItems(sources if sources else ["(No TWAIN scanner detected)"])
+        # Do NOT enumerate here — that runs at startup and can hang. Deferred to
+        # showEvent (first time the tab is shown). Placeholder until then.
+        self.source_combo.addItem("Detecting scanners…")
+        self.detect_btn = QPushButton("🔄")
+        self.detect_btn.setToolTip("Re-detect scanners")
+        self.detect_btn.setMaximumWidth(40)
+        self.detect_btn.clicked.connect(self._load_sources)
 
         self.dpi_spin = QSpinBox()
         self.dpi_spin.setRange(72, 1200)
@@ -168,6 +204,7 @@ class ScanTab(QWidget):
 
         bar.addWidget(QLabel("Scanner:"))
         bar.addWidget(self.source_combo)
+        bar.addWidget(self.detect_btn)
         bar.addWidget(self.dpi_spin)
         bar.addWidget(self.duplex_check)
         bar.addWidget(self.scan_card_btn)
