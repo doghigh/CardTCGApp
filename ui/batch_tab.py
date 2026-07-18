@@ -23,6 +23,7 @@ from core.identifier import CardIdentifier
 from core.valuator import CardValuator
 from core.watcher import WatchConfig
 from ui.dialogs import CsvMappingDialog
+from core import usage
 
 
 from core.paths import SCANS_DIR
@@ -247,6 +248,7 @@ class ImageBatchWorker(QThread):
                 }
 
                 self.db.add_card(card_data)
+                usage.log_event("card_saved", source="batch")
                 added += 1
                 sides = "front+back" if back is not None else "front"
                 self.progress.emit(f"✅ Saved: {card_data['name']} ({sides})", progress_pct)
@@ -298,6 +300,7 @@ class CsvBatchWorker(QThread):
                             continue
 
                         self.db.add_card(card_data)
+                        usage.log_event("card_saved", source="batch")
                         added += 1
                         self.progress.emit(f"✅ Imported: {card_data['name']}", progress_pct)
 
@@ -629,13 +632,16 @@ class BatchTab(QWidget):
                 self.identifier, self.valuator, self.auto_value_check.isChecked(),
                 pairing,
             )
+            mode = pairing
         else:
             dialog = CsvMappingDialog(self.current_path, self)
             if dialog.exec() != 1:
                 self.process_btn.setEnabled(True)
                 return
             self._batch_worker = CsvBatchWorker(self.current_path, self.db, dialog.mapping)
+            mode = "csv"
 
+        usage.log_event("batch_import_started", mode=mode)
         self._batch_worker.progress.connect(self._on_progress)
         self._batch_worker.finished.connect(self._on_finished)
         self._batch_worker.start()
@@ -650,6 +656,7 @@ class BatchTab(QWidget):
         self.progress_bar.setVisible(False)
         self.log_text.append(f"\n✅ Batch complete — {count} cards imported.")
         self.status_label.setText(f"Done — {count} cards imported.")
+        usage.log_event("batch_import_completed", count=int(count))
         self.cards_added.emit(count)
 
     def _create_csv_template(self):

@@ -20,6 +20,7 @@ from core.identifier import CardIdentifier
 from core.valuator import CardValuator
 from core.auth import AuthManager, WindowsHelloAuth, LoginDialog, AuthLockedError
 from core.watcher import WatchConfig
+from core import usage
 
 from ui.dashboard_tab import DashboardTab
 from ui.scan_tab import ScanTab
@@ -36,6 +37,9 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
+
+        import time
+        self._session_start = time.monotonic()
 
         # Authentication
         self.auth = AuthManager()
@@ -156,7 +160,9 @@ class MainWindow(QMainWindow):
         row.addWidget(ok)
         v.addLayout(row)
 
+        usage.log_event("welcome_shown")
         dlg.exec()
+        usage.log_event("welcome_ack")
         from datetime import date
         set_pref("welcome_ack", date.today().isoformat())
 
@@ -252,6 +258,9 @@ class MainWindow(QMainWindow):
         """Closing the main window exits the app (quitOnLastWindowClosed is off,
         so child dialogs closing never quit it — only this does)."""
         from PyQt6.QtWidgets import QApplication
+        import time
+        usage.log_event("session_ended",
+                        duration_sec=int(time.monotonic() - self._session_start))
         event.accept()
         QApplication.instance().quit()
 
@@ -381,11 +390,15 @@ class MainWindow(QMainWindow):
         """Open the trial-driven key-setup dialog and apply changes live."""
         from ui.key_setup_dialog import KeySetupDialog
         dlg = KeySetupDialog(self, reason=reason)
+        usage.log_event("key_prompt_shown", reason=reason)
         if dlg.exec() == 1:  # Accepted — a key was validated and saved
+            usage.log_event("key_added")
             self.identifier.reload_credentials()
             self.valuator.reload_credentials()
             self.scan_tab.refresh_api_key_banner()
             self.statusBar().showMessage("✅ API key added — auto-identify is on", 3000)
+        else:
+            usage.log_event("key_skipped")
 
     def _regrade_collection(self):
         from ui.regrade_dialog import RegradeDialog

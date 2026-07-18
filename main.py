@@ -41,6 +41,8 @@ try:
 except Exception as _exc:  # noqa: BLE001 — config is best-effort at startup
     logger.warning("Config load skipped: %s", _exc)
 
+from core.config import get_pref
+
 
 try:
     from PyQt6.QtWidgets import (
@@ -81,6 +83,11 @@ def main():
     window.showMaximized()
 
     logger.info("%s v%s started successfully!", APP_NAME, APP_VERSION)
+
+    from core import usage
+    usage.log_event("app_launched", version=APP_VERSION,
+                    first_run=not bool(get_pref("welcome_ack")))
+
     sys.exit(app.exec())
 
 

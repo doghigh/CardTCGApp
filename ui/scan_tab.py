@@ -28,6 +28,7 @@ from core.inspector import CardInspector
 from core.identifier import CardIdentifier
 from core.valuator import CardValuator
 from core.database import Database
+from core import usage
 
 
 from core.paths import SCANS_DIR
@@ -112,6 +113,7 @@ class ScanTab(QWidget):
         self._accumulated_images = []   # pages collected across multiple scan runs
         self._last_identify = None
         self._sources_loaded = False
+        self._opened_logged = False
 
         self._build_ui()
 
@@ -123,6 +125,9 @@ class ScanTab(QWidget):
         # Dashboard, so a user who never opens Scan never touches TWAIN).
         if not self._sources_loaded:
             self._load_sources()
+        if not self._opened_logged:
+            self._opened_logged = True
+            usage.log_event("scan_tab_opened")
 
     def _load_sources(self):
         """Populate the scanner dropdown from TWAIN.
@@ -144,6 +149,10 @@ class ScanTab(QWidget):
         self.source_combo.clear()
         self.source_combo.addItems(sources if sources else ["(No TWAIN scanner detected)"])
         self.source_combo.setEnabled(True)
+        if sources:
+            usage.log_event("scanner_detected", count=len(sources))
+        else:
+            usage.log_event("scanner_none")
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
@@ -337,6 +346,7 @@ class ScanTab(QWidget):
         self.api_key_banner.setVisible(not os.environ.get('ANTHROPIC_API_KEY'))
 
     def _scan_card(self):
+        usage.log_event("scan_started", source="scan")
         source = self.source_combo.currentText()
         if "no TWAIN" in source.lower():
             QMessageBox.warning(self, "No Scanner", "Use Load buttons or connect a TWAIN scanner.")
@@ -407,6 +417,7 @@ class ScanTab(QWidget):
             from utils.image_ops import deskew
             chunk = [deskew(im) for im in chunks[0]]
             self._load_card_images(chunk)
+            usage.log_event("scan_completed")
             self._auto_identify()
             self._inspect()
             self.status_label.setText("✅ Card ready — review and save.")
@@ -471,6 +482,7 @@ class ScanTab(QWidget):
             "Images (*.png *.jpg *.jpeg *.bmp *.tiff)")
         if not path:
             return
+        usage.log_event("scan_started", source="file")
         self.status_label.setText(f"Loading {side}...")
         self._worker = ScanWorker(self.scanner, file_path=path)
         self._worker.finished.connect(lambda img: self._load_done(side, img))
@@ -500,6 +512,9 @@ class ScanTab(QWidget):
             self._last_identify = info
 
             source = (info or {}).get('source', '')
+            outcome = ("trial_blocked" if source.startswith("trial_")
+                       else source if source in ("claude", "ocr") else "error")
+            usage.log_event("identify_result", outcome=outcome)
             if source.startswith('trial_'):
                 self.status_label.setText(
                     "Free trial used — add your own key to keep auto-identifying."
@@ -620,6 +635,7 @@ class ScanTab(QWidget):
             # Detect whether this will merge into an existing card
             existing_id = self.db.find_duplicate(card_data)
             card_id = self.db.add_card(card_data)
+            usage.log_event("card_saved", source="scan")
 
             val_msg = (f"\n💰 Est. value: ${estimated:.2f} ({val_source}, {val_sample} sales)"
                        if estimated > 0 else "\n💰 No market data found")
