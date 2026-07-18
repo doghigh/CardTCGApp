@@ -237,7 +237,10 @@ Icon-only buttons and image previews are labeled for screen readers (Narrator).
   (under `%APPDATA%\\Lorebox` — [📂 open it](lorebox:data)).
 - Card images go to **Anthropic** for identification and card names go to
   **eBay and Scryfall** for pricing — using **your** API keys.
-- API keys are stored **encrypted**. There is **no analytics or tracking**.
+- API keys are stored **encrypted**. The app does **not send any data anywhere**
+  — no accounts, no cloud, no tracking. It keeps a **local diagnostic log on your
+  device** (Help ▸ Export usage log) that never leaves your computer unless you
+  choose to export and share it while helping test.
 - Lorebox opens without a login — there's no account or password, and your
   collection simply stays on this computer. **If the collector is under 16, we
   encourage a parent or guardian to be involved** and to approve use without a
