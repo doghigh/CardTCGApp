@@ -164,6 +164,23 @@ if a genuinely large collection shows lag. Documented so the analysis isn't lost
 
 ---
 
+## 🎯 Backlog — queued features (2026-07-18)
+- [ ] **Custom game categories** — let users add their own games instead of
+      falling back to "Other"/"Non-Sport". Needs a small custom-games store
+      (config/prefs), surfaced in the game dropdowns (`ui/dialogs.py`,
+      `ui/batch_review_dialog.py` `GAMES`) + a Settings manager. (Vision prompt
+      enum stays fixed; users re-label after, or we extend the prompt later.)
+- [ ] **Estimated-spend counter + billing link (dashboard)** — Anthropic has
+      NO API to read a key's real balance (Console-only, like the OAuth wall).
+      Buildable version: a dashboard tile "~$X.XX estimated this month" from the
+      identification count (≈$0.006/card) + a "View billing" button deep-linking
+      to console.anthropic.com. NOT a real balance — an estimate.
+- [ ] **De-slop pass (site + app)** — remove AI-generated-slop signals: the
+      color scheme, the "tagging"/marketing paragraphs that read as AI-written,
+      and any generic filler copy. Make the landing page + in-app copy read as
+      human-authored and credible. (Site: `site/`; app: banners, help text,
+      dialog copy.)
+
 ## 💭 Possible future features
 - Pokémon pricing via pokemontcg.io (free API), like Scryfall for MTG
 - Background watch service (import even when the app is closed)
