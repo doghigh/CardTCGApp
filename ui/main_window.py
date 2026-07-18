@@ -243,6 +243,11 @@ class MainWindow(QMainWindow):
         privacy_action.triggered.connect(self._open_privacy)
         help_menu.addAction(privacy_action)
 
+        help_menu.addSeparator()
+        export_usage_action = QAction("Export usage log…", self)
+        export_usage_action.triggered.connect(self._export_usage_log)
+        help_menu.addAction(export_usage_action)
+
     def closeEvent(self, event):
         """Closing the main window exits the app (quitOnLastWindowClosed is off,
         so child dialogs closing never quit it — only this does)."""
@@ -258,6 +263,27 @@ class MainWindow(QMainWindow):
         from PyQt6.QtGui import QDesktopServices
         from PyQt6.QtCore import QUrl
         QDesktopServices.openUrl(QUrl("https://cardtcgapp.onrender.com/privacy"))
+
+    def _export_usage_log(self):
+        from datetime import date
+        from pathlib import Path
+        from PyQt6.QtWidgets import QFileDialog, QMessageBox
+        from core import usage
+        default = str(Path.home() / f"lorebox-usage-{date.today().isoformat()}.zip")
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export usage log", default, "Zip archive (*.zip)")
+        if not path:
+            return
+        try:
+            usage.export_zip(Path(path))
+            QMessageBox.information(
+                self, "Usage log exported",
+                "Saved a zip of your local usage log.\n\n"
+                "It contains only anonymous funnel events (no card data, names, "
+                "or images) — you can open it to see exactly what's in it before "
+                "sending it to the developer.")
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.warning(self, "Export failed", str(exc))
 
     # ── Watch-folder auto-import ──────────────────────────────────────────────
 
