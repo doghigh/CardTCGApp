@@ -284,7 +284,7 @@ class MainWindow(QMainWindow):
         if not path:
             return
         try:
-            usage.export_zip(Path(path))
+            usage.export_zip(Path(path), include_app_log=False)
             QMessageBox.information(
                 self, "Usage log exported",
                 "Saved a zip of your local usage log.\n\n"
