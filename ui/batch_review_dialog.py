@@ -290,6 +290,11 @@ class BatchReviewDialog(QDialog):
         bottom.addWidget(self._status)
         bottom.addStretch()
 
+        add_game_btn = QPushButton("➕ Add game")
+        add_game_btn.setToolTip("Add a custom game category (applies to all rows)")
+        add_game_btn.clicked.connect(self._add_game_category)
+        bottom.addWidget(add_game_btn)
+
         cancel_btn = QPushButton("Cancel")
         cancel_btn.clicked.connect(self.reject)
         bottom.addWidget(cancel_btn)
@@ -399,6 +404,30 @@ class BatchReviewDialog(QDialog):
             if (chk := self._get_checkbox(row)) and chk.isChecked()
         )
         self._status.setText(f"{selected} of {self._total} cards selected")
+
+    def _add_game_category(self):
+        from PyQt6.QtWidgets import QInputDialog, QMessageBox
+        from core.games import add_custom_game, all_games
+        name, ok = QInputDialog.getText(self, "Add game category", "New game name:")
+        if not ok:
+            return
+        if not add_custom_game(name):
+            QMessageBox.information(
+                self, "Not added",
+                "Enter a new game name that isn't already in the list.")
+            return
+        # Refresh every row's game combo, preserving each row's current choice.
+        for row in range(self._table.rowCount()):
+            combo = self._table.cellWidget(row, COL_GAME)
+            if combo is None:
+                continue
+            current = combo.currentText()
+            combo.blockSignals(True)
+            combo.clear()
+            combo.addItems(all_games())
+            idx = combo.findText(current)
+            combo.setCurrentIndex(idx if idx >= 0 else combo.count() - 1)
+            combo.blockSignals(False)
 
     # ── Row image transforms ─────────────────────────────────────────────────
 
