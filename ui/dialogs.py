@@ -15,11 +15,7 @@ from PyQt6.QtGui import QPixmap, QImage
 import cv2
 import numpy as np
 
-GAMES = [
-    "Baseball", "Basketball", "Football", "Hockey", "Sports Cards",
-    "Magic: The Gathering", "Pokémon", "Yu-Gi-Oh!", "One Piece",
-    "Lorcana", "Flesh and Blood", "Non-Sport", "Other",
-]
+from core.games import all_games
 
 GRADES = [
     "", "Gem Mint", "Mint", "Near Mint", "Excellent",
@@ -165,7 +161,7 @@ class CardDetailDialog(QDialog):
         self.rarity_edit = QLineEdit(card.get('rarity', '') or '')
 
         self.game_combo = QComboBox()
-        self.game_combo.addItems(GAMES)
+        self.game_combo.addItems(all_games())
         g = card.get('game') or 'Other'
         gi = self.game_combo.findText(g)
         self.game_combo.setCurrentIndex(gi if gi >= 0 else self.game_combo.count() - 1)

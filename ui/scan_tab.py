@@ -29,6 +29,7 @@ from core.identifier import CardIdentifier
 from core.valuator import CardValuator
 from core.database import Database
 from core import usage
+from core.games import all_games
 
 
 from core.paths import SCANS_DIR
@@ -283,11 +284,7 @@ class ScanTab(QWidget):
         self.rarity_edit = QLineEdit()
         self.game_combo = QComboBox()
         self.game_combo.setEditable(True)
-        self.game_combo.addItems([
-            "Magic: The Gathering", "Pokémon", "Yu-Gi-Oh!", "One Piece",
-            "Lorcana", "Flesh and Blood", "Baseball", "Basketball",
-            "Football", "Hockey", "Sports Cards", "Non-Sport", "Other"
-        ])
+        self.game_combo.addItems(all_games())
         self.year_spin = QSpinBox()
         self.year_spin.setRange(1900, 2100)
         self.year_spin.setValue(datetime.now().year)

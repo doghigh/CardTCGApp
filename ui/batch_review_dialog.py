@@ -26,15 +26,10 @@ from core.identifier import CardIdentifier
 from core.inspector import CardInspector
 from core.valuator import CardValuator
 from core.database import Database
+from core.games import all_games
 
 from core.paths import SCANS_CARDS_DIR as SCANS_DIR
 SCANS_DIR.mkdir(parents=True, exist_ok=True)
-
-GAMES = [
-    "Baseball", "Basketball", "Football", "Hockey", "Sports Cards",
-    "Magic: The Gathering", "Pokémon", "Yu-Gi-Oh!", "One Piece",
-    "Lorcana", "Flesh and Blood", "Non-Sport", "Other",
-]
 
 COL_CHECK = 0
 COL_THUMB = 1
@@ -337,7 +332,7 @@ class BatchReviewDialog(QDialog):
 
         # Game combo
         game_combo = QComboBox()
-        game_combo.addItems(GAMES)
+        game_combo.addItems(all_games())
         game = r.get('game') or 'Other'
         idx = game_combo.findText(game)
         game_combo.setCurrentIndex(idx if idx >= 0 else game_combo.count() - 1)
