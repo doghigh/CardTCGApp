@@ -6,10 +6,15 @@ Actual spend is bounded server-side by the Worker's monthly cap.
 """
 from core.config import get_pref, set_pref
 
-TRIAL_LIMIT = 10
+# 0 disables the free trial entirely: no proxy round-trip is attempted and new
+# users go straight to the add-your-own-key dialog. The trial proxy is not yet
+# deployed (see trial-proxy/README.md) — restore this to 10 in the same change
+# that sets a real WORKER_BASE_URL below.
+TRIAL_LIMIT = 0
 
 # Set to the deployed Cloudflare Worker origin (see trial-proxy/README.md).
 # The anthropic SDK appends "/v1/messages", so this is the origin only.
+# NOT DEPLOYED — placeholder host; unreachable while TRIAL_LIMIT is 0.
 WORKER_BASE_URL = "https://lorebox-trial.REPLACE.workers.dev"
 
 _PREF_KEY = "trial_used"

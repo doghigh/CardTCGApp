@@ -63,15 +63,30 @@ Still needed before submission:
 - [x] App icon set (placeholder)
 - [x] MSIX manifest + pack script
 - [x] Final name / branding decided — **Lorebox** (domain loreboxapp.dev)
-- [ ] Partner Center identity filled into the manifest
-- [ ] Privacy policy URL live (ebay_webhook `/privacy`) + contact email filled
-- [ ] Screenshots (1366×768 or 1920×1080)
-- [ ] Store description, category, age rating
-- [ ] WACK pass
+- [x] Partner Center identity filled into the manifest (`33303JesseCatlow.Lorebox`)
+- [x] Privacy policy contact email filled (`contact@loreboxapp.dev`, both
+      `site/privacy.html` and the `ebay_webhook` `/privacy` page)
+- [x] Screenshots (`screenshots/sc1-4.png`, trademark-free demo data)
+- [x] Store description, category, age rating
+- [ ] WACK pass **for this build** — re-run per release
+- [ ] Upload `packaging/Lorebox.msix` to Partner Center
 
-## 3. Pre-submission checklist
-- [ ] App icon set
-- [ ] Privacy policy URL live (see ebay_webhook `/privacy`)
-- [ ] Screenshots (1366×768 or 1920×1080)
-- [ ] Store description, category (Productivity/Utilities), age rating
-- [ ] WACK pass
+## 5. Releasing an update
+
+Every Store submission needs a strictly higher `Version` than the last one, and
+a version can't be reused once submitted. Bump **both** of these together:
+
+- `main.py` → `APP_VERSION` (three-part, e.g. `1.3.0`)
+- `packaging/AppxManifest.xml` → `Identity/@Version` (four-part; the revision
+  field **must** be `0` — the Store rejects anything else)
+
+Then rebuild and repack:
+
+```powershell
+python -m pytest tests/ -q
+pyinstaller Lorebox.spec --noconfirm
+powershell -ExecutionPolicy Bypass -File packaging\build_msix.ps1
+```
+
+The Store re-signs on submission, so no signing step is needed for upload —
+only for local sideload testing.

@@ -39,6 +39,8 @@ def test_trial_success_consumes_one_credit(monkeypatch, img):
 
 def test_trial_exhausted_makes_no_call(monkeypatch, img):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    # A build that offers a trial, whose credits the user has spent.
+    monkeypatch.setattr(trial, "TRIAL_LIMIT", 10)
     monkeypatch.setattr(trial, "trial_remaining", lambda: 0)
     ident = CardIdentifier()
     called = {"n": 0}
@@ -47,6 +49,23 @@ def test_trial_exhausted_makes_no_call(monkeypatch, img):
 
     out = ident.identify_card(img)
     assert out["source"] == "trial_exhausted"
+    assert called["n"] == 0
+
+
+def test_trial_disabled_makes_no_call(monkeypatch, img):
+    """TRIAL_LIMIT == 0: no proxy round-trip, and the marker distinguishes a
+    build with no trial from one whose credits were spent, so the key dialog
+    doesn't tell a first-time user they've used up 10 identifications."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr(trial, "TRIAL_LIMIT", 0)
+    monkeypatch.setattr(trial, "trial_remaining", lambda: 0)
+    ident = CardIdentifier()
+    called = {"n": 0}
+    monkeypatch.setattr(ident, "_identify_with_claude",
+                        lambda f, b: called.__setitem__("n", called["n"] + 1))
+
+    out = ident.identify_card(img)
+    assert out["source"] == "trial_disabled"
     assert called["n"] == 0
 
 

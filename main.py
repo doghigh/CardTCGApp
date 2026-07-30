@@ -63,7 +63,7 @@ from ui.main_window import MainWindow
 
 
 APP_NAME = "Lorebox"
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.3.0"
 
 
 def main():
