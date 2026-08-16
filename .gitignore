@@ -94,3 +94,9 @@ packaging/loreboxappcert.xml
 
 # Personal editor workspace file (local machine paths, not project config)
 *.code-workspace
+
+# Local virtualenv (created for running the test suite)
+.venv/
+
+# SDD scratch
+.superpowers/
