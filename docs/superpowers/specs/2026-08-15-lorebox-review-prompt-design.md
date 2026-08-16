@@ -70,8 +70,12 @@ matters, since the current suite cannot run without the full dependency set inst
 Policy over prefs. **No module-level Qt import** — `open_store_review()` imports
 `QDesktopServices` / `QUrl` lazily inside the function body, matching how
 `ui/main_window.py:132` and `ui/batch_review_dialog.py:409` already defer Qt imports.
-This keeps `import core.review_prompt` working without PyQt6 installed, so the policy
-tests run in a bare environment.
+
+The reason is layering, not testability: `core/` holds policy and should not take a
+direct Qt dependency for one hand-off call. It does **not** make the module importable
+without PyQt6 — `core/__init__.py:5-10` eagerly imports `scanner`→`cv2` and
+`auth`→`PyQt6`, so any `core.*` import already pulls in the full dependency set. The
+policy tests therefore need the complete environment like every other test in the suite.
 
 ```
 STORE_PRODUCT_ID  = "9N94V4458M3V"

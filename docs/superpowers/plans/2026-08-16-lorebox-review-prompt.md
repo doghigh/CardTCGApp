@@ -15,7 +15,7 @@
 ## Global Constraints
 
 - **No new dependencies.** Everything used here is already in `requirements.txt`.
-- **`core/review_prompt.py` must not import Qt at module level.** Import `QDesktopServices` / `QUrl` inside the function body. This keeps the policy tests runnable without PyQt6 installed. The codebase already does this at `ui/main_window.py:132` and `ui/batch_review_dialog.py:409`.
+- **`core/review_prompt.py` must not import Qt at module level.** Import `QDesktopServices` / `QUrl` inside the function body, as the codebase already does at `ui/main_window.py:132` and `ui/batch_review_dialog.py:409`. The reason is layering: `core/` holds policy and must not take a direct Qt dependency for what is a single hand-off call. (Note: this does *not* make the module importable without PyQt6 — `core/__init__.py:5-10` eagerly imports `scanner`→`cv2` and `auth`→`PyQt6`, so any `core.*` import pulls in the full dependency set regardless. The constraint stands on layering grounds alone.)
 - **Prefs, not encrypted config.** Use `get_pref` / `set_pref` from `core.config`. These values are not secrets.
 - **Store product ID is `9N94V4458M3V`** and must appear in exactly one module (`core/review_prompt.py`).
 - **Copy rules:** no emoji, no exclamation marks, no vague startup phrasing. Exact copy strings are given in the tasks — use them verbatim.
@@ -50,8 +50,10 @@ Pure decision logic plus its tests. This task has no Qt dependency and is the fo
 The repo has no committed virtualenv and the system Python installations are missing dependencies. Create one before writing any code:
 
 ```bash
-py -3.13 -m venv .venv && .venv/Scripts/python -m pip install -r requirements.txt pytest
+py -3.11 -m venv .venv && .venv/Scripts/python -m pip install -r requirements.txt pytest
 ```
+
+**Use 3.11, not 3.13.** `requirements.txt` pins `numpy==1.26.4`, which has no cp313 wheel — pip falls back to a source build that produces a broken long-double and fails at import with `OverflowError: cannot convert longdouble infinity to integer`, taking down 16 of 18 test files at collection. 3.11.9 is installed on this machine and resolves every pin from wheels.
 
 Verify the existing suite runs and passes before you change anything:
 
