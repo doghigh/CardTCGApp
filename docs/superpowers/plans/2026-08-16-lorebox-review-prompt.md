@@ -658,38 +658,133 @@ Expected: `ok`
 
 Expected: all pass.
 
-- [ ] **Step 5: Verify the trigger end to end**
+- [ ] **Step 5: Test the arming logic headlessly**
 
-This is the one behavior no unit test covers. Force the threshold down so you can reach it, rather than adding 50 cards by hand:
+Do **not** launch the app to verify this task. `run.bat` opens a GUI that blocks until a human closes it, and driving it would write to the real `%APPDATA%/Lorebox/prefs.json`. The human runs the GUI check separately (see "Manual verification" below). Your job is the logic.
 
-```bash
-.venv/Scripts/python -c "import core.review_prompt as rp; print(rp.FIRST_THRESHOLD)"
+The three new methods are plain functions on `MainWindow`, so they can be exercised against a lightweight stub without constructing a real window — no database, scanner, or Qt widget tree required.
+
+Create `tests/test_main_window_review_hook.py`:
+
+```python
+import sys
+
+import pytest
+from PyQt6.QtWidgets import QApplication
+
+import core.config as config_mod
+import core.review_prompt as rp
+from ui.main_window import MainWindow
+
+
+@pytest.fixture(scope="module")
+def qapp():
+    yield QApplication.instance() or QApplication(sys.argv)
+
+
+class _FakeDB:
+    """Stands in for Database, returning a fixed collection size."""
+
+    def __init__(self, total):
+        self._total = total
+
+    def get_collection_stats(self):
+        return {"total_cards": self._total}
+
+
+class _FakeWindow:
+    """Borrows the real methods; supplies only what they actually touch."""
+
+    _card_count = MainWindow._card_count
+    _maybe_prompt_review = MainWindow._maybe_prompt_review
+    _drain_due_review_prompt = MainWindow._drain_due_review_prompt
+
+    def __init__(self, total):
+        self.db = _FakeDB(total)
+
+    def _show_review_prompt(self):
+        pass          # QTimer target; never fires without an event loop
+
+
+@pytest.fixture
+def isolated(tmp_path, monkeypatch):
+    monkeypatch.setattr(config_mod, "PREFS_FILE", tmp_path / "prefs.json")
+
+
+def test_below_threshold_does_not_arm(qapp, isolated):
+    _FakeWindow(49)._maybe_prompt_review()
+    assert rp.is_due() is False
+
+
+def test_crossing_threshold_arms(qapp, isolated):
+    _FakeWindow(50)._maybe_prompt_review()
+    assert rp.is_due() is True
+
+
+def test_batch_signal_argument_is_accepted(qapp, isolated):
+    """cards_added emits an int; card_added emits nothing. Both must work."""
+    _FakeWindow(50)._maybe_prompt_review(12)
+    assert rp.is_due() is True
+
+
+def test_already_armed_does_not_rearm(qapp, isolated):
+    win = _FakeWindow(50)
+    win._maybe_prompt_review()
+    rp.mark_prompted(50)              # spends the ask, clears due
+    win._maybe_prompt_review()        # a later save must not re-arm
+    assert rp.is_due() is False
+    assert rp.asks_used() == 1
+
+
+def test_card_count_survives_a_broken_db(qapp, isolated):
+    class Broken:
+        def get_collection_stats(self):
+            raise RuntimeError("db is down")
+
+    win = _FakeWindow(0)
+    win.db = Broken()
+    assert win._card_count() == 0     # must not raise — a save must never break
+    win._maybe_prompt_review()
+    assert rp.is_due() is False
+
+
+def test_drain_is_a_noop_when_not_due(qapp, isolated):
+    _FakeWindow(0)._drain_due_review_prompt()
+    assert rp.is_due() is False
 ```
 
-Temporarily set `FIRST_THRESHOLD = 1` in `core/review_prompt.py`, launch the app with `run.bat`, add or import a single card, and confirm:
+`test_already_armed_does_not_rearm` is the one that matters: it proves the threshold fires on a *crossing* rather than on every subsequent save, which is what stops a 300-card collection from arming the prompt on every single card added.
 
-1. The prompt appears about 1.5 seconds after the save, **not** on top of the Batch Review dialog.
-2. "Not now" closes it and it does not return during that session.
-3. Restarting the app does not re-show it.
-
-Then **restore `FIRST_THRESHOLD = 50`** and clear the test state from your real prefs:
+- [ ] **Step 5b: Run the new tests**
 
 ```bash
-.venv/Scripts/python -c "from core.config import set_pref; [set_pref(k, v) for k, v in [('review_prompt_count', 0), ('review_prompt_last_count', 0), ('review_prompt_dismissed', False), ('review_prompt_due', False)]]; print('prefs reset')"
+.venv/Scripts/python -m pytest tests/test_main_window_review_hook.py -q
 ```
 
-Confirm the constant is back before committing:
+Expected: 6 passed.
+
+Then the full suite:
+
+```bash
+.venv/Scripts/python -m pytest tests/ -q
+```
+
+Expected: 134 passed (128 + 6 new).
+
+- [ ] **Step 5c: Confirm you left no test scaffolding behind**
 
 ```bash
 git diff core/review_prompt.py
 ```
 
-Expected: no diff.
+Expected: no diff. Never edit `FIRST_THRESHOLD` to test — the tests above control the card count instead, so the constant stays at 50.
+
+**Manual verification (human, not the implementer).** The modal-deferral and next-launch paths are Qt-runtime behavior these tests cannot reach. To check them by hand: temporarily set `FIRST_THRESHOLD = 1`, run `run.bat`, import a small batch, and confirm the prompt appears ~1.5s after the Batch Review dialog closes rather than on top of it; then confirm "Not now" ends it for that session and it does not return on restart. Restore `FIRST_THRESHOLD = 50` and reset the four `review_prompt_*` keys in `%APPDATA%/Lorebox/prefs.json` afterwards.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add ui/main_window.py
+git add ui/main_window.py tests/test_main_window_review_hook.py
 git commit -m "feat(review): arm the Store review prompt on card-count thresholds"
 ```
 
