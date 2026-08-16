@@ -82,3 +82,20 @@ def test_card_count_survives_a_broken_db(qapp, isolated):
 def test_drain_is_a_noop_when_not_due(qapp, isolated):
     _FakeWindow(0)._drain_due_review_prompt()
     assert rp.is_due() is False
+
+
+def test_armed_prompt_is_not_rearmed(qapp, isolated, monkeypatch):
+    """A save arriving while a prompt is armed must not schedule a second one.
+
+    This is the test for the `if is_due(): return` guard specifically. It has to
+    arm() directly rather than going through mark_prompted(), because
+    mark_prompted clears the due flag — which would leave the guard unreached
+    and the test passing for an unrelated reason (the +200 gap), whether or not
+    the guard exists at all.
+    """
+    win = _FakeWindow(50)
+    rp.arm()                                  # armed, not yet displayed
+    rearmed = []
+    monkeypatch.setattr(rp, "arm", lambda: rearmed.append(1))
+    win._maybe_prompt_review()
+    assert rearmed == []                      # guard short-circuited before arm()

@@ -3,6 +3,7 @@ Main Window for Lorebox
 Fixed: Keyboard shortcuts, menu, login integration, and clean structure.
 """
 
+import logging
 import sys
 import os
 from pathlib import Path
@@ -27,6 +28,8 @@ from ui.scan_tab import ScanTab
 from ui.batch_tab import BatchTab, ImageBatchWorker
 from ui.collection_tab import CollectionTab
 from ui.reports_tab import ReportsTab
+
+logger = logging.getLogger(__name__)
 
 
 from core.paths import APP_DIR
@@ -135,7 +138,8 @@ class MainWindow(QMainWindow):
         """Total unique cards, or 0 if the collection cannot be read."""
         try:
             return int(self.db.get_collection_stats().get('total_cards', 0) or 0)
-        except Exception:      # noqa: BLE001 — a review prompt must never break a save
+        except Exception as exc:   # noqa: BLE001 — a review prompt must never break a save
+            logger.debug("Review prompt: could not read card count: %s", exc)
             return 0
 
     def _maybe_prompt_review(self, *_):
