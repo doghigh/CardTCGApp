@@ -322,7 +322,9 @@ git commit -m "feat(review): Store review prompt policy with relative repeat gap
 - Consumes existing: `core.usage.log_event(event: str, **props)` at `core/usage.py:46`.
 - Produces, relied on by Task 3: `ReviewPromptDialog(card_count: int, parent=None)` — a `QDialog`; call `.exec()` to show it modally.
 
-There is no unit test for this task. It is a Qt dialog with no logic of its own beyond dispatching to Task 1, which is already tested; a test here would assert only that buttons are wired to functions. It is verified manually in Step 3.
+**Test:** `tests/test_review_dialog.py` — one test asserting every exit path resolves exactly once.
+
+An earlier draft of this plan claimed the dialog needed no test, on the grounds that it "has no logic beyond dispatching to Task 1." That was wrong. The `reject()` / `closeEvent()` lifecycle *is* real logic, and getting it wrong is exactly what left Escape unresolved. The test below is the regression test for that, and it needs no display — `QDialog` methods can be invoked directly.
 
 - [ ] **Step 1: Write the dialog**
 
@@ -379,6 +381,14 @@ class ReviewPromptDialog(QDialog):
         row.addWidget(rate_btn)
         v.addLayout(row)
 
+    def _decline(self, permanent: bool):
+        """Resolve as a decline, exactly once."""
+        if self._resolved:
+            return
+        self._resolved = True
+        review_prompt.mark_declined(permanent=permanent)
+        usage.log_event("review_prompt_declined", permanent=permanent)
+
     def _rate(self):
         self._resolved = True
         review_prompt.mark_rated()
@@ -387,27 +397,119 @@ class ReviewPromptDialog(QDialog):
         self.accept()
 
     def _later(self):
-        self._resolved = True
-        review_prompt.mark_declined(permanent=False)
-        usage.log_event("review_prompt_declined", permanent=False)
+        self._decline(permanent=False)
         self.reject()
 
     def _never(self):
-        self._resolved = True
-        review_prompt.mark_declined(permanent=True)
-        usage.log_event("review_prompt_declined", permanent=True)
+        self._decline(permanent=True)
         self.reject()
 
-    def closeEvent(self, event):
-        """Closing with the window X counts as 'Not now', never as permanent."""
-        if not self._resolved:
-            self._resolved = True
-            review_prompt.mark_declined(permanent=False)
-            usage.log_event("review_prompt_declined", permanent=False)
-        super().closeEvent(event)
+    def reject(self):
+        """Every dismissal funnels here: Escape, the window X, and both buttons.
+
+        Overriding reject() rather than closeEvent() is deliberate. Escape does
+        NOT emit a close event — QDialog routes it straight to reject() — so a
+        closeEvent override silently misses it. The window X does emit one, but
+        QDialog.closeEvent's default implementation then calls reject(), so this
+        single override covers every path. Verified:
+            ESCAPE  -> ['reject']
+            CLOSE/X -> ['closeEvent', 'reject']
+        """
+        self._decline(permanent=False)
+        super().reject()
 ```
 
-`_resolved` matters: `QDialog.closeEvent` also runs when the window X is used, and without the guard a user clicking "Don't ask again" could have it followed by a second, contradictory decline event in the usage log.
+Two things carry the correctness here:
+
+`_resolved` makes `_decline` idempotent. `_later` and `_never` both call `_decline` and then `reject()`, which calls `_decline` again — the guard makes the second call a no-op, so "Don't ask again" stays permanent instead of being overwritten by the `permanent=False` that follows it.
+
+There is **no `closeEvent` override**. An earlier draft of this plan used one, which was wrong: it left Escape — a very common way to dismiss a modal — resolving nothing, so no decline event was ever logged for it.
+
+- [ ] **Step 1b: Write the resolution test**
+
+Create `tests/test_review_dialog.py`. It stubs the policy module and the usage logger so it asserts real dispatch behavior without touching prefs or opening the Store:
+
+```python
+import sys
+
+import pytest
+from PyQt6.QtWidgets import QApplication
+
+import ui.review_dialog as rd
+
+
+@pytest.fixture(scope="module")
+def qapp():
+    yield QApplication.instance() or QApplication(sys.argv)
+
+
+@pytest.fixture
+def calls(monkeypatch):
+    rec = {"declined": [], "rated": 0, "store": 0, "events": []}
+    monkeypatch.setattr(rd.review_prompt, "mark_declined",
+                        lambda permanent: rec["declined"].append(permanent))
+    monkeypatch.setattr(rd.review_prompt, "mark_rated",
+                        lambda: rec.update(rated=rec["rated"] + 1))
+    monkeypatch.setattr(rd.review_prompt, "open_store_review",
+                        lambda: rec.update(store=rec["store"] + 1))
+    monkeypatch.setattr(rd.usage, "log_event",
+                        lambda event, **props: rec["events"].append((event, props)))
+    return rec
+
+
+def test_escape_resolves_as_not_now(qapp, calls):
+    """Escape routes straight to reject() without emitting a close event."""
+    rd.ReviewPromptDialog(50).reject()
+    assert calls["declined"] == [False]
+    assert calls["events"] == [("review_prompt_declined", {"permanent": False})]
+
+
+def test_window_close_resolves_exactly_once(qapp, calls):
+    """The X emits closeEvent, whose default impl then calls reject().
+
+    show() is required, not incidental: QDialog.closeEvent only calls reject()
+    when the dialog is visible, so close() on a never-shown dialog resolves
+    nothing and the test would not exercise the X path at all. Verified:
+        hidden .close() -> []
+        shown  .close() -> ['reject']
+    """
+    dlg = rd.ReviewPromptDialog(50)
+    dlg.show()
+    dlg.close()
+    assert calls["declined"] == [False]
+    assert len(calls["events"]) == 1
+
+
+def test_not_now_resolves_exactly_once(qapp, calls):
+    rd.ReviewPromptDialog(50)._later()
+    assert calls["declined"] == [False]
+    assert len(calls["events"]) == 1
+
+
+def test_dont_ask_again_stays_permanent(qapp, calls):
+    """_never() declines permanently, then reject() must not overwrite it."""
+    rd.ReviewPromptDialog(50)._never()
+    assert calls["declined"] == [True]
+    assert calls["events"] == [("review_prompt_declined", {"permanent": True})]
+
+
+def test_rate_logs_no_decline(qapp, calls):
+    rd.ReviewPromptDialog(50)._rate()
+    assert calls["rated"] == 1
+    assert calls["store"] == 1
+    assert calls["declined"] == []
+    assert calls["events"] == [("review_prompt_rated", {"source": "prompt"})]
+```
+
+`test_escape_resolves_as_not_now` and `test_dont_ask_again_stays_permanent` are the two that matter. The first fails against a `closeEvent`-based implementation; the second catches a `_decline` that isn't idempotent, where `reject()` would downgrade a permanent dismissal back to "Not now".
+
+- [ ] **Step 1c: Run the tests**
+
+```bash
+.venv/Scripts/python -m pytest tests/test_review_dialog.py -q
+```
+
+Expected: 5 passed.
 
 - [ ] **Step 2: Verify it imports cleanly**
 
@@ -430,7 +532,7 @@ Do **not** click "Rate Lorebox" here — it writes a permanent dismissal to your
 - [ ] **Step 4: Commit**
 
 ```bash
-git add ui/review_dialog.py
+git add ui/review_dialog.py tests/test_review_dialog.py
 git commit -m "feat(review): Store review prompt dialog"
 ```
 
