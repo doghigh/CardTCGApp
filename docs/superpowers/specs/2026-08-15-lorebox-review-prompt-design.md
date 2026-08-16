@@ -67,7 +67,11 @@ matters, since the current suite cannot run without the full dependency set inst
 
 ### `core/review_prompt.py`
 
-Pure functions over prefs. No Qt import.
+Policy over prefs. **No module-level Qt import** — `open_store_review()` imports
+`QDesktopServices` / `QUrl` lazily inside the function body, matching how
+`ui/main_window.py:132` and `ui/batch_review_dialog.py:409` already defer Qt imports.
+This keeps `import core.review_prompt` working without PyQt6 installed, so the policy
+tests run in a bare environment.
 
 ```
 STORE_PRODUCT_ID  = "9N94V4458M3V"
