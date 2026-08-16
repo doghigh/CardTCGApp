@@ -8,6 +8,8 @@ Protocol:
 Every request must carry  Authorization: Bearer <token>.
 """
 import base64
+import binascii
+import hashlib
 import hmac
 import json
 import logging
@@ -18,25 +20,74 @@ from typing import Callable, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
+# A card is two JPEGs plus a small JSON envelope; 25 MB is generous for that and
+# still bounds what one request can make us allocate.
+MAX_BODY_BYTES = 25 * 1024 * 1024
+MAX_IMAGE_BYTES = 10 * 1024 * 1024
+MAX_UID_CHARS = 200
+
+
+def _safe_stem(uid: str) -> str:
+    """Derive a filesystem-safe stem from a client-supplied id.
+
+    The uid arrives over the network and is chosen by the phone. Interpolating
+    it into a filename let a crafted value escape the scans directory entirely
+    (Windows normalizes '..' lexically, so r'\\..\\..\\..\\evil' resolved out of
+    the tree — far enough up that is the Startup folder, i.e. persistence).
+
+    Hashing rather than rejecting keeps this compatible with any uid format the
+    companion app uses now or later: the protocol only specifies "a random
+    per-card id". The raw uid stays the dedup key; only the filename is derived.
+    """
+    return hashlib.sha256(uid.encode("utf-8")).hexdigest()[:32]
+
+
+def _decode_image(b64: str, field: str) -> bytes:
+    """Strictly decode one base64 image, bounded in size."""
+    if not isinstance(b64, str):
+        raise ValueError(f"{field} must be a base64 string")
+    # 4 base64 chars encode 3 bytes; check before allocating the decoded copy.
+    if len(b64) > (MAX_IMAGE_BYTES // 3 + 1) * 4:
+        raise ValueError(f"{field} exceeds {MAX_IMAGE_BYTES} bytes")
+    try:
+        raw = base64.b64decode(b64, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise ValueError(f"{field} is not valid base64") from exc
+    if len(raw) > MAX_IMAGE_BYTES:
+        raise ValueError(f"{field} exceeds {MAX_IMAGE_BYTES} bytes")
+    if not raw:
+        raise ValueError(f"{field} is empty")
+    return raw
+
 
 def ingest_card(db, scans_dir: Path, payload: dict, seen: Dict[str, int]) -> dict:
     """Validate + persist one pushed card. Idempotent on client_uid. Returns {"id": int}."""
     uid = payload.get("client_uid")
     card = payload.get("card")
     front_b64 = payload.get("front_jpeg_b64")
-    if not uid or not isinstance(card, dict) or not front_b64:
+    if not isinstance(uid, str) or not uid or len(uid) > MAX_UID_CHARS:
+        raise ValueError("client_uid must be a non-empty string under "
+                         f"{MAX_UID_CHARS} characters")
+    if not isinstance(card, dict) or not front_b64:
         raise ValueError("payload missing client_uid, card, or front_jpeg_b64")
 
     if uid in seen:
         return {"id": seen[uid]}
 
+    # Decode (and bound) both images before writing anything, so a bad back
+    # image cannot leave a stray front image behind.
+    front_bytes = _decode_image(front_b64, "front_jpeg_b64")
+    back_bytes = (_decode_image(payload["back_jpeg_b64"], "back_jpeg_b64")
+                  if payload.get("back_jpeg_b64") else None)
+
+    stem = _safe_stem(uid)
     scans_dir.mkdir(parents=True, exist_ok=True)
-    front_path = scans_dir / f"sync_{uid}_front.jpg"
-    front_path.write_bytes(base64.b64decode(front_b64))
+    front_path = scans_dir / f"sync_{stem}_front.jpg"
+    front_path.write_bytes(front_bytes)
     back_path = None
-    if payload.get("back_jpeg_b64"):
-        back_path = scans_dir / f"sync_{uid}_back.jpg"
-        back_path.write_bytes(base64.b64decode(payload["back_jpeg_b64"]))
+    if back_bytes is not None:
+        back_path = scans_dir / f"sync_{stem}_back.jpg"
+        back_path.write_bytes(back_bytes)
 
     record = {**card,
               "front_scan_path": str(front_path),
@@ -81,6 +132,13 @@ def _make_handler(db, scans_dir: Path, token: str, seen: Dict[str, int],
                 return self._send(404, {"error": "not found"})
             try:
                 length = int(self.headers.get("Content-Length", 0))
+            except ValueError:
+                return self._send(400, {"error": "bad Content-Length"})
+            # Refuse before reading, so an absurd declared length cannot make us
+            # allocate it. The body is read fully into memory by design.
+            if length > MAX_BODY_BYTES:
+                return self._send(413, {"error": "payload too large"})
+            try:
                 payload = json.loads(self.rfile.read(length).decode())
                 # ThreadingHTTPServer runs one thread per request — serialize the
                 # check-seen/write/add_card sequence so a retried request for the
