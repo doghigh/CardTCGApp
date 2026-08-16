@@ -914,20 +914,88 @@ Expected: `ok`
 
 Expected: all pass.
 
-- [ ] **Step 4: Verify it renders**
+- [ ] **Step 4: Test it headlessly**
 
-Launch the app with `run.bat` and open Settings. Confirm:
+Do **not** launch the app. `run.bat` opens a GUI that blocks until a human closes it, and clicking the button would write a permanent dismissal into the real `%APPDATA%/Lorebox/prefs.json` and open the Microsoft Store. The human does the visual check (see below).
 
-1. An **About Lorebox** group appears below Appearance and above Save / Cancel.
-2. The button reads **Rate Lorebox on the Microsoft Store** and the intro text is not clipped.
-3. The dialog is still usable at its default size — if the added group makes it too tall for a 1080p screen, report it rather than resizing the dialog unilaterally.
+Create `tests/test_settings_review_button.py`:
 
-Do not click the button unless you intend to write a permanent dismissal to your real prefs. If you do click it to test the Store hand-off, reset afterwards with the command in Task 3 Step 5.
+```python
+import sys
+
+import pytest
+from PyQt6.QtWidgets import QApplication, QGroupBox, QPushButton
+
+import core.config as config_mod
+import core.review_prompt as rp
+from ui.settings_dialog import SettingsDialog
+
+
+@pytest.fixture(scope="module")
+def qapp():
+    yield QApplication.instance() or QApplication(sys.argv)
+
+
+@pytest.fixture
+def isolated(tmp_path, monkeypatch):
+    monkeypatch.setattr(config_mod, "PREFS_FILE", tmp_path / "prefs.json")
+
+
+def test_about_group_is_present(qapp, isolated):
+    dlg = SettingsDialog()
+    titles = [b.title() for b in dlg.findChildren(QGroupBox)]
+    assert "About Lorebox" in titles
+
+
+def test_rate_button_is_present(qapp, isolated):
+    dlg = SettingsDialog()
+    labels = [b.text() for b in dlg.findChildren(QPushButton)]
+    assert "Rate Lorebox on the Microsoft Store" in labels
+
+
+def test_button_dispatches_and_dismisses(qapp, isolated, monkeypatch):
+    """The Settings path records a permanent dismissal and tags its source.
+
+    open_store_review is stubbed so the test never launches the Store, but
+    mark_rated is left real so the prefs write is genuinely exercised.
+    """
+    opened, events = [], []
+    monkeypatch.setattr(rp, "open_store_review", lambda: opened.append(1))
+    import core.usage as usage_mod
+    monkeypatch.setattr(usage_mod, "log_event",
+                        lambda event, **props: events.append((event, props)))
+
+    assert rp.is_dismissed() is False
+    SettingsDialog()._open_store_review()
+
+    assert opened == [1]
+    assert events == [("review_prompt_rated", {"source": "settings"})]
+    assert rp.is_dismissed() is True
+    assert rp.should_prompt(10_000) is False   # auto-prompt is now off for good
+```
+
+The third test is the one that matters: it proves the Settings button suppresses the automatic prompt, which is the behavioral decision that distinguishes this entry point from a plain hyperlink.
+
+- [ ] **Step 4b: Run the tests**
+
+```bash
+.venv/Scripts/python -m pytest tests/test_settings_review_button.py -q
+```
+
+Expected: 3 passed.
+
+```bash
+.venv/Scripts/python -m pytest tests/ -q
+```
+
+Expected: 138 passed (135 + 3 new).
+
+**Manual verification (human, not the implementer).** Open Settings in the running app and confirm the About Lorebox group sits below Appearance and above Save / Cancel, the intro text is not clipped, and the dialog still fits a 1080p screen with the extra group. Do not click the button unless you intend to write a real permanent dismissal.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add ui/settings_dialog.py
+git add ui/settings_dialog.py tests/test_settings_review_button.py
 git commit -m "feat(review): Rate Lorebox button in Settings"
 ```
 
@@ -941,7 +1009,7 @@ git commit -m "feat(review): Rate Lorebox button in Settings"
 .venv/Scripts/python -m pytest tests/ -q
 ```
 
-Expected: baseline count + 11 passing, zero failures.
+Expected: 138 passed, zero failures.
 
 - [ ] **Store ID appears in exactly one module**
 
