@@ -591,6 +591,23 @@ Append directly after it:
         self._drain_due_review_prompt()
 ```
 
+- [ ] **Step 2b: Add a module logger**
+
+`ui/main_window.py` has no logger — unusual for this codebase, where `core/auth.py`, `core/config.py`, and `core/usage.py` all define one. `_card_count` below swallows exceptions, and without a logger that swallow is silent: a broken `get_collection_stats()` would permanently disable the review prompt with no trace of why.
+
+Add to the import block at the top of `ui/main_window.py` (currently lines 6-8, `import sys` / `import os` / `from pathlib import Path`):
+
+```python
+import logging
+```
+
+And immediately after the last import (after `from ui.reports_tab import ReportsTab`, currently line 29):
+
+```python
+
+logger = logging.getLogger(__name__)
+```
+
 - [ ] **Step 3: Add the three methods**
 
 Insert these immediately before `def _show_first_run_notice(self):` (currently line 125):
@@ -602,7 +619,8 @@ Insert these immediately before `def _show_first_run_notice(self):` (currently l
         """Total unique cards, or 0 if the collection cannot be read."""
         try:
             return int(self.db.get_collection_stats().get('total_cards', 0) or 0)
-        except Exception:      # noqa: BLE001 — a review prompt must never break a save
+        except Exception as exc:   # noqa: BLE001 — a review prompt must never break a save
+            logger.debug("Review prompt: could not read card count: %s", exc)
             return 0
 
     def _maybe_prompt_review(self, *_):
@@ -751,9 +769,26 @@ def test_card_count_survives_a_broken_db(qapp, isolated):
 def test_drain_is_a_noop_when_not_due(qapp, isolated):
     _FakeWindow(0)._drain_due_review_prompt()
     assert rp.is_due() is False
+
+
+def test_armed_prompt_is_not_rearmed(qapp, isolated, monkeypatch):
+    """A save arriving while a prompt is armed must not schedule a second one.
+
+    This is the test for the `if is_due(): return` guard specifically. It has to
+    arm() directly rather than going through mark_prompted(), because
+    mark_prompted clears the due flag — which would leave the guard unreached
+    and the test passing for an unrelated reason (the +200 gap), whether or not
+    the guard exists at all.
+    """
+    win = _FakeWindow(50)
+    rp.arm()                                  # armed, not yet displayed
+    rearmed = []
+    monkeypatch.setattr(rp, "arm", lambda: rearmed.append(1))
+    win._maybe_prompt_review()
+    assert rearmed == []                      # guard short-circuited before arm()
 ```
 
-`test_already_armed_does_not_rearm` is the one that matters: it proves the threshold fires on a *crossing* rather than on every subsequent save, which is what stops a 300-card collection from arming the prompt on every single card added.
+Two of these carry real weight. `test_already_armed_does_not_rearm` proves the +200 gap suppresses a second ask once one is spent. `test_armed_prompt_is_not_rearmed` proves the `is_due()` guard itself works — delete the guard from `_maybe_prompt_review` and only that test fails.
 
 - [ ] **Step 5b: Run the new tests**
 
@@ -761,7 +796,7 @@ def test_drain_is_a_noop_when_not_due(qapp, isolated):
 .venv/Scripts/python -m pytest tests/test_main_window_review_hook.py -q
 ```
 
-Expected: 6 passed.
+Expected: 7 passed.
 
 Then the full suite:
 
@@ -769,7 +804,7 @@ Then the full suite:
 .venv/Scripts/python -m pytest tests/ -q
 ```
 
-Expected: 134 passed (128 + 6 new).
+Expected: 135 passed (128 + 7 new).
 
 - [ ] **Step 5c: Confirm you left no test scaffolding behind**
 
