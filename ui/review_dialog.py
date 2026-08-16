@@ -48,6 +48,14 @@ class ReviewPromptDialog(QDialog):
         row.addWidget(rate_btn)
         v.addLayout(row)
 
+    def _decline(self, permanent: bool):
+        """Resolve as a decline, exactly once."""
+        if self._resolved:
+            return
+        self._resolved = True
+        review_prompt.mark_declined(permanent=permanent)
+        usage.log_event("review_prompt_declined", permanent=permanent)
+
     def _rate(self):
         self._resolved = True
         review_prompt.mark_rated()
@@ -56,21 +64,23 @@ class ReviewPromptDialog(QDialog):
         self.accept()
 
     def _later(self):
-        self._resolved = True
-        review_prompt.mark_declined(permanent=False)
-        usage.log_event("review_prompt_declined", permanent=False)
+        self._decline(permanent=False)
         self.reject()
 
     def _never(self):
-        self._resolved = True
-        review_prompt.mark_declined(permanent=True)
-        usage.log_event("review_prompt_declined", permanent=True)
+        self._decline(permanent=True)
         self.reject()
 
-    def closeEvent(self, event):
-        """Closing with the window X counts as 'Not now', never as permanent."""
-        if not self._resolved:
-            self._resolved = True
-            review_prompt.mark_declined(permanent=False)
-            usage.log_event("review_prompt_declined", permanent=False)
-        super().closeEvent(event)
+    def reject(self):
+        """Every dismissal funnels here: Escape, the window X, and both buttons.
+
+        Overriding reject() rather than closeEvent() is deliberate. Escape does
+        NOT emit a close event — QDialog routes it straight to reject() — so a
+        closeEvent override silently misses it. The window X does emit one, but
+        QDialog.closeEvent's default implementation then calls reject(), so this
+        single override covers every path. Verified:
+            ESCAPE  -> ['reject']
+            CLOSE/X -> ['closeEvent', 'reject']
+        """
+        self._decline(permanent=False)
+        super().reject()
