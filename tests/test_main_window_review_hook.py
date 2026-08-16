@@ -5,6 +5,8 @@ from PyQt6.QtWidgets import QApplication
 
 import core.config as config_mod
 import core.review_prompt as rp
+import core.usage as usage_mod
+import ui.review_dialog as review_dialog_mod
 from ui.main_window import MainWindow
 
 
@@ -29,17 +31,46 @@ class _FakeWindow:
     _card_count = MainWindow._card_count
     _maybe_prompt_review = MainWindow._maybe_prompt_review
     _drain_due_review_prompt = MainWindow._drain_due_review_prompt
+    _show_review_prompt = MainWindow._show_review_prompt
 
     def __init__(self, total):
         self.db = _FakeDB(total)
-
-    def _show_review_prompt(self):
-        pass          # QTimer target; never fires without an event loop
 
 
 @pytest.fixture
 def isolated(tmp_path, monkeypatch):
     monkeypatch.setattr(config_mod, "PREFS_FILE", tmp_path / "prefs.json")
+
+
+@pytest.fixture
+def no_modal(monkeypatch):
+    """activeModalWidget() is a QApplication staticmethod; force the no-modal branch."""
+    monkeypatch.setattr(QApplication, "activeModalWidget", staticmethod(lambda: None))
+
+
+@pytest.fixture
+def dialog_recorder(monkeypatch):
+    """Replaces ReviewPromptDialog with a recorder so no real dialog is constructed."""
+    calls = []
+
+    class _RecordingDialog:
+        def __init__(self, card_count, parent=None):
+            calls.append(card_count)
+
+        def exec(self):
+            return 0
+
+    monkeypatch.setattr(review_dialog_mod, "ReviewPromptDialog", _RecordingDialog)
+    return calls
+
+
+@pytest.fixture
+def events(monkeypatch):
+    """Records usage.log_event calls made via ui.main_window's `usage` import."""
+    recorded = []
+    monkeypatch.setattr(usage_mod, "log_event",
+                         lambda event, **props: recorded.append((event, props)))
+    return recorded
 
 
 def test_below_threshold_does_not_arm(qapp, isolated):
@@ -99,3 +130,63 @@ def test_armed_prompt_is_not_rearmed(qapp, isolated, monkeypatch):
     monkeypatch.setattr(rp, "arm", lambda: rearmed.append(1))
     win._maybe_prompt_review()
     assert rearmed == []                      # guard short-circuited before arm()
+
+
+# ── _show_review_prompt ─────────────────────────────────────────────────────
+
+def test_show_review_prompt_happy_path(qapp, isolated, no_modal, dialog_recorder, events):
+    rp.arm()
+    win = _FakeWindow(50)
+    win._show_review_prompt()
+    assert dialog_recorder == [50]
+    assert rp.asks_used() == 1
+    assert rp.is_due() is False
+    assert events == [("review_prompt_shown", {"card_count": 50})]
+
+
+def test_show_review_prompt_defers_when_modal_is_active(qapp, isolated, dialog_recorder, monkeypatch):
+    rp.arm()
+    monkeypatch.setattr(QApplication, "activeModalWidget", staticmethod(lambda: object()))
+    win = _FakeWindow(50)
+    win._show_review_prompt()
+    assert dialog_recorder == []
+    assert rp.is_due() is True
+    assert rp.asks_used() == 0
+
+
+def test_show_review_prompt_refuses_stale_due_flag(qapp, isolated, no_modal, dialog_recorder):
+    """Finding 1: is_due() alone is not enough — a stale flag that survived a
+    dismissal, or that outlived the lifetime ceiling, because prefs.json
+    couldn't be written (core/config.py logs and swallows OSError on write)
+    must not resurrect the dialog. The durable `review_prompt_dismissed` pref
+    and the `asks_used() >= MAX_ASKS` ceiling are checked too, not just the
+    transient `review_prompt_due` flag."""
+    rp.arm()
+    config_mod.set_pref("review_prompt_dismissed", True)
+    win = _FakeWindow(50)
+    win._show_review_prompt()
+    assert dialog_recorder == []
+
+    config_mod.set_pref("review_prompt_dismissed", False)
+    config_mod.set_pref("review_prompt_count", rp.MAX_ASKS)
+    rp.arm()
+    win = _FakeWindow(50)
+    win._show_review_prompt()
+    assert dialog_recorder == []
+
+
+def test_show_review_prompt_refuses_unreadable_card_count(qapp, isolated, no_modal, dialog_recorder):
+    """Finding 2: a failed card-count read must not anchor the repeat gap at 0
+    (which would set next_threshold() to REPEAT_GAP and fire a second ask a
+    handful of cards later, instead of REPEAT_GAP cards later)."""
+    class Broken:
+        def get_collection_stats(self):
+            raise RuntimeError("db is down")
+
+    rp.arm()
+    win = _FakeWindow(0)
+    win.db = Broken()
+    win._show_review_prompt()
+    assert dialog_recorder == []
+    assert rp.is_due() is True                      # still armed for a later retry
+    assert rp.next_threshold() == rp.FIRST_THRESHOLD  # review_prompt_last_count untouched

@@ -94,3 +94,9 @@ def test_corrupt_prefs_values_do_not_crash(tmp_path, monkeypatch):
     config_mod.set_pref("review_prompt_last_count", None)
     assert rp.asks_used() == 0
     assert rp.should_prompt(50) is True
+
+    # asks_used() == 0 above means next_threshold() short-circuits to
+    # FIRST_THRESHOLD without ever reading _LAST. Force the other branch so
+    # _int_pref(_LAST) actually runs against the corrupt None value.
+    config_mod.set_pref("review_prompt_count", 1)
+    rp.next_threshold()  # must not raise

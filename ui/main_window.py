@@ -29,10 +29,9 @@ from ui.batch_tab import BatchTab, ImageBatchWorker
 from ui.collection_tab import CollectionTab
 from ui.reports_tab import ReportsTab
 
-logger = logging.getLogger(__name__)
-
-
 from core.paths import APP_DIR
+
+logger = logging.getLogger(__name__)
 
 
 class MainWindow(QMainWindow):
@@ -169,10 +168,28 @@ class MainWindow(QMainWindow):
 
         if not review_prompt.is_due():
             return
+
+        # `review_prompt_due` is transient and its clearing can fail silently —
+        # core/config.py:149 logs and swallows OSError on write. If prefs ever
+        # become unwritable (a synced folder holding a lock, an ACL change), a
+        # stale flag would otherwise reappear every launch with no button that
+        # stops it. The lifetime ceiling lives in the durable counters, so ask
+        # them, not the flag.
+        if (review_prompt.is_dismissed()
+                or review_prompt.asks_used() >= review_prompt.MAX_ASKS):
+            return
+
         if QApplication.activeModalWidget() is not None:
             return          # stays armed; drained at next launch
 
+        # A failed read returns 0, and anchoring the repeat gap on 0 would set
+        # the next threshold to 200 — reintroducing the two-asks-ten-cards-apart
+        # bug the relative gap exists to prevent. Never ask someone to review
+        # their collection at the moment we cannot read it.
         count = self._card_count()
+        if count <= 0:
+            return          # stays armed; retried next launch
+
         review_prompt.mark_prompted(count)
         usage.log_event("review_prompt_shown", card_count=count)
         ReviewPromptDialog(count, self).exec()
