@@ -145,7 +145,10 @@ class CardIdentifier:
         _, mode = self._resolve_client()
 
         if mode == 'none':
-            return self._trial_blocked('trial_exhausted')
+            # TRIAL_LIMIT == 0 means this build ships without a trial at all —
+            # a different message from a trial the user actually spent.
+            return self._trial_blocked(
+                'trial_exhausted' if trial.TRIAL_LIMIT else 'trial_disabled')
 
         if mode == 'trial':
             try:

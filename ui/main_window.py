@@ -3,6 +3,7 @@ Main Window for Lorebox
 Fixed: Keyboard shortcuts, menu, login integration, and clean structure.
 """
 
+import logging
 import sys
 import os
 from pathlib import Path
@@ -28,8 +29,9 @@ from ui.batch_tab import BatchTab, ImageBatchWorker
 from ui.collection_tab import CollectionTab
 from ui.reports_tab import ReportsTab
 
-
 from core.paths import APP_DIR
+
+logger = logging.getLogger(__name__)
 
 
 class MainWindow(QMainWindow):
@@ -93,6 +95,10 @@ class MainWindow(QMainWindow):
         self.batch_tab.cards_added.connect(self.reports_tab.refresh)
         self.batch_tab.cards_added.connect(self.dashboard_tab.refresh)
 
+        # Store review prompt — armed on a card-count threshold crossing
+        self.scan_tab.card_added.connect(self._maybe_prompt_review)
+        self.batch_tab.cards_added.connect(self._maybe_prompt_review)
+
         # Add tabs
         self.tabs.addTab(self.dashboard_tab, "📊 Dashboard")
         self.tabs.addTab(self.scan_tab, "🃏 Scan & Add")
@@ -121,6 +127,72 @@ class MainWindow(QMainWindow):
 
         # First-run: welcome / parental-involvement notice
         self._show_first_run_notice()
+
+        # A prompt armed in an earlier session but deferred past a modal
+        self._drain_due_review_prompt()
+
+    # ── Store review prompt ──────────────────────────────────────────────────
+
+    def _card_count(self) -> int:
+        """Total unique cards, or 0 if the collection cannot be read."""
+        try:
+            return int(self.db.get_collection_stats().get('total_cards', 0) or 0)
+        except Exception as exc:   # noqa: BLE001 — a review prompt must never break a save
+            logger.debug("Review prompt: could not read card count: %s", exc)
+            return 0
+
+    def _maybe_prompt_review(self, *_):
+        """Arm the review prompt when the collection crosses a threshold.
+
+        Accepts and ignores any argument: card_added sends none, cards_added
+        sends an int.
+        """
+        from core import review_prompt
+        if review_prompt.is_due():
+            return                          # already armed; do not re-arm
+        if review_prompt.should_prompt(self._card_count()):
+            review_prompt.arm()
+            QTimer.singleShot(1500, self._show_review_prompt)
+
+    def _drain_due_review_prompt(self):
+        """Show a prompt armed in a previous session, via the same routine."""
+        from core import review_prompt
+        if review_prompt.is_due():
+            QTimer.singleShot(1500, self._show_review_prompt)
+
+    def _show_review_prompt(self):
+        """Display the prompt, unless a modal is up — then leave it armed."""
+        from PyQt6.QtWidgets import QApplication
+        from core import review_prompt
+        from ui.review_dialog import ReviewPromptDialog
+
+        if not review_prompt.is_due():
+            return
+
+        # `review_prompt_due` is transient and its clearing can fail silently —
+        # core/config.py:149 logs and swallows OSError on write. If prefs ever
+        # become unwritable (a synced folder holding a lock, an ACL change), a
+        # stale flag would otherwise reappear every launch with no button that
+        # stops it. The lifetime ceiling lives in the durable counters, so ask
+        # them, not the flag.
+        if (review_prompt.is_dismissed()
+                or review_prompt.asks_used() >= review_prompt.MAX_ASKS):
+            return
+
+        if QApplication.activeModalWidget() is not None:
+            return          # stays armed; drained at next launch
+
+        # A failed read returns 0, and anchoring the repeat gap on 0 would set
+        # the next threshold to 200 — reintroducing the two-asks-ten-cards-apart
+        # bug the relative gap exists to prevent. Never ask someone to review
+        # their collection at the moment we cannot read it.
+        count = self._card_count()
+        if count <= 0:
+            return          # stays armed; retried next launch
+
+        review_prompt.mark_prompted(count)
+        usage.log_event("review_prompt_shown", card_count=count)
+        ReviewPromptDialog(count, self).exec()
 
     def _show_first_run_notice(self):
         """One-time, non-blocking welcome notice: the app opens without a login,

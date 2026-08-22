@@ -221,7 +221,7 @@ first launch.</p>
 "Last updated" date above.</p>
 
 <h2>10. Contact</h2>
-<p>Questions? Contact the developer at: <b>[YOUR-CONTACT-EMAIL]</b></p>
+<p>Questions? Contact the developer at: <b>contact@loreboxapp.dev</b></p>
 
 <hr>
 <p><small>Lorebox is an independent application and is not affiliated

@@ -164,6 +164,9 @@ class SettingsDialog(QDialog):
         # ── Appearance ────────────────────────────────────────────────────────
         layout.addWidget(self._build_appearance_group())
 
+        # ── About ─────────────────────────────────────────────────────────────
+        layout.addWidget(self._build_about_group())
+
         # ── Save / Cancel ─────────────────────────────────────────────────────
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save
@@ -172,6 +175,37 @@ class SettingsDialog(QDialog):
         buttons.accepted.connect(self._save)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+    # ── about / store review ────────────────────────────────────────────────
+
+    def _build_about_group(self) -> QGroupBox:
+        box = QGroupBox("About Lorebox")
+        v = QVBoxLayout(box)
+
+        intro = QLabel("Reviews on the Microsoft Store are the main way other "
+                       "collectors find Lorebox.")
+        intro.setWordWrap(True)
+        intro.setStyleSheet("color: #8b8fa8; font-size: 11px;")
+        v.addWidget(intro)
+
+        row = QHBoxLayout()
+        rate_btn = QPushButton("Rate Lorebox on the Microsoft Store")
+        rate_btn.clicked.connect(self._open_store_review)
+        row.addWidget(rate_btn)
+        row.addStretch()
+        v.addLayout(row)
+        return box
+
+    def _open_store_review(self):
+        """Manual review entry point. Ignores all gating — the user asked.
+
+        Also stops the automatic prompt: being nagged to review an app you have
+        already gone and reviewed is worse than never being asked.
+        """
+        from core import review_prompt, usage
+        review_prompt.mark_rated()
+        usage.log_event("review_prompt_rated", source="settings")
+        review_prompt.open_store_review()
 
     # ── appearance / theming ────────────────────────────────────────────────
 

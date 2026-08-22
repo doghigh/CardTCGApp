@@ -194,7 +194,7 @@ class ScanTab(QWidget):
 
         self.dpi_spin = QSpinBox()
         self.dpi_spin.setRange(72, 1200)
-        self.dpi_spin.setValue(400)
+        self.dpi_spin.setValue(300)
         self.dpi_spin.setSuffix(" DPI")
 
         self.duplex_check = QCheckBox("Enable Duplex (both sides)")

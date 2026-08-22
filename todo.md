@@ -3,18 +3,55 @@
 **Repository:** https://github.com/doghigh/CardTCGApp  (**public**)
 **Last updated:** 2026-07-06 (code review pass)
 **Branch:** main
-**Version:** 1.2.0.0 (LAN sync release)
+**Version:** 1.3.0.0 (vision grading + custom games + usage instrumentation)
 **Goal:** ~~Ship to the Microsoft Store~~ **Shipped** — [live listing](https://apps.microsoft.com/store/detail/9N94V4458M3V).
 Focus now: post-launch polish + the Android companion app / LAN sync loop.
 
 ---
 
 ## 🏪 Microsoft Store status
-- ✅ **Published and live** — `packaging/AppxManifest.xml` is at `Version="1.2.0.0"`,
-  Identity/Publisher are filled in (`33303JesseCatlow.Lorebox`), and the site's
-  "Get it on the Microsoft Store" buttons point at a real listing ID. All of the
-  "remaining path to submission" items from the last pass (product name, MSIX
-  build, WACK, listing screenshots) are done.
+- ✅ **Published and live** — Identity/Publisher are filled in
+  (`33303JesseCatlow.Lorebox`), and the site's "Get it on the Microsoft Store"
+  buttons point at a real listing ID. Product name, MSIX build, WACK, and
+  listing screenshots are all done.
+- 📦 **1.3.0.0 packed, awaiting upload** — `packaging/Lorebox.msix` (~121 MB).
+  Needs a WACK pass, then upload to Partner Center.
+- ⚠️ **Which version is actually live is unconfirmed.** The manifest was bumped
+  to `1.2.0.0` on 2026-07-02 (commit `56605c2`) but no MSIX was ever packed at
+  that version — the last artifact before this release was `1.1.1.0` from
+  2026-06-19. So either 1.2.0.0 shipped from another machine, or LAN sync never
+  reached users. Check Partner Center. (1.3.0.0 is higher than both, so the
+  submission is valid either way.)
+
+### Free trial — disabled in 1.3.0
+`core/trial.py` ships `TRIAL_LIMIT = 0`: no proxy round-trip is attempted and
+new users go straight to the add-your-own-key dialog. The trial proxy Worker
+(`trial-proxy/`) was **never deployed** — both `WORKER_BASE_URL` and the
+`wrangler.toml` KV namespace id are still placeholders, so with the trial
+enabled every first scan would have failed against a domain that doesn't
+resolve.
+
+To re-enable in 1.3.1, in one change:
+- [ ] Harden the Worker first — it relays request bodies verbatim and counts
+      *requests* while Anthropic bills *tokens*, so the `MONTHLY_TRIAL_CAP`
+      does not actually bound spend. Pin the model server-side, clamp
+      `max_tokens`, cap body size/image count, and reconstruct the upstream
+      request from validated fields.
+- [ ] Add a shared token + Cloudflare per-IP rate limiting (the endpoint is
+      public the moment the URL ships in the binary; there is no auth today).
+- [ ] Replace the KV read-modify-write counter with a Durable Object — the
+      current non-atomic increment undercounts under concurrency.
+- [ ] `wrangler kv namespace create TRIAL_KV` → paste the id into
+      `trial-proxy/wrangler.toml`.
+- [ ] `wrangler deploy` → put the real origin in `core/trial.py`'s
+      `WORKER_BASE_URL`, and set `TRIAL_LIMIT` back to `10`.
+- [ ] Consider pinning the trial to Haiku 4.5 ($1/$5 per MTok vs Sonnet's
+      $3/$15) — the trial only needs name/set/number extraction, and pinning
+      the model server-side is required for the hardening above anyway.
+- [ ] Apply to the Anthropic startup program for API credits
+      (anthropic.com/contact-sales/startup-program) — would fund the trial
+      outright. Note a larger credit pool makes the hardening *more* urgent,
+      not less.
 - ⚠️ **Unverified — no commit trail:** identity migration from
   `catsjc1175@hotmail.com` → `jcatlowdev@outlook.com` was planned for
   *after* launch. Nothing in git/docs confirms it happened — check Partner

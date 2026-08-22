@@ -1,7 +1,8 @@
 """Streamlined 'add your own Anthropic key' dialog.
 
-Shown when the free trial is used up (or at capacity). Three actions:
-deep-link to the console keys page, paste-and-validate inline, or defer.
+Shown when the free trial is unavailable — disabled in this build, used up, or
+at capacity. Three actions: deep-link to the console keys page,
+paste-and-validate inline, or defer.
 """
 from PyQt6.QtCore import QUrl
 from PyQt6.QtGui import QDesktopServices
@@ -15,11 +16,15 @@ from core.key_validation import validate_anthropic_key
 CONSOLE_KEYS_URL = "https://console.anthropic.com/settings/keys"
 
 _HEADLINES = {
+    'trial_disabled': "Add an Anthropic key to identify your cards.",
     'trial_exhausted': "You've used your 10 free card identifications.",
     'trial_capacity':  "The free trial is at capacity right now.",
     'trial_unavailable': "The free trial service is temporarily unavailable.",
     'first_run': "Add an Anthropic key to auto-identify your cards.",
 }
+
+# Reasons where the user has spent nothing yet, so "keep scanning" would be wrong.
+_NO_PRIOR_SCANS = {'trial_disabled', 'first_run'}
 
 
 class KeySetupDialog(QDialog):
@@ -33,9 +38,10 @@ class KeySetupDialog(QDialog):
         v.setSpacing(12)
 
         headline = _HEADLINES.get(reason, _HEADLINES['trial_exhausted'])
+        lead = "To scan cards" if reason in _NO_PRIOR_SCANS else "To keep scanning"
         msg = QLabel(
             f"<b>{headline}</b><br><br>"
-            "To keep scanning, add your own free Anthropic key — it's about "
+            f"{lead}, add your own free Anthropic key — it's about "
             "$0.006 per card. Once added, scanning goes directly to Anthropic; "
             "nothing passes through us."
         )
