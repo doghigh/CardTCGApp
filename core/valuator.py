@@ -6,8 +6,9 @@ Source priority:
   - Everything else      → eBay Browse API (active listings, est.)
   - Future               → TradingCardAPI (when a key is available)
 
-NOTE: the former PriceCharting web scrape has been retired to avoid any terms-of-
-service exposure; search_pricecharting() is now a safe no-op.
+NOTE: the former PriceCharting web scrape has been removed entirely to avoid
+any terms-of-service exposure — no scraping code or scrape-specific session
+(browser-fingerprint headers, rate-limit backoff) remains in this module.
 
 eBay API Compliance — Marketplace Account Deletion:
   This app uses only public eBay data via App-level OAuth (no user tokens).
@@ -30,7 +31,6 @@ import requests
 from datetime import datetime, timedelta
 from statistics import median
 from typing import List, Dict, Optional, Tuple
-from urllib.parse import quote
 
 logger = logging.getLogger(__name__)
 
@@ -68,11 +68,9 @@ CONDITION_MULTIPLIERS = {
 
 class CardValuator:
     """
-    Two-source valuation:
-      1. eBay Browse API  — active listing prices (requires App ID + Cert ID)
-      2. eBay web scrape  — completed/sold prices  (no API key needed)
-
-    Both are attempted; sold prices are weighted more heavily in the estimate.
+    Two-source valuation, official APIs only — no web scraping:
+      1. Scryfall     — Magic: The Gathering (free official API, real USD prices)
+      2. eBay Browse  — everything else (active listings, requires App ID + Cert ID)
     """
 
     def __init__(self):
@@ -88,37 +86,7 @@ class CardValuator:
             "Accept":     "application/json",
         })
 
-        # Scrape session — full browser fingerprint to avoid 403
-        self.scrape_session = requests.Session()
-        self.scrape_session.headers.update({
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/125.0.0.0 Safari/537.36"
-            ),
-            "Accept": (
-                "text/html,application/xhtml+xml,application/xml;"
-                "q=0.9,image/avif,image/webp,*/*;q=0.8"
-            ),
-            "Accept-Language":    "en-US,en;q=0.9",
-            "Accept-Encoding":    "gzip, deflate, br",
-            "Connection":         "keep-alive",
-            "Upgrade-Insecure-Requests": "1",
-            "Sec-Fetch-Dest":     "document",
-            "Sec-Fetch-Mode":     "navigate",
-            "Sec-Fetch-Site":     "none",
-            "Sec-Fetch-User":     "?1",
-            "DNT":                "1",
-        })
-
-        self.api_timeout   = 20   # OAuth + Browse API calls
-        self.scrape_timeout = 15  # web scrape
-
-        # Thread-safe scrape throttle — PriceCharting returns 429 if hammered.
-        # Shared across the batch-import worker threads (one valuator instance).
-        self._scrape_lock = threading.Lock()
-        self._last_scrape = 0.0
-        self.scrape_min_interval = 2.0   # seconds between scrape requests
+        self.api_timeout = 20   # OAuth + Browse API calls
 
         # Scryfall throttle (its docs ask for ~100ms between requests)
         self._scryfall_lock = threading.Lock()
@@ -138,7 +106,7 @@ class CardValuator:
         if self._sandbox:
             logger.info("eBay Valuator: SANDBOX mode — prices are test data only.")
         if not self._cert_id:
-            logger.info("EBAY_CERT_ID not set — Browse API disabled, using web scrape only.")
+            logger.info("EBAY_CERT_ID not set — Browse API disabled, no fallback source available.")
 
     # ------------------------------------------------------------------ #
     #  OAuth token (Client Credentials — app-level, no user login needed)  #
@@ -366,118 +334,6 @@ class CardValuator:
             "sample": 1,
             "query":  name,
         }
-
-    # ------------------------------------------------------------------ #
-    #  Source 2: PriceCharting — historical sold prices                    #
-    # ------------------------------------------------------------------ #
-
-    def _scrape_get(self, url: str, max_retries: int = 3):
-        """
-        Thread-safe, rate-limited GET for scrape targets.
-
-        Enforces a minimum interval between requests (shared across threads)
-        and backs off on HTTP 429, honouring Retry-After. Returns the Response
-        or None if it kept being rate-limited.
-        """
-        for attempt in range(max_retries + 1):
-            with self._scrape_lock:
-                elapsed = time.time() - self._last_scrape
-                if elapsed < self.scrape_min_interval:
-                    time.sleep(self.scrape_min_interval - elapsed)
-                try:
-                    r = self.scrape_session.get(url, timeout=self.scrape_timeout)
-                finally:
-                    self._last_scrape = time.time()
-
-                if r.status_code != 429:
-                    r.raise_for_status()
-                    return r
-
-                # Rate limited — pause everyone (still holding the lock) then retry
-                retry_after = r.headers.get("Retry-After", "")
-                if retry_after.isdigit():
-                    delay = min(float(retry_after), 30.0)
-                else:
-                    delay = min(self.scrape_min_interval * (2 ** (attempt + 1)), 30.0)
-                logger.warning("Scrape 429 — backing off %.1fs (attempt %d/%d)",
-                               delay, attempt + 1, max_retries)
-                time.sleep(delay)
-                self._last_scrape = time.time()
-
-        logger.warning("Scrape gave up after %d retries (still 429): %s",
-                       max_retries, url)
-        return None
-
-    def search_pricecharting(self, card_name: str, set_name: Optional[str] = None,
-                             game: Optional[str] = None) -> Optional[Dict]:
-        """
-        RETIRED — PriceCharting web scraping has been disabled.
-
-        Scraping risks violating PriceCharting's terms of service, so valuation
-        now uses official APIs only (Scryfall for MTG, eBay Browse for others),
-        with TradingCardAPI to be added when available. This method is kept as a
-        no-op so any stray caller fails safe rather than scraping.
-        """
-        return None
-
-        # --- retired scraping implementation (intentionally unreachable) ---
-        try:
-            query = card_name
-            if set_name:
-                query += f" {set_name}"
-
-            url = (
-                f"https://www.pricecharting.com/search-products"
-                f"?q={quote(query)}&type=prices"
-            )
-            r = self._scrape_get(url)
-            if r is None:
-                return None
-
-            # Extract prices from the results table
-            prices: List[float] = []
-            for m in re.finditer(
-                r'<td[^>]*class="[^"]*price[^"]*"[^>]*>\s*\$?([\d,]+\.?\d{0,2})',
-                r.text, re.I
-            ):
-                try:
-                    v = float(m.group(1).replace(",", ""))
-                    if 0.25 < v < 50_000:
-                        prices.append(v)
-                except ValueError:
-                    pass
-
-            # Wider fallback
-            if not prices:
-                for m in re.finditer(r'\$([\d,]+\.\d{2})', r.text):
-                    try:
-                        v = float(m.group(1).replace(",", ""))
-                        if 0.25 < v < 50_000:
-                            prices.append(v)
-                    except ValueError:
-                        pass
-
-            if not prices:
-                logger.debug("PriceCharting: no prices for '%s'", query)
-                return None
-
-            prices.sort()
-            trim = max(1, len(prices) // 10)
-            trimmed = prices[trim: len(prices) - trim] or prices
-
-            logger.info("PriceCharting: %d prices for '%s', median=$%.2f",
-                        len(trimmed), query, median(trimmed))
-            return {
-                "source":  "PriceCharting",
-                "value":   round(median(trimmed), 2),
-                "low":     round(min(trimmed), 2),
-                "high":    round(max(trimmed), 2),
-                "sample":  len(trimmed),
-                "query":   query,
-            }
-        except Exception as exc:
-            logger.warning("PriceCharting scrape failed: %s", exc)
-            return None
 
     # ------------------------------------------------------------------ #
     #  Helpers                                                             #
