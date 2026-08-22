@@ -71,12 +71,28 @@ Still needed before submission:
 - [ ] WACK pass **for this build** — re-run per release
 - [ ] Upload `packaging/Lorebox.msix` to Partner Center
 
-## 5. Releasing an update
+## 5. Releasing an update — full rebuild-and-repack cycle
 
-Every Store submission needs a strictly higher `Version` than the last one, and
-a version can't be reused once submitted. Bump **all three** of these together
-— `main.py` is the source of truth for the version string, but it isn't
-imported anywhere else, so the other two are separate, easy-to-forget edits:
+Start-to-finish checklist from "code is merged" to "live in the Store."
+
+### 5.1 Confirm the branch
+
+```powershell
+git status
+git log --oneline -3
+python -m pytest tests/ -q
+```
+
+Build from a clean tree with everything you intend to ship already merged —
+`main` and `release/1.3.0` are kept in sync (same commit) as of this writing,
+so either is a valid base. Don't build from a feature branch.
+
+### 5.2 Bump the version — three places, every time
+
+Every Store submission needs a strictly higher `Version` than the last one,
+and a version can't be reused once submitted. `main.py` is the source of
+truth for the version string, but it isn't imported anywhere else, so the
+other two are separate, easy-to-forget edits:
 
 - `main.py` → `APP_VERSION` (three-part, e.g. `1.3.0`)
 - `packaging/AppxManifest.xml` → `Identity/@Version` (four-part; the revision
@@ -86,13 +102,82 @@ imported anywhere else, so the other two are separate, easy-to-forget edits:
   circular import, since `main.py` imports `MainWindow` before `APP_VERSION`
   is defined in its own module)
 
-Then rebuild and repack:
+Skip this step entirely if re-packing the *same* version that was never
+actually submitted (check Partner Center's Product release history first —
+a version can only be reused if it never went out).
+
+### 5.3 Rebuild the exe and repack the MSIX
 
 ```powershell
+python -m pip install pyinstaller   # if this environment doesn't have it yet
 python -m pytest tests/ -q
 pyinstaller Lorebox.spec --noconfirm
 powershell -ExecutionPolicy Bypass -File packaging\build_msix.ps1
 ```
 
-The Store re-signs on submission, so no signing step is needed for upload —
-only for local sideload testing.
+`build_msix.ps1` needs the Windows SDK's `makeappx.exe` on `PATH` — easiest
+from a *Developer Command Prompt for VS*, or add the SDK's install directory
+manually (e.g. `$env:PATH = "<sdk-root>\App Certification Kit;" + $env:PATH`
+in the same shell before running the script). Output:
+`packaging/Lorebox.msix`.
+
+If a prior MSIX is already sitting there and you want to keep it for
+comparison, move it aside first — `build_msix.ps1` overwrites in place.
+
+### 5.4 Sign for local sideload testing
+
+The Store re-signs on submission, so **no signing is needed for the actual
+upload** — this step exists only so WACK has something installed to point
+at, and so you can smoke-test the real packaged app before it ships.
+
+```powershell
+# Run this in an ELEVATED PowerShell (Run as administrator) — trusting the
+# test cert writes to the LocalMachine store, which requires admin.
+powershell -ExecutionPolicy Bypass -File packaging\sideload_install.ps1
+```
+
+Signs `Lorebox.msix` with a self-signed cert whose subject matches the
+manifest's `Publisher`, trusts that cert locally on this machine only, and
+installs the package. To uninstall afterward:
+
+```powershell
+Get-AppxPackage -Name 33303JesseCatlow.Lorebox | Remove-AppxPackage
+```
+
+### 5.5 Run WACK (Windows App Certification Kit)
+
+```powershell
+"<sdk-root>\App Certification Kit\appcertui.exe"
+```
+
+`<sdk-root>` is wherever the Windows SDK is installed — on this machine it's
+`D:\Windows Kits\10`; check `C:\Program Files (x86)\Windows Kits\10` or
+`C:\Program Files\Windows Kits\10` first on a fresh setup. Pick the installed
+Lorebox package (from 5.4) as the test target, run the Store Certification
+test suite, and fix anything it flags before submitting.
+
+### 5.6 Submit via Partner Center
+
+Manual — needs your login, no automation possible here:
+
+1. Go to the app's page → **Start update** (in the *Product release*
+   section). This clones the previous submission as a starting point.
+2. Open **Packages** → upload the new `packaging/Lorebox.msix` → remove the
+   old package entry.
+3. Touch **Store listing** only if the description or screenshots changed.
+4. **Submit for certification** from the App overview page.
+
+Certification typically runs a few hours to a couple of days. Consider
+**Roll out update gradually** (a Partner Center option for MSIX apps, e.g.
+starting at 5%) for any release that changes behavior you haven't fully
+verified against real-world usage yet — it's controllable from the app's
+Overview page after publishing without needing a second submission.
+
+### Notes
+
+- If `.venv` needs rebuilding on a fresh machine, use **Python 3.11**, not
+  3.13 — `requirements.txt` pins `numpy==1.26.4`, which has no cp313 wheel;
+  pip falls back to a broken source build on 3.13 and the test suite fails
+  at collection.
+- `packaging/*.msix`, `*.pfx`, `*.cer` are all gitignored — the sideload test
+  cert and any packed MSIX never belong in source control.
