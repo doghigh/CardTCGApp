@@ -216,6 +216,12 @@ class ImageBatchWorker(QThread):
                 back = self._load(back_desc)
 
                 info = self.identifier.identify_card(front, back)
+
+                from utils.image_ops import rotate_by
+                front = rotate_by(front, info.get('front_rotation', 0))
+                if back is not None:
+                    back = rotate_by(back, info.get('back_rotation', 0))
+
                 from core.grading import resolve_condition
                 inspection = resolve_condition(info, front, self.inspector)
 
