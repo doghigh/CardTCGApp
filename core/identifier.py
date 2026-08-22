@@ -76,7 +76,27 @@ Also grade the card's physical condition from the image(s):
     "off_centering"; location is one of "top_left","top_right","bottom_left",
     "bottom_right","top","bottom","left","right","center"; severity is
     "minor","moderate", or "severe".
-Include condition_score and defects as additional fields in the SAME JSON object."""
+Include condition_score and defects as additional fields in the SAME JSON object.
+
+Also determine image orientation:
+- front_rotation: degrees to rotate the FRONT image CLOCKWISE so it reads
+    upright — one of 0, 90, 180, 270. Use 0 if it is already upright or you
+    are not confident.
+- back_rotation: same, for the back image. Use 0 if no back image was given.
+    Many card-game backs (e.g. Magic's Deckmaster design) have little or no
+    body text — use whatever text or wordmark is present and its reading
+    direction; if there is truly no orientation cue, use 0 rather than guess.
+Include front_rotation and back_rotation as additional fields in the SAME
+JSON object."""
+
+
+def _clamp_rotation(value) -> int:
+    """Clamp a rotation value to {0, 90, 180, 270}; anything else is 0."""
+    try:
+        v = int(value)
+    except (TypeError, ValueError):
+        return 0
+    return v if v in (0, 90, 180, 270) else 0
 
 
 class CardIdentifier:
@@ -249,6 +269,8 @@ class CardIdentifier:
                 'year': int(data['year']) if data.get('year') else None,
                 'game': data.get('game') or None,
                 'condition': condition,
+                'front_rotation': _clamp_rotation(data.get('front_rotation')),
+                'back_rotation': _clamp_rotation(data.get('back_rotation')),
             }
         except Exception as e:
             if trial_mode:

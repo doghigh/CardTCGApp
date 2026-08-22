@@ -83,14 +83,23 @@ class BatchProcessWorker(QThread):
         self.finished.emit()
 
     def _process(self, idx: int, chunk: List[np.ndarray]) -> dict:
-        from utils.image_ops import deskew
+        from utils.image_ops import deskew, rotate_by
 
         # Auto-straighten before identification/grading — improves both
         chunk = [deskew(im) for im in chunk]
         front = chunk[0]
         back  = chunk[1] if len(chunk) > 1 else None
 
-        info       = self.identifier.identify_card(front, back)
+        info = self.identifier.identify_card(front, back)
+
+        # Auto-correct orientation using identify_card's judgment. Rebuild
+        # chunk explicitly from the (possibly rotated) front/back rather than
+        # relying on them staying aliases into it — reassigning a local does
+        # not mutate the list it came from.
+        front = rotate_by(front, info.get('front_rotation', 0))
+        if back is not None:
+            back = rotate_by(back, info.get('back_rotation', 0))
+        chunk = [front] if back is None else [front, back]
         from core.grading import resolve_condition
         inspection = resolve_condition(info, front, self.inspector)
         valuation  = self.valuator.value_summary(
