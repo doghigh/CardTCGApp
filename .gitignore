@@ -98,5 +98,9 @@ packaging/loreboxappcert.xml
 # Local virtualenv (created for running the test suite)
 .venv/
 
+# run.bat creates this one (python -m venv venv) on first launch — a full
+# installed dependency tree, hundreds of MB, must never be tracked
+venv/
+
 # SDD scratch (briefs, reports, review packages, progress ledger)
 .superpowers/
