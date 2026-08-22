@@ -74,11 +74,17 @@ Still needed before submission:
 ## 5. Releasing an update
 
 Every Store submission needs a strictly higher `Version` than the last one, and
-a version can't be reused once submitted. Bump **both** of these together:
+a version can't be reused once submitted. Bump **all three** of these together
+— `main.py` is the source of truth for the version string, but it isn't
+imported anywhere else, so the other two are separate, easy-to-forget edits:
 
 - `main.py` → `APP_VERSION` (three-part, e.g. `1.3.0`)
 - `packaging/AppxManifest.xml` → `Identity/@Version` (four-part; the revision
   field **must** be `0` — the Store rejects anything else)
+- `ui/main_window.py` → the `setWindowTitle("Lorebox vX.Y.Z")` call in
+  `MainWindow.__init__` (not imported from `main.py` — would create a
+  circular import, since `main.py` imports `MainWindow` before `APP_VERSION`
+  is defined in its own module)
 
 Then rebuild and repack:
 
