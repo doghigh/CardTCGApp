@@ -153,8 +153,27 @@ Get-AppxPackage -Name 33303JesseCatlow.Lorebox | Remove-AppxPackage
 `<sdk-root>` is wherever the Windows SDK is installed — on this machine it's
 `D:\Windows Kits\10`; check `C:\Program Files (x86)\Windows Kits\10` or
 `C:\Program Files\Windows Kits\10` first on a fresh setup. Pick the installed
-Lorebox package (from 5.4) as the test target, run the Store Certification
-test suite, and fix anything it flags before submitting.
+Lorebox package (from 5.4) as the test target and run the Store Certification
+test suite. Fix any **Error** before submitting — Errors block certification.
+A **Warning** doesn't block submission; use judgment on whether it's worth
+chasing before upload (see the known one below).
+
+**Known, accepted warning — DPIAwarenessValidation.** WACK may report
+`Lorebox.exe` as "not DPI Aware." Investigated 2026-08-22: the DPI-awareness
+manifest (`packaging/Lorebox.exe.manifest`, embedded via `Lorebox.spec`'s
+`manifest=` kwarg) was confirmed byte-correct in both the freshly-built exe
+and the actual WACK-tested installed binary — pulled directly with
+`mt.exe -inputresource:Lorebox.exe;#1` from the Windows SDK — and its
+`dpiAwareness` value matches Microsoft's documented recognized-format table
+exactly (`PerMonitorV2` as the first comma-separated item). No app code makes
+a competing DPI API call. Why WACK's parser still disagrees with what
+Microsoft's own `mt.exe` reads as correct is unresolved; likely candidates
+are a PyInstaller-bootloader/WACK-parser interaction that doesn't show up in
+`mt.exe`'s extraction. Qt6 handles real per-monitor DPI scaling correctly at
+runtime regardless of this static declaration, so real users won't see
+broken UI from it. Treated as safe to ship past unless it starts blocking
+certification outright (which would make it an Error, not a Warning) or a
+future WACK/PyInstaller update surfaces the actual cause.
 
 ### 5.6 Submit via Partner Center
 
