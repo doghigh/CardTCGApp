@@ -18,6 +18,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
+from utils.natural_sort import natural_sort_key
+
 logger = logging.getLogger(__name__)
 
 from core.paths import APP_DIR
@@ -113,7 +115,9 @@ class WatchConfig:
         files: List[Path] = []
         for pattern in IMAGE_EXTS:
             files.extend(folder.glob(pattern))
-        return sorted(files)
+        # Natural sort — see ui/batch_tab.py's _gather_pages for why a plain
+        # string sort scrambles sequentially-numbered filenames.
+        return sorted(files, key=natural_sort_key)
 
     def next_run_text(self) -> str:
         """Human-readable description of when the next run will happen."""

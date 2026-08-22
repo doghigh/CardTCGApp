@@ -24,6 +24,7 @@ from core.valuator import CardValuator
 from core.watcher import WatchConfig
 from ui.dialogs import CsvMappingDialog
 from core import usage
+from utils.natural_sort import natural_sort_key
 
 
 from core.paths import SCANS_DIR
@@ -79,9 +80,14 @@ class ImageBatchWorker(QThread):
         'front' (portrait) or 'back' (landscape) by aspect ratio.
         """
         from utils import pdf_utils
+        # Natural sort, not plain string sort: unpadded sequential filenames
+        # (IMG_1.jpg .. IMG_243.jpg) are the common case from phones/scanner
+        # apps, and a string sort orders IMG_10 before IMG_2 — see
+        # tests/test_natural_sort.py for the reproduction.
         files = sorted(
             list(self.folder.glob("*.png")) + list(self.folder.glob("*.jpg")) +
-            list(self.folder.glob("*.jpeg")) + list(self.folder.glob("*.pdf"))
+            list(self.folder.glob("*.jpeg")) + list(self.folder.glob("*.pdf")),
+            key=natural_sort_key,
         )
         pages = []
         for f in files:
@@ -210,6 +216,12 @@ class ImageBatchWorker(QThread):
                 back = self._load(back_desc)
 
                 info = self.identifier.identify_card(front, back)
+
+                from utils.image_ops import rotate_by
+                front = rotate_by(front, info.get('front_rotation', 0))
+                if back is not None:
+                    back = rotate_by(back, info.get('back_rotation', 0))
+
                 from core.grading import resolve_condition
                 inspection = resolve_condition(info, front, self.inspector)
 

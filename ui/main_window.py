@@ -54,7 +54,7 @@ class MainWindow(QMainWindow):
                 sys.exit(0)
 
         # Window setup
-        self.setWindowTitle("Lorebox v1.1.0")
+        self.setWindowTitle("Lorebox v1.3.0")
         self.resize(1580, 960)
 
         # Core components

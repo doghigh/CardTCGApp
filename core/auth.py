@@ -109,8 +109,14 @@ class LoginDialog(QDialog):
             return
 
         if ok:
-            if totp and not self.auth.verify_totp(totp):
-                self.status_label.setText("Invalid TOTP code.")
+            # Gate on whether a second factor is CONFIGURED, never on whether the
+            # user typed one. Checking `if totp` meant leaving the field blank
+            # skipped the second factor entirely on an account that had it on.
+            if self.auth.totp_enabled() and not self.auth.verify_totp(totp):
+                self.status_label.setText(
+                    "Enter your 6-digit authenticator code."
+                    if not totp else "Invalid TOTP code."
+                )
                 return
             self.accept()
         else:
@@ -125,7 +131,17 @@ class LoginDialog(QDialog):
 
     def _recovery_login(self):
         code, ok = QInputDialog.getText(self, "Recovery", "Enter recovery code:")
-        if ok and code and self.auth.verify_recovery_code(code):
+        if not ok or not code:
+            return
+        try:
+            accepted = self.auth.verify_recovery_code(code)
+        except AuthLockedError as exc:
+            # Recovery is throttled by the same counters as the password, so it
+            # can now lock out — surface that instead of raising into the UI.
+            self.status_label.setText(str(exc))
+            self.login_btn.setEnabled(False)
+            return
+        if accepted:
             self.accept()
         else:
             QMessageBox.warning(self, "Invalid", "Recovery code invalid or already used.")
@@ -361,8 +377,19 @@ class AuthManager:
             name="Lorebox", issuer_name="Lorebox"
         )
 
+    def totp_enabled(self) -> bool:
+        """True when a second factor is configured and must be satisfied.
+
+        Callers gate on this rather than on whether the user typed anything —
+        otherwise leaving the TOTP field blank skips the second factor entirely.
+        """
+        return self.totp_secret_file.exists()
+
     def verify_totp(self, code: str) -> bool:
         if not self.totp_secret_file.exists():
+            return False
+        # A blank or missing code never satisfies an enabled second factor.
+        if not isinstance(code, str) or not code.strip():
             return False
         try:
             secret = self._read_totp_secret()
@@ -388,7 +415,24 @@ class AuthManager:
         return codes
 
     def verify_recovery_code(self, code: str) -> bool:
-        if not self.recovery_file.exists():
+        """Verify a one-time recovery code, under the same lockout as passwords.
+
+        Recovery codes are 32 bits of entropy. Without throttling they were the
+        cheapest way in — passwords got exponential backoff while this path had
+        none at all. The counters are shared deliberately, so burning recovery
+        attempts does not hand an attacker a fresh password allowance.
+
+        Raises AuthLockedError while locked out.
+        """
+        self._clear_expired_lockout()
+        if self._lockout_until and datetime.now() < self._lockout_until:
+            remaining = int((self._lockout_until - datetime.now()).total_seconds()) + 1
+            raise AuthLockedError(
+                f"Too many failed attempts. Try again in {remaining} second(s)."
+            )
+
+        if not self.recovery_file.exists() or not isinstance(code, str) or not code.strip():
+            self._register_failed_attempt()
             return False
         try:
             stored = json.loads(self.recovery_file.read_text())
@@ -396,12 +440,34 @@ class AuthManager:
             if code_hash in stored:
                 stored.remove(code_hash)
                 self.recovery_file.write_text(json.dumps(stored))
+                self._failed_attempts = 0
+                self._lockout_count = 0
+                self._lockout_until = None
+                self._persist_lockout_state()
                 logger.info("Recovery code used — %d remaining.", len(stored))
                 return True
+            self._register_failed_attempt()
             return False
         except (json.JSONDecodeError, OSError) as exc:
             logger.error("Recovery code verification error: %s", exc)
+            self._register_failed_attempt()
             return False
+
+    def _register_failed_attempt(self):
+        """Count a failed auth attempt and escalate the lockout when over budget."""
+        self._failed_attempts += 1
+        logger.warning(
+            "Failed auth attempt %d/%d.", self._failed_attempts, self.MAX_ATTEMPTS
+        )
+        if self._failed_attempts >= self.MAX_ATTEMPTS:
+            self._lockout_count += 1
+            backoff = min(
+                self.MAX_LOCKOUT,
+                self.BASE_LOCKOUT * (2 ** (self._lockout_count - 1)),
+            )
+            self._lockout_until = datetime.now() + timedelta(seconds=backoff)
+            logger.warning("Account locked for %ds.", backoff)
+        self._persist_lockout_state()
 
 
 # ── Windows Hello ─────────────────────────────────────────────────────────────
