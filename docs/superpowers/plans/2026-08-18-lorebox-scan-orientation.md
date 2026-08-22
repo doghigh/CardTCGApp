@@ -732,6 +732,7 @@ def test_saved_file_reflects_front_rotation(tmp_path, monkeypatch):
     just an in-memory transform that gets discarded before cv2.imwrite.
     """
     scans_dir = tmp_path / "scans"
+    scans_dir.mkdir()
     monkeypatch.setattr(batch_tab_module, "SCANS_DIR", scans_dir)
 
     folder = tmp_path / "import"
@@ -754,6 +755,8 @@ def test_saved_file_reflects_front_rotation(tmp_path, monkeypatch):
 ```
 
 `monkeypatch.setattr(batch_tab_module, "SCANS_DIR", scans_dir)` redirects the save location without touching the real `%APPDATA%/Lorebox` — the same pattern `tests/test_review_prompt.py` already uses for `PREFS_FILE`. The 5×5 marker is well under `deskew()`'s `len(coords) >= 50` threshold (`utils/image_ops.py`), so `_load()`'s automatic deskew pass leaves it untouched before rotation is even considered — the marker survives to prove specifically the *rotation* wiring, not deskew interacting with it.
+
+**`scans_dir.mkdir()` is required, not optional — this is a test-isolation gap, not a production bug.** `ui/batch_tab.py:29-31` ensures the real `SCANS_DIR` exists once, at module-import time, against the real path — long before this test's `monkeypatch.setattr` ever runs. The monkeypatch substitutes a *different* path afterward, which the import-time `mkdir()` never touched and which does not otherwise exist under `tmp_path`. `cv2.imwrite()` fails silently on a missing directory — it returns `False` and raises nothing (verified: `cv2.imwrite('nonexistent/out.png', img)` returns `False`, writes no file) — so without this line the test would fail at `assert len(saved) == 1` (`found 0`), not at the rotation assertion it exists to check. Real app behavior is unaffected either way: `SCANS_DIR` never changes after import in production, so the one-time `mkdir()` at `ui/batch_tab.py:31` is always sufficient there.
 
 **One residual uncertainty, flagged rather than assumed away:** `ImageBatchWorker` is a `QThread` subclass, and this test calls `worker.run()` directly (the method body, synchronously — not `.start()`, which would need a live thread and event loop). No test in this codebase currently constructs `ImageBatchWorker` this way. It is expected to work — `QThread` is not a widget and constructing one, or calling a plain method on one, does not typically require a running `QApplication` — but if Step 2 fails with a Qt-runtime error instead of the expected assertion failure, that is a different problem than the one this task is testing for. Stop and report rather than working around it with, for instance, a `QApplication` fixture that the rest of this test's design didn't anticipate needing.
 
