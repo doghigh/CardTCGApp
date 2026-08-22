@@ -25,6 +25,15 @@ def rotate_180(img: np.ndarray) -> np.ndarray:
     return cv2.rotate(img, cv2.ROTATE_180)
 
 
+def rotate_by(img: np.ndarray, degrees: int) -> np.ndarray:
+    """Rotate img by 0/90/180/270 degrees clockwise. Any other value is a no-op."""
+    return {
+        90:  rotate_90_cw,
+        180: rotate_180,
+        270: rotate_90_ccw,
+    }.get(degrees, lambda x: x)(img)
+
+
 def deskew(img: np.ndarray, max_angle: float = 15.0) -> np.ndarray:
     """
     Auto-correct small skew/tilt in a scanned card.
