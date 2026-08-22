@@ -108,6 +108,8 @@ class ScanTab(QWidget):
 
         self.current_front_img = None
         self.current_back_img = None
+        self._front_rotation_applied = False
+        self._back_rotation_applied = False
         self.current_inspection = None
         self.current_valuations = []
 
@@ -388,6 +390,8 @@ class ScanTab(QWidget):
             self._finish_scanning()
 
     def _load_card_images(self, images: list):
+        self._front_rotation_applied = False
+        self._back_rotation_applied = False
         if len(images) >= 2:
             self.current_front_img = images[0]
             self.current_back_img = images[1]
@@ -489,9 +493,11 @@ class ScanTab(QWidget):
     def _load_done(self, side: str, img):
         if side == 'front':
             self.current_front_img = img
+            self._front_rotation_applied = False
             self.front_view.set_image(img)
         else:
             self.current_back_img = img
+            self._back_rotation_applied = False
             self.back_view.set_image(img)
         self.status_label.setText(f"{side.capitalize()} loaded")
         self._auto_identify()
@@ -506,18 +512,29 @@ class ScanTab(QWidget):
 
         Safe against any info dict: a missing key defaults to 0 (no-op), the
         same convention core.identifier uses whenever it is unsure.
+
+        Applied at most once per loaded image. Loading front then back each
+        triggers a full identify pass, and the second pass would re-examine
+        the already-corrected front alongside the new back — without this
+        guard, a differing second judgment could compound a rotation or
+        silently overwrite a manual correction made with the rotate buttons
+        between the two loads. The *_rotation_applied flags reset to False
+        only when that side's image is freshly (re)loaded, so a genuinely
+        new image can still be corrected.
         """
         from utils.image_ops import rotate_by
 
         front_deg = info.get('front_rotation', 0)
-        if front_deg and self.current_front_img is not None:
+        if front_deg and self.current_front_img is not None and not self._front_rotation_applied:
             self.current_front_img = rotate_by(self.current_front_img, front_deg)
             self.front_view.set_image(self.current_front_img)
+        self._front_rotation_applied = True
 
         back_deg = info.get('back_rotation', 0)
-        if back_deg and self.current_back_img is not None:
+        if back_deg and self.current_back_img is not None and not self._back_rotation_applied:
             self.current_back_img = rotate_by(self.current_back_img, back_deg)
             self.back_view.set_image(self.current_back_img)
+        self._back_rotation_applied = True
 
     def _auto_identify(self):
         if self.current_front_img is None:
@@ -685,6 +702,8 @@ class ScanTab(QWidget):
         self.qty_spin.setValue(1)
         self.current_front_img = None
         self.current_back_img = None
+        self._front_rotation_applied = False
+        self._back_rotation_applied = False
         self.current_inspection = None
         self.front_view.set_image(None)
         self.back_view.set_image(None)
