@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "data-gov": {
+      "command": "python",
+      "args": ["connectors/data-gov-mcp/server.py"],
+      "env": {
+        "DATA_GOV_API_KEY": "${DATA_GOV_API_KEY:-DEMO_KEY}"
+      }
+    }
+  }
+}
