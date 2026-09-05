@@ -60,10 +60,7 @@ from utils.theme import apply_dark_theme
 
 # Import main window (which imports everything else)
 from ui.main_window import MainWindow
-
-
-APP_NAME = "Lorebox"
-APP_VERSION = "1.3.0"
+from core.version import APP_NAME, APP_VERSION
 
 
 def main():

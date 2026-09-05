@@ -2,7 +2,7 @@
 title Lorebox - Launcher
 echo.
 echo ================================================
-echo    Lorebox v1.1.0
+echo    Lorebox v1.3.0
 echo    Privacy-First TCG Collection App
 echo ================================================
 echo.

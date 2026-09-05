@@ -18,6 +18,9 @@ for pkg in ("pypdfium2", "pypdfium2_raw"):
     except Exception:
         pass
 
+# Never bundle local secrets or environment files.
+datas = [(src, dst) for src, dst in datas if Path(src).name != ".env"]
+
 # anthropic SDK — make sure all submodules are picked up
 hiddenimports += collect_submodules("anthropic")
 # Optional/condition­ally-imported modules referenced via try/except
