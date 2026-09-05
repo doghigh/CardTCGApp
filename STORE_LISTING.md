@@ -86,9 +86,9 @@ card value tracker
 
 ---
 
-## What's new in this version  (release notes — v1.1.1.0)
+## What's new in this version  (release notes — v1.3.0.0)
 <!-- Store rule: the 4th version part (revision) MUST be 0. Bump the 3rd
-     (build) number for updates: 1.1.1.0 -> 1.1.2.0 -> 1.1.3.0, etc. -->
+     (build) number for updates: 1.3.0.0 -> 1.3.1.0 -> 1.3.2.0, etc. -->
 - More reliable card identification, with clearer handling when the AI service
   is briefly unavailable.
 - Fixed an issue where cards identified during a service interruption could be

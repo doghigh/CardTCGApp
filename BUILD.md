@@ -18,6 +18,9 @@ Notes:
 - `CONSOLE = False` in the spec → windowed app. Flip to `True` temporarily if
   you need a live console while debugging; diagnostics otherwise go to
   `%APPDATA%\Lorebox\logs\app.log`.
+- **Never bundle `.env`.** The project `.env` is local-only and must not ship
+  inside `dist/`. `Lorebox.spec` excludes it; verify with `findstr /s /i
+  "ANTHROPIC_API_KEY" dist\Lorebox\*` before packaging.
 - If a rebuild fails with *Access is denied*, an instance is still running —
   close the app (or `Get-Process Lorebox | Stop-Process -Force`).
 
@@ -87,20 +90,20 @@ Build from a clean tree with everything you intend to ship already merged —
 `main` and `release/1.3.0` are kept in sync (same commit) as of this writing,
 so either is a valid base. Don't build from a feature branch.
 
-### 5.2 Bump the version — three places, every time
+### 5.2 Bump the version — one source of truth, then mirror everywhere
 
 Every Store submission needs a strictly higher `Version` than the last one,
-and a version can't be reused once submitted. `main.py` is the source of
-truth for the version string, but it isn't imported anywhere else, so the
-other two are separate, easy-to-forget edits:
+and a version can't be reused once submitted. `core/version.py` is the single
+source of truth; `main.py` and `ui/main_window.py` import from it. After
+bumping `core/version.py`, mirror the new version in these places:
 
-- `main.py` → `APP_VERSION` (three-part, e.g. `1.3.0`)
+- `core/version.py` → `APP_VERSION` (single source of truth, three-part, e.g. `1.3.0`)
 - `packaging/AppxManifest.xml` → `Identity/@Version` (four-part; the revision
   field **must** be `0` — the Store rejects anything else)
-- `ui/main_window.py` → the `setWindowTitle("Lorebox vX.Y.Z")` call in
-  `MainWindow.__init__` (not imported from `main.py` — would create a
-  circular import, since `main.py` imports `MainWindow` before `APP_VERSION`
-  is defined in its own module)
+- `ui/main_window.py` → `setWindowTitle("Lorebox vX.Y.Z")` in `MainWindow.__init__`
+  (the `_about()` dialog already uses `APP_VERSION` from `core/version.py`)
+- `run.bat` → launcher banner text
+- `STORE_LISTING.md` → "What's new in this version" header version
 
 Skip this step entirely if re-packing the *same* version that was never
 actually submitted (check Partner Center's Product release history first —

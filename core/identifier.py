@@ -138,7 +138,7 @@ class CardIdentifier:
             if self._anthropic is None:
                 self._anthropic = anthropic.Anthropic(api_key=api_key)
             return self._anthropic, 'own'
-        if trial.trial_remaining() > 0:
+        if trial.trial_remaining() > 0 and trial.is_configured():
             # Placeholder key — the Worker injects the real one. base_url is the
             # Worker origin; the SDK appends "/v1/messages".
             client = anthropic.Anthropic(api_key='trial-proxy',
@@ -165,10 +165,11 @@ class CardIdentifier:
         _, mode = self._resolve_client()
 
         if mode == 'none':
-            # TRIAL_LIMIT == 0 means this build ships without a trial at all —
-            # a different message from a trial the user actually spent.
-            return self._trial_blocked(
-                'trial_exhausted' if trial.TRIAL_LIMIT else 'trial_disabled')
+            # Distinguish "no trial offered" from "trial used up" so the UI
+            # can show the right call to action.
+            if trial.TRIAL_LIMIT == 0 or not trial.is_configured():
+                return self._trial_blocked('trial_disabled')
+            return self._trial_blocked('trial_exhausted')
 
         if mode == 'trial':
             try:

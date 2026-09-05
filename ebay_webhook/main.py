@@ -10,7 +10,8 @@ HTTPS endpoint even when opting out of storing user data.
 This server:
   1. Responds to eBay's challenge verification (GET request)
   2. Accepts and acknowledges deletion notifications (POST request)
-  3. Logs received notifications for audit purposes
+  3. Logs only the notification topic and timestamp for audit purposes
+     (no eBay username, userId, or raw payload is stored)
 
 Environment variables (set in Render/Railway dashboard or .env):
   EBAY_VERIFICATION_TOKEN  — token you set when registering the endpoint
@@ -83,23 +84,19 @@ def ebay_deletion():
     try:
         payload = request.get_json(force=True, silent=True) or {}
         notification = payload.get("notification", {})
-        topic    = notification.get("topic", "unknown")
-        username = payload.get("data", {}).get("username", "unknown")
-        user_id  = payload.get("data", {}).get("userId", "unknown")
+        topic = notification.get("topic", "unknown")
 
-        logger.info(
-            "Deletion notification received — topic=%s  user=%s  id=%s",
-            topic, username, user_id
-        )
+        # Log only the topic and timestamp. We intentionally do NOT store
+        # username, userId, or the raw payload — the desktop app stores no
+        # eBay user data, and this webhook exists solely to acknowledge
+        # notifications per eBay's developer program requirements.
+        logger.info("Deletion notification received — topic=%s", topic)
 
-        # Append to audit log
+        # Append to audit log (no user identifiers)
         with LOG_FILE.open("a", encoding="utf-8") as f:
             f.write(json.dumps({
                 "received_at": datetime.utcnow().isoformat(),
                 "topic":       topic,
-                "username":    username,
-                "userId":      user_id,
-                "raw":         payload,
             }) + "\n")
 
         # This app stores NO eBay user data, so nothing to delete.

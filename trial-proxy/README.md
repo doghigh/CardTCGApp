@@ -12,8 +12,12 @@ touch this service.
    `wrangler secret put ANTHROPIC_API_KEY`
 4. (Optional) adjust `MONTHLY_TRIAL_CAP` in `wrangler.toml`.
 5. `wrangler deploy` → note the `https://lorebox-trial.<subdomain>.workers.dev`
-   URL and put it in `core/trial.py`'s `WORKER_BASE_URL`.
-6. Add a Cloudflare billing alert as a secondary safety net.
+   URL and either:
+   - set the `LOREBOX_TRIAL_WORKER_URL` environment variable, or
+   - edit `core/trial.py`'s `WORKER_BASE_URL` fallback.
+6. Set `TRIAL_LIMIT` in `core/trial.py` to the desired per-install allowance
+   (e.g., `10`).
+7. Add a Cloudflare billing alert as a secondary safety net.
 
 ## Verify locally
 

@@ -27,6 +27,7 @@ def test_own_key_calls_direct_and_does_not_consume(monkeypatch, img):
 def test_trial_success_consumes_one_credit(monkeypatch, img):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.setattr(trial, "trial_remaining", lambda: 5)
+    monkeypatch.setattr(trial, "is_configured", lambda: True)
     consumed = {"n": 0}
     monkeypatch.setattr(trial, "consume_trial", lambda: consumed.__setitem__("n", consumed["n"] + 1))
     ident = CardIdentifier()
@@ -41,6 +42,7 @@ def test_trial_exhausted_makes_no_call(monkeypatch, img):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     # A build that offers a trial, whose credits the user has spent.
     monkeypatch.setattr(trial, "TRIAL_LIMIT", 10)
+    monkeypatch.setattr(trial, "is_configured", lambda: True)
     monkeypatch.setattr(trial, "trial_remaining", lambda: 0)
     ident = CardIdentifier()
     called = {"n": 0}
@@ -69,9 +71,27 @@ def test_trial_disabled_makes_no_call(monkeypatch, img):
     assert called["n"] == 0
 
 
+def test_trial_unconfigured_makes_no_call(monkeypatch, img):
+    """A non-zero TRIAL_LIMIT with the placeholder Worker URL is treated as
+    disabled so the app never hits an unreachable host."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr(trial, "TRIAL_LIMIT", 10)
+    monkeypatch.setattr(trial, "trial_remaining", lambda: 5)
+    monkeypatch.setattr(trial, "is_configured", lambda: False)
+    ident = CardIdentifier()
+    called = {"n": 0}
+    monkeypatch.setattr(ident, "_identify_with_claude",
+                        lambda f, b: called.__setitem__("n", called["n"] + 1))
+
+    out = ident.identify_card(img)
+    assert out["source"] == "trial_disabled"
+    assert called["n"] == 0
+
+
 def test_trial_capacity_does_not_consume(monkeypatch, img):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.setattr(trial, "trial_remaining", lambda: 5)
+    monkeypatch.setattr(trial, "is_configured", lambda: True)
     consumed = {"n": 0}
     monkeypatch.setattr(trial, "consume_trial", lambda: consumed.__setitem__("n", consumed["n"] + 1))
     ident = CardIdentifier()
@@ -88,6 +108,7 @@ def test_trial_capacity_does_not_consume(monkeypatch, img):
 def test_trial_unavailable_does_not_consume(monkeypatch, img):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.setattr(trial, "trial_remaining", lambda: 5)
+    monkeypatch.setattr(trial, "is_configured", lambda: True)
     consumed = {"n": 0}
     monkeypatch.setattr(trial, "consume_trial", lambda: consumed.__setitem__("n", consumed["n"] + 1))
     ident = CardIdentifier()

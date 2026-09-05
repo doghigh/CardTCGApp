@@ -30,6 +30,7 @@ from ui.collection_tab import CollectionTab
 from ui.reports_tab import ReportsTab
 
 from core.paths import APP_DIR
+from core.version import APP_VERSION
 
 logger = logging.getLogger(__name__)
 
@@ -546,6 +547,6 @@ class MainWindow(QMainWindow):
 
     def _about(self):
         QMessageBox.about(self, "About Lorebox",
-            f"<h2>Lorebox v1.1.0</h2>"
+            f"<h2>Lorebox v{APP_VERSION}</h2>"
             "<p>Privacy-first Windows desktop app for trading card collectors.</p>"
             f"<p>Data folder: {APP_DIR}</p>")
