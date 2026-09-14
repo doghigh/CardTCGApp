@@ -1,0 +1,764 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Adoption Cost Dashboard</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --border: #dde1e6;
+    --text: #1b1f24;
+    --text-muted: #5b6470;
+    --accent: #2f6fed;
+    --accent-soft: #eaf1ff;
+    --capex: #2f6fed;
+    --opex: #f2994a;
+    --ok: #1f9d55;
+    --warn: #c8890a;
+    --bad: #d64545;
+    --ok-bg: #e7f7ee;
+    --warn-bg: #fdf2df;
+    --bad-bg: #fbeaea;
+    --shadow: 0 1px 2px rgba(20,25,35,0.06), 0 4px 14px rgba(20,25,35,0.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171c;
+      --panel: #1b1f26;
+      --border: #2a2f38;
+      --text: #e8ebf0;
+      --text-muted: #99a1ad;
+      --accent: #6f9bff;
+      --accent-soft: #1e2a44;
+      --capex: #6f9bff;
+      --opex: #f2a25f;
+      --ok: #43c47e;
+      --warn: #e0ac3f;
+      --bad: #e5686a;
+      --ok-bg: #12301f;
+      --warn-bg: #362a10;
+      --bad-bg: #3a1c1d;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 4px 14px rgba(0,0,0,0.25);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    padding: 20px 16px 60px;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .subtitle { color: var(--text-muted); margin: 0 0 4px; font-size: 13.5px; }
+  .disclaimer {
+    background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn);
+    border-radius: 8px; padding: 10px 14px; font-size: 12.5px; margin: 14px 0 20px;
+  }
+  .panel {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px; margin-bottom: 18px; box-shadow: var(--shadow);
+  }
+  .panel h2 { font-size: 15px; margin: 0 0 12px; }
+  .row { display: flex; gap: 18px; flex-wrap: wrap; }
+  .col { flex: 1 1 260px; min-width: 0; }
+  .stat {
+    background: var(--accent-soft); border-radius: 10px; padding: 12px 14px; flex: 1 1 160px;
+  }
+  .stat .label { font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); }
+  .stat .value { font-size: 22px; font-weight: 650; margin-top: 2px; }
+  .stat.capex .value { color: var(--capex); }
+  .stat.opex .value { color: var(--opex); }
+  .btn {
+    background: var(--accent); color: #fff; border: none; border-radius: 8px;
+    padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  .btn.secondary {
+    background: transparent; color: var(--text); border: 1px solid var(--border);
+  }
+  .btn.danger { background: transparent; color: var(--bad); border: 1px solid var(--bad); }
+  .btn:hover { filter: brightness(1.06); }
+  .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+  .initiative { border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 14px; }
+  .initiative-head { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  .initiative-head input[type="text"] {
+    font-size: 15px; font-weight: 650; border: 1px solid transparent; background: transparent;
+    color: var(--text); padding: 4px 6px; border-radius: 6px; flex: 1 1 180px; min-width: 120px;
+  }
+  .initiative-head input[type="text"]:hover, .initiative-head input[type="text"]:focus {
+    border-color: var(--border); outline: none;
+  }
+  select, input[type="number"] {
+    background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 8px; font-size: 13px; width: 100%;
+  }
+  label.field { display: block; margin-bottom: 10px; }
+  label.field .field-label { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--text-muted); margin-bottom: 3px; }
+  .badge { font-size: 10.5px; font-weight: 650; padding: 1px 7px; border-radius: 999px; white-space: nowrap; }
+  .badge.below { background: var(--ok-bg); color: var(--ok); }
+  .badge.within { background: var(--accent-soft); color: var(--accent); }
+  .badge.above { background: var(--bad-bg); color: var(--bad); }
+  .section-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); margin: 4px 0 8px; }
+  .grid4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 16px; }
+  .initiative-footer { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 10px; border-top: 1px dashed var(--border); padding-top: 10px; }
+  .totals-inline { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12.5px; color: var(--text-muted); }
+  .totals-inline b { color: var(--text); }
+  .empty { text-align: center; color: var(--text-muted); padding: 30px 10px; }
+  svg text { fill: var(--text); font-size: 11px; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; margin-top: 8px; color: var(--text-muted); }
+  .legend span.dot { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 5px; vertical-align: middle; }
+  .charts-row { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+  .chart-box { flex: 1 1 320px; min-width: 0; }
+  .footer-note { color: var(--text-muted); font-size: 12px; margin-top: 24px; }
+  @media (max-width: 480px) {
+    body { padding: 14px 10px 50px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>AI Adoption Cost Dashboard</h1>
+  <p class="subtitle">CapEx / OpEx modelling and market benchmarking for proposed AI initiatives.</p>
+  <div class="disclaimer">
+    Benchmark ranges are illustrative starting assumptions (see README, §2.2), not a licensed
+    market-data feed. Overwrite every field with real vendor quotes before using this for budget approval.
+  </div>
+
+  <div class="panel">
+    <h2>Portfolio summary</h2>
+    <div id="portfolioStats" class="row" style="margin-bottom:16px;"></div>
+    <div class="charts-row">
+      <div class="chart-box">
+        <div class="section-label">CapEx vs OpEx (year 1)</div>
+        <svg id="donutChart" viewBox="0 0 220 160" width="100%" height="160"></svg>
+        <div class="legend">
+          <div><span class="dot" style="background:var(--capex)"></span>CapEx (one-time)</div>
+          <div><span class="dot" style="background:var(--opex)"></span>OpEx (annual)</div>
+        </div>
+      </div>
+      <div class="chart-box" style="flex:1 1 420px;">
+        <div class="section-label">Cumulative cost trajectory</div>
+        <svg id="trajectoryChart" viewBox="0 0 480 200" width="100%" height="200"></svg>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="toolbar">
+      <h2 style="margin:0; flex:1 1 auto;">Initiatives</h2>
+      <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--text-muted);">
+        Horizon
+        <select id="horizonSelect" style="width:auto;"></select>
+      </label>
+      <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--text-muted);">
+        Annual OpEx growth
+        <input id="growthInput" type="number" min="-20" max="100" step="1" style="width:70px;">%
+      </label>
+      <button class="btn" id="addInitiativeBtn">+ Add initiative</button>
+      <button class="btn secondary" id="exportCsvBtn">Export CSV</button>
+      <button class="btn danger" id="resetBtn">Reset</button>
+    </div>
+    <div id="initiativeList"></div>
+  </div>
+
+  <p class="footer-note">
+    All data lives in this browser tab (and, if available, <code>localStorage</code> on this device).
+    Nothing is sent to a server. See <code>README.md</code> for the requirements analysis and the
+    full methodology behind the benchmark ranges.
+  </p>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------------------------------------------------------------------
+   * 1. Financial model — every assumption lives here, in the open.
+   * ------------------------------------------------------------------- */
+
+  var ORG_SIZES = [
+    { id: "micro",  label: "Micro (1–9 employees)",   multiplier: 0.4 },
+    { id: "small",  label: "Small (10–49 employees)", multiplier: 1.0 },
+    { id: "medium", label: "Medium (50–249 employees)", multiplier: 3.2 }
+  ];
+
+  var CATEGORIES = [
+    { id: "chatbot",   label: "Customer Service Chatbot / Virtual Assistant" },
+    { id: "analytics", label: "Predictive Analytics & Forecasting" },
+    { id: "vision",    label: "Computer Vision / Process Automation" },
+    { id: "genai",     label: "Generative Content & Copywriting" },
+    { id: "rpa",       label: "Workflow Automation (AI-augmented RPA)" },
+    { id: "custom",    label: "Custom / Other AI Initiative" }
+  ];
+
+  var CAPEX_ITEMS = [
+    { id: "hardware",      label: "Hardware" },
+    { id: "softwareSetup", label: "Software setup / licensing" },
+    { id: "implementation",label: "Implementation services" },
+    { id: "training",      label: "Initial training" }
+  ];
+
+  var OPEX_ITEMS = [
+    { id: "subscription", label: "Subscription / platform fees" },
+    { id: "compute",      label: "Cloud compute / inference" },
+    { id: "support",      label: "Support & maintenance" },
+    { id: "staffing",     label: "Internal staffing (FTE alloc.)" }
+  ];
+
+  // Base ranges [low, high] in USD, defined for a "small" organisation.
+  // Scaled by ORG_SIZES[].multiplier for other sizes.
+  var CATEGORY_BASE = {
+    chatbot: {
+      capex: { hardware: [0, 1000], softwareSetup: [1500, 6000], implementation: [4000, 15000], training: [500, 2000] },
+      opex:  { subscription: [3600, 18000], compute: [1200, 6000], support: [1500, 6000], staffing: [5000, 20000] }
+    },
+    analytics: {
+      capex: { hardware: [500, 3000], softwareSetup: [3000, 10000], implementation: [8000, 30000], training: [1000, 3500] },
+      opex:  { subscription: [4800, 24000], compute: [2400, 12000], support: [2000, 9000], staffing: [8000, 30000] }
+    },
+    vision: {
+      capex: { hardware: [2000, 12000], softwareSetup: [3000, 12000], implementation: [10000, 40000], training: [1000, 4000] },
+      opex:  { subscription: [2400, 14000], compute: [1800, 9000], support: [2500, 10000], staffing: [8000, 28000] }
+    },
+    genai: {
+      capex: { hardware: [0, 500], softwareSetup: [500, 3000], implementation: [1500, 8000], training: [300, 1500] },
+      opex:  { subscription: [1200, 9000], compute: [600, 4000], support: [500, 3000], staffing: [2000, 10000] }
+    },
+    rpa: {
+      capex: { hardware: [0, 2000], softwareSetup: [2000, 8000], implementation: [6000, 25000], training: [800, 3000] },
+      opex:  { subscription: [3000, 15000], compute: [600, 3000], support: [2000, 8000], staffing: [5000, 22000] }
+    },
+    custom: {
+      capex: { hardware: [0, 8000], softwareSetup: [500, 15000], implementation: [1000, 40000], training: [300, 4000] },
+      opex:  { subscription: [600, 20000], compute: [300, 15000], support: [500, 10000], staffing: [0, 30000] }
+    }
+  };
+
+  function orgMultiplier(orgId) {
+    var o = ORG_SIZES.filter(function (x) { return x.id === orgId; })[0];
+    return o ? o.multiplier : 1;
+  }
+
+  function roundNice(n) {
+    if (n <= 0) return 0;
+    var step = n < 1000 ? 10 : n < 10000 ? 50 : 100;
+    return Math.round(n / step) * step;
+  }
+
+  function scaledRange(categoryId, orgId, section, item) {
+    var base = CATEGORY_BASE[categoryId][section][item];
+    var m = orgMultiplier(orgId);
+    return [roundNice(base[0] * m), roundNice(base[1] * m)];
+  }
+
+  function midpoint(range) { return roundNice((range[0] + range[1]) / 2); }
+
+  function classify(value, range) {
+    if (value < range[0]) return "below";
+    if (value > range[1]) return "above";
+    return "within";
+  }
+
+  /* ---------------------------------------------------------------------
+   * 2. State
+   * ------------------------------------------------------------------- */
+
+  var STORAGE_KEY = "ai-cost-dashboard:v1";
+
+  function defaultInitiative(n) {
+    var category = "chatbot", orgSize = "small";
+    var capex = {}, opex = {};
+    CAPEX_ITEMS.forEach(function (it) { capex[it.id] = midpoint(scaledRange(category, orgSize, "capex", it.id)); });
+    OPEX_ITEMS.forEach(function (it) { opex[it.id] = midpoint(scaledRange(category, orgSize, "opex", it.id)); });
+    return {
+      id: "init-" + Date.now() + "-" + Math.floor(Math.random() * 1000),
+      name: "AI Initiative " + n,
+      category: category,
+      orgSize: orgSize,
+      capex: capex,
+      opex: opex
+    };
+  }
+
+  var state = {
+    horizon: 3,
+    growth: 5,
+    initiatives: []
+  };
+
+  function loadState() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.initiatives)) { state = parsed; return; }
+      }
+    } catch (e) { /* localStorage unavailable — fall through to defaults */ }
+    state = { horizon: 3, growth: 5, initiatives: [defaultInitiative(1)] };
+  }
+
+  function saveState() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { /* ignore */ }
+  }
+
+  /* ---------------------------------------------------------------------
+   * 3. Computation
+   * ------------------------------------------------------------------- */
+
+  function capexTotal(init) {
+    var t = 0;
+    CAPEX_ITEMS.forEach(function (it) { t += Number(init.capex[it.id]) || 0; });
+    return t;
+  }
+
+  function opexAnnualTotal(init) {
+    var t = 0;
+    OPEX_ITEMS.forEach(function (it) { t += Number(init.opex[it.id]) || 0; });
+    return t;
+  }
+
+  function tcoByYear(init, years, growthPct) {
+    var g = growthPct / 100;
+    var opexY1 = opexAnnualTotal(init);
+    var out = [];
+    var running = capexTotal(init);
+    for (var t = 1; t <= years; t++) {
+      var yearOpex = opexY1 * Math.pow(1 + g, t - 1);
+      running += yearOpex;
+      out.push(running);
+    }
+    return out;
+  }
+
+  function portfolioTrajectory(years, growthPct) {
+    var totals = new Array(years).fill(0);
+    state.initiatives.forEach(function (init) {
+      var series = tcoByYear(init, years, growthPct);
+      series.forEach(function (v, i) { totals[i] += v; });
+    });
+    return totals;
+  }
+
+  function fmtMoney(n) {
+    n = Math.round(n);
+    return "$" + n.toLocaleString("en-US");
+  }
+
+  /* ---------------------------------------------------------------------
+   * 4. Rendering
+   * ------------------------------------------------------------------- */
+
+  var elList = document.getElementById("initiativeList");
+  var elStats = document.getElementById("portfolioStats");
+  var elHorizon = document.getElementById("horizonSelect");
+  var elGrowth = document.getElementById("growthInput");
+
+  for (var y = 1; y <= 5; y++) {
+    var opt = document.createElement("option");
+    opt.value = y; opt.textContent = y + (y === 1 ? " year" : " years");
+    elHorizon.appendChild(opt);
+  }
+
+  function categoryLabel(id) {
+    var c = CATEGORIES.filter(function (x) { return x.id === id; })[0];
+    return c ? c.label : id;
+  }
+
+  function renderInitiativeCard(init) {
+    var card = document.createElement("div");
+    card.className = "initiative";
+
+    // Header
+    var head = document.createElement("div");
+    head.className = "initiative-head";
+
+    var nameInput = document.createElement("input");
+    nameInput.type = "text"; nameInput.value = init.name;
+    nameInput.addEventListener("input", function () { init.name = nameInput.value; saveState(); renderTotalsOnly(); });
+    head.appendChild(nameInput);
+
+    var catSelect = document.createElement("select");
+    catSelect.style.width = "auto";
+    CATEGORIES.forEach(function (c) {
+      var o = document.createElement("option");
+      o.value = c.id; o.textContent = c.label;
+      if (c.id === init.category) o.selected = true;
+      catSelect.appendChild(o);
+    });
+    catSelect.addEventListener("change", function () {
+      init.category = catSelect.value;
+      saveState(); render();
+    });
+    head.appendChild(catSelect);
+
+    var orgSelect = document.createElement("select");
+    orgSelect.style.width = "auto";
+    ORG_SIZES.forEach(function (o2) {
+      var o = document.createElement("option");
+      o.value = o2.id; o.textContent = o2.label;
+      if (o2.id === init.orgSize) o.selected = true;
+      orgSelect.appendChild(o);
+    });
+    orgSelect.addEventListener("change", function () {
+      init.orgSize = orgSelect.value;
+      saveState(); render();
+    });
+    head.appendChild(orgSelect);
+
+    var removeBtn = document.createElement("button");
+    removeBtn.className = "btn danger";
+    removeBtn.textContent = "Remove";
+    removeBtn.addEventListener("click", function () {
+      state.initiatives = state.initiatives.filter(function (i) { return i.id !== init.id; });
+      saveState(); render();
+    });
+    head.appendChild(removeBtn);
+
+    card.appendChild(head);
+
+    // CapEx / OpEx field grids
+    var row = document.createElement("div");
+    row.className = "row";
+
+    function buildSection(title, items, section) {
+      var col = document.createElement("div");
+      col.className = "col";
+      var lbl = document.createElement("div");
+      lbl.className = "section-label"; lbl.textContent = title;
+      col.appendChild(lbl);
+      var grid = document.createElement("div");
+      grid.className = "grid4";
+      items.forEach(function (it) {
+        var range = scaledRange(init.category, init.orgSize, section, it.id);
+        var field = document.createElement("label");
+        field.className = "field";
+
+        var top = document.createElement("div");
+        top.className = "field-label";
+        var span = document.createElement("span"); span.textContent = it.label;
+        var badge = document.createElement("span");
+        badge.className = "badge";
+        top.appendChild(span); top.appendChild(badge);
+        field.appendChild(top);
+
+        var input = document.createElement("input");
+        input.type = "number"; input.min = "0"; input.step = "50";
+        input.value = init[section][it.id];
+
+        function refreshBadge() {
+          var v = Number(input.value) || 0;
+          var cls = classify(v, range);
+          badge.className = "badge " + cls;
+          badge.textContent = cls === "within" ? "in range" : (cls === "below" ? "below range" : "above range");
+        }
+        refreshBadge();
+
+        input.addEventListener("input", function () {
+          init[section][it.id] = Number(input.value) || 0;
+          refreshBadge();
+          saveState();
+          renderTotalsOnly();
+        });
+
+        field.appendChild(input);
+
+        var hint = document.createElement("div");
+        hint.style.fontSize = "10.5px"; hint.style.color = "var(--text-muted)"; hint.style.marginTop = "2px";
+        hint.textContent = "Benchmark: " + fmtMoney(range[0]) + " – " + fmtMoney(range[1]);
+        field.appendChild(hint);
+
+        grid.appendChild(field);
+      });
+      col.appendChild(grid);
+      return col;
+    }
+
+    row.appendChild(buildSection("CapEx (one-time)", CAPEX_ITEMS, "capex"));
+    row.appendChild(buildSection("OpEx (annual)", OPEX_ITEMS, "opex"));
+    card.appendChild(row);
+
+    // Footer totals
+    var footer = document.createElement("div");
+    footer.className = "initiative-footer";
+    var totals = document.createElement("div");
+    totals.className = "totals-inline";
+    totals.dataset.initiativeTotals = init.id;
+    footer.appendChild(totals);
+    card.appendChild(footer);
+
+    card.dataset.totalsFor = init.id;
+    return card;
+  }
+
+  function updateCardTotals(card, init) {
+    var totalsEl = card.querySelector('[data-initiative-totals="' + init.id + '"]');
+    if (!totalsEl) return;
+    var cap = capexTotal(init);
+    var opexY1 = opexAnnualTotal(init);
+    var series = tcoByYear(init, state.horizon, state.growth);
+    var tco = series[series.length - 1];
+    totalsEl.innerHTML =
+      "CapEx: <b>" + fmtMoney(cap) + "</b> &nbsp;·&nbsp; " +
+      "Year 1 OpEx: <b>" + fmtMoney(opexY1) + "</b> &nbsp;·&nbsp; " +
+      state.horizon + "-yr TCO: <b>" + fmtMoney(tco) + "</b>";
+  }
+
+  function renderTotalsOnly() {
+    state.initiatives.forEach(function (init) {
+      var card = elList.querySelector('[data-totals-for="' + init.id + '"]');
+      if (card) updateCardTotals(card, init);
+    });
+    renderPortfolio();
+  }
+
+  function render() {
+    elHorizon.value = String(state.horizon);
+    elGrowth.value = String(state.growth);
+
+    elList.innerHTML = "";
+    if (state.initiatives.length === 0) {
+      var empty = document.createElement("div");
+      empty.className = "empty";
+      empty.textContent = "No initiatives yet. Click “+ Add initiative” to start modelling.";
+      elList.appendChild(empty);
+    } else {
+      state.initiatives.forEach(function (init) {
+        var card = renderInitiativeCard(init);
+        elList.appendChild(card);
+        updateCardTotals(card, init);
+      });
+    }
+    renderPortfolio();
+  }
+
+  /* ---- Portfolio stats + charts ---- */
+
+  function renderPortfolio() {
+    var totalCapex = 0, totalOpexY1 = 0;
+    state.initiatives.forEach(function (init) {
+      totalCapex += capexTotal(init);
+      totalOpexY1 += opexAnnualTotal(init);
+    });
+    var traj = portfolioTrajectory(state.horizon, state.growth);
+    var tco = traj.length ? traj[traj.length - 1] : 0;
+
+    elStats.innerHTML = "";
+    var stats = [
+      { cls: "capex", label: "Total CapEx", value: fmtMoney(totalCapex) },
+      { cls: "opex", label: "Year 1 OpEx", value: fmtMoney(totalOpexY1) },
+      { cls: "", label: state.horizon + "-yr Portfolio TCO", value: fmtMoney(tco) },
+      { cls: "", label: "Initiatives", value: String(state.initiatives.length) }
+    ];
+    stats.forEach(function (s) {
+      var el = document.createElement("div");
+      el.className = "stat " + s.cls;
+      el.innerHTML = '<div class="label">' + s.label + '</div><div class="value">' + s.value + "</div>";
+      elStats.appendChild(el);
+    });
+
+    renderDonut(totalCapex, totalOpexY1);
+    renderTrajectory(traj);
+  }
+
+  function renderDonut(capex, opex) {
+    var svg = document.getElementById("donutChart");
+    svg.innerHTML = "";
+    var total = capex + opex;
+    var cx = 70, cy = 80, r = 55, sw = 22;
+    if (total <= 0) {
+      svg.innerHTML = '<text x="10" y="80" fill="currentColor">No data yet</text>';
+      return;
+    }
+    var capexFrac = capex / total;
+    var circumference = 2 * Math.PI * r;
+    function arc(fracStart, frac, color) {
+      var el = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      el.setAttribute("cx", cx); el.setAttribute("cy", cy); el.setAttribute("r", r);
+      el.setAttribute("fill", "none");
+      el.setAttribute("stroke", color);
+      el.setAttribute("stroke-width", sw);
+      el.setAttribute("stroke-dasharray", (frac * circumference) + " " + circumference);
+      el.setAttribute("stroke-dashoffset", -(fracStart * circumference));
+      el.setAttribute("transform", "rotate(-90 " + cx + " " + cy + ")");
+      return el;
+    }
+    svg.appendChild(arc(0, capexFrac, getVar("--capex")));
+    svg.appendChild(arc(capexFrac, 1 - capexFrac, getVar("--opex")));
+
+    var pct = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    pct.setAttribute("x", cx); pct.setAttribute("y", cy - 2);
+    pct.setAttribute("text-anchor", "middle");
+    pct.setAttribute("font-weight", "700");
+    pct.setAttribute("font-size", "15");
+    pct.textContent = Math.round(capexFrac * 100) + "%";
+    svg.appendChild(pct);
+    var sub = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    sub.setAttribute("x", cx); sub.setAttribute("y", cy + 13);
+    sub.setAttribute("text-anchor", "middle");
+    sub.setAttribute("font-size", "9.5");
+    sub.setAttribute("fill", "var(--text-muted)");
+    sub.textContent = "CapEx";
+    svg.appendChild(sub);
+
+    var labelR = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    labelR.setAttribute("x", 150); labelR.setAttribute("y", 40);
+    labelR.setAttribute("font-size", "11");
+    labelR.textContent = "CapEx " + fmtMoney(capex);
+    svg.appendChild(labelR);
+    var labelR2 = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    labelR2.setAttribute("x", 150); labelR2.setAttribute("y", 58);
+    labelR2.setAttribute("font-size", "11");
+    labelR2.textContent = "OpEx " + fmtMoney(opex) + "/yr";
+    svg.appendChild(labelR2);
+  }
+
+  function getVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || "#888";
+  }
+
+  function renderTrajectory(series) {
+    var svg = document.getElementById("trajectoryChart");
+    svg.innerHTML = "";
+    var w = 480, h = 200, padL = 60, padB = 26, padT = 14, padR = 14;
+    var innerW = w - padL - padR, innerH = h - padT - padB;
+    var maxV = Math.max.apply(null, series.concat([1]));
+
+    // axes
+    var axisColor = getVar("--border");
+    var axisY = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    axisY.setAttribute("x1", padL); axisY.setAttribute("y1", padT);
+    axisY.setAttribute("x2", padL); axisY.setAttribute("y2", h - padB);
+    axisY.setAttribute("stroke", axisColor);
+    svg.appendChild(axisY);
+    var axisX = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    axisX.setAttribute("x1", padL); axisX.setAttribute("y1", h - padB);
+    axisX.setAttribute("x2", w - padR); axisX.setAttribute("y2", h - padB);
+    axisX.setAttribute("stroke", axisColor);
+    svg.appendChild(axisX);
+
+    // y labels (0, mid, max)
+    [0, 0.5, 1].forEach(function (f) {
+      var val = maxV * f;
+      var y = h - padB - f * innerH;
+      var t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      t.setAttribute("x", padL - 8); t.setAttribute("y", y + 3);
+      t.setAttribute("text-anchor", "end");
+      t.setAttribute("font-size", "9.5");
+      t.setAttribute("fill", "var(--text-muted)");
+      t.textContent = fmtMoney(val);
+      svg.appendChild(t);
+    });
+
+    if (series.length === 0) return;
+
+    var stepX = series.length > 1 ? innerW / (series.length - 1) : 0;
+    var points = series.map(function (v, i) {
+      var x = padL + i * stepX;
+      var y = h - padB - (maxV > 0 ? (v / maxV) * innerH : 0);
+      return [x, y];
+    });
+
+    // area fill
+    var areaPts = "M" + padL + "," + (h - padB) + " " +
+      points.map(function (p) { return "L" + p[0] + "," + p[1]; }).join(" ") +
+      " L" + points[points.length - 1][0] + "," + (h - padB) + " Z";
+    var area = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    area.setAttribute("d", areaPts);
+    area.setAttribute("fill", getVar("--accent"));
+    area.setAttribute("opacity", "0.12");
+    svg.appendChild(area);
+
+    var line = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+    line.setAttribute("points", points.map(function (p) { return p[0] + "," + p[1]; }).join(" "));
+    line.setAttribute("fill", "none");
+    line.setAttribute("stroke", getVar("--accent"));
+    line.setAttribute("stroke-width", "2.5");
+    svg.appendChild(line);
+
+    points.forEach(function (p, i) {
+      var c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      c.setAttribute("cx", p[0]); c.setAttribute("cy", p[1]); c.setAttribute("r", "3.5");
+      c.setAttribute("fill", getVar("--accent"));
+      svg.appendChild(c);
+      var xt = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      xt.setAttribute("x", p[0]); xt.setAttribute("y", h - padB + 16);
+      xt.setAttribute("text-anchor", "middle");
+      xt.setAttribute("font-size", "9.5");
+      xt.setAttribute("fill", "var(--text-muted)");
+      xt.textContent = "Y" + (i + 1);
+      svg.appendChild(xt);
+    });
+  }
+
+  /* ---------------------------------------------------------------------
+   * 5. CSV export
+   * ------------------------------------------------------------------- */
+
+  function exportCsv() {
+    var rows = [["Initiative", "Category", "Org size",
+      "CapEx: hardware", "CapEx: software setup", "CapEx: implementation", "CapEx: training", "CapEx total",
+      "OpEx: subscription", "OpEx: compute", "OpEx: support", "OpEx: staffing", "OpEx annual total",
+      state.horizon + "-yr TCO"]];
+    state.initiatives.forEach(function (init) {
+      var series = tcoByYear(init, state.horizon, state.growth);
+      rows.push([
+        init.name, categoryLabel(init.category), init.orgSize,
+        init.capex.hardware, init.capex.softwareSetup, init.capex.implementation, init.capex.training, capexTotal(init),
+        init.opex.subscription, init.opex.compute, init.opex.support, init.opex.staffing, opexAnnualTotal(init),
+        series[series.length - 1]
+      ]);
+    });
+    var csv = rows.map(function (r) {
+      return r.map(function (cell) {
+        var s = String(cell);
+        return /[,"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+      }).join(",");
+    }).join("\n");
+
+    var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "ai-adoption-cost-model.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  /* ---------------------------------------------------------------------
+   * 6. Wiring
+   * ------------------------------------------------------------------- */
+
+  document.getElementById("addInitiativeBtn").addEventListener("click", function () {
+    state.initiatives.push(defaultInitiative(state.initiatives.length + 1));
+    saveState(); render();
+  });
+
+  document.getElementById("exportCsvBtn").addEventListener("click", exportCsv);
+
+  document.getElementById("resetBtn").addEventListener("click", function () {
+    if (!confirm("Reset the dashboard to a single default initiative? This clears all entered values.")) return;
+    state = { horizon: 3, growth: 5, initiatives: [defaultInitiative(1)] };
+    saveState(); render();
+  });
+
+  elHorizon.addEventListener("change", function () {
+    state.horizon = Number(elHorizon.value);
+    saveState(); renderTotalsOnly();
+  });
+
+  elGrowth.addEventListener("input", function () {
+    state.growth = Number(elGrowth.value) || 0;
+    saveState(); renderTotalsOnly();
+  });
+
+  loadState();
+  render();
+})();
+</script>
+</body>
+</html>
