@@ -6,10 +6,12 @@ on Linux you import from image files and PDFs instead.
 
 ## Requirements
 
-- Python 3.10+
+- Python 3.10 – 3.13 (3.14 is not supported yet: the pinned numpy / PyQt6 /
+  OpenCV versions have no 3.14 wheels)
 - A graphical desktop session (PyQt6 needs a display; a headless server needs `xvfb`)
 - Anthropic + eBay developer API keys (free to create) — for card identification
-  and market values. Anthropic charges about **$0.006 per card** identified.
+  and market values. Anthropic charges about **$0.012 per card** identified
+  (an orientation check plus the identification call).
 - Tesseract OCR — **optional**, only used as a fallback when no Anthropic key is set.
 
 ## Install

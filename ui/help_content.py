@@ -34,7 +34,7 @@ pay your providers for what you use.
 2. Create a key and copy it.
 3. In the app: **File → Settings** → paste it into *Anthropic API Key* → **Test**.
 
-Cost is about **half a cent per card** scanned.
+Cost is about **a cent per card** scanned (just over a cent, pay-as-you-go).
 
 ## eBay (optional, for valuation)
 1. Go to **developer.ebay.com → My Account → Application Keys**.
@@ -58,8 +58,9 @@ Scryfall; other cards will show no estimate until you add eBay keys.
   parallel, then you review and save them together.
 
 **Rotation:** under each image are **↺ 90° · 180° · ↻ 90° · 📐 Straighten**
-buttons. Straighten auto-corrects small tilt. Cards are auto-straightened on
-scan anyway.
+buttons. Straighten corrects small tilt and trims the white scanner border.
+New scans and imports are turned upright, straightened, and trimmed
+automatically, so you'll rarely need these.
 """,
 
     "Loading Image Files": """
@@ -128,7 +129,9 @@ rotate/straighten the images. Duplicate cards merge automatically as you add the
 # Card Identification
 
 The app sends the card image to Claude (Anthropic) and reads the name, set, card
-number, year, and game type.
+number, year, and game type. It first checks which way the card is facing and
+turns upside-down or sideways scans upright, so they read correctly. (If that
+check fails, the card is identified as scanned.)
 
 - For **vintage Magic** cards it ignores the "Summon …" type line and reads the
   title at the top.
@@ -235,8 +238,8 @@ Icon-only buttons and image previews are labeled for screen readers (Narrator).
 
 - Your collection, scans, and settings are stored **only on your computer**
   (under `%APPDATA%\\Lorebox` — [📂 open it](lorebox:data)).
-- Card images go to **Anthropic** for identification and card names go to
-  **eBay and Scryfall** for pricing — using **your** API keys.
+- Card images go to **Anthropic** for orientation and identification, and card
+  names go to **eBay and Scryfall** for pricing — using **your** API keys.
 - API keys are stored **encrypted**. The app keeps **no analytics** and sends
   **no usage data** on its own. It keeps a **local diagnostic log on your device**
   (Help ▸ Export usage log) that never leaves your computer unless you choose to

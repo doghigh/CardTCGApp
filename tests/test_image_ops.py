@@ -2,6 +2,7 @@
 
 import unittest
 
+import cv2
 import numpy as np
 
 from utils.image_ops import deskew, rotate_90_cw, rotate_90_ccw, rotate_180, rotate_by, _rotate_bound
@@ -35,6 +36,17 @@ class ImageOpsTests(unittest.TestCase):
         fixed = deskew(tilted)
         # A correction was applied (canvas re-expanded), so the shape changes
         self.assertNotEqual(fixed.shape, tilted.shape)
+
+    def test_deskew_straightens_card_that_fills_the_frame(self):
+        # Real flatbed scans: the card fills the image apart from a thin white
+        # margin. Regression: the foreground test assumed a mostly-white image,
+        # measured the frame instead of the card, and never corrected the tilt.
+        img = np.full((1000, 720, 3), 255, np.uint8)
+        img[40:960, 40:680] = (60, 90, 160)
+        fixed = deskew(_rotate_bound(img, 5.0))
+        mask = (fixed < 200).any(axis=2).astype(np.uint8)
+        angle = cv2.minAreaRect(cv2.findNonZero(mask))[-1] % 90
+        self.assertLess(min(angle, 90 - angle), 0.5)
 
     def test_deskew_handles_empty(self):
         self.assertIsNone(deskew(None))

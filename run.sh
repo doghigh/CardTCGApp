@@ -14,7 +14,7 @@ echo "================================================"
 
 if ! command -v python3 >/dev/null 2>&1; then
     echo "[ERROR] python3 is not installed or not on PATH." >&2
-    echo "Install Python 3 from your package manager or https://python.org" >&2
+    echo "Install Python 3.10-3.13 (3.14 is not supported yet) from your package manager or https://python.org" >&2
     exit 1
 fi
 

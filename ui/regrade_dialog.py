@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import (
 
 from core.grading import resolve_condition
 
-COST_PER_CARD = 0.006
+COST_PER_CARD = 0.012   # orientation check (Sonnet) + identification (Haiku)
 
 
 class _RegradeWorker(QThread):

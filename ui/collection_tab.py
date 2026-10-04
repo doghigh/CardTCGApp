@@ -332,7 +332,7 @@ class CollectionTab(QWidget):
             self, "Re-identify Cards",
             f"Re-read name, set and details for {len(ids)} card(s) from their "
             f"saved scans, then re-value them?\n\n"
-            f"This uses the AI vision API (~$0.006 per card) and will overwrite "
+            f"This uses the AI vision API (~$0.012 per card) and will overwrite "
             f"the current text fields with what it reads.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,

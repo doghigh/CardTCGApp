@@ -12,7 +12,7 @@ from typing import Dict
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QComboBox,
     QCheckBox, QProgressBar, QTextEdit, QFileDialog, QMessageBox, QGroupBox,
-    QTimeEdit, QSpinBox
+    QTimeEdit, QSpinBox, QScrollArea, QFrame
 )
 from PyQt6.QtCore import QThread, pyqtSignal, QTime
 
@@ -184,7 +184,7 @@ class ImageBatchWorker(QThread):
         if desc is None:
             return None
         from utils import pdf_utils
-        from utils.image_ops import deskew
+        from utils.image_ops import clean_scan
         if desc["kind"] == "pdf":
             img = pdf_utils.render_page(desc["source"], desc["page"], dpi=300)
         else:
@@ -192,7 +192,7 @@ class ImageBatchWorker(QThread):
         if img is None:
             return None
         try:
-            return deskew(img)
+            return clean_scan(img)
         except Exception:
             return img
 
@@ -344,7 +344,19 @@ class BatchTab(QWidget):
         self._build_ui()
 
     def _build_ui(self):
-        layout = QVBoxLayout(self)
+        # Scroll so the tab never gets squeezed below its minimum height
+        # (overlapping widgets) on shorter screens.
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        content = QWidget()
+        scroll.setWidget(content)
+        outer.addWidget(scroll)
+
+        layout = QVBoxLayout(content)
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(14)
 

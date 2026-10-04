@@ -65,9 +65,13 @@ def deskew(img: np.ndarray, max_angle: float = 15.0) -> np.ndarray:
         _, thresh = cv2.threshold(blurred, 0, 255,
                                   cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
-        # If the card is darker than background this gives card=white; if not,
-        # invert so the card region is the foreground.
-        if np.mean(thresh) > 127:
+        # Make the card the (white) foreground. The background is whatever
+        # touches the image edge — not whatever covers most of the image: on
+        # a real flatbed scan the card fills nearly the whole frame, and a
+        # majority test picked the thin margin as "card" and measured the
+        # frame (always 0°) instead of the card.
+        edge = np.concatenate([thresh[0], thresh[-1], thresh[:, 0], thresh[:, -1]])
+        if np.mean(edge) > 127:
             thresh = cv2.bitwise_not(thresh)
 
         coords = cv2.findNonZero(thresh)
@@ -93,6 +97,53 @@ def deskew(img: np.ndarray, max_angle: float = 15.0) -> np.ndarray:
     except Exception as exc:
         logger.debug("Deskew error: %s", exc)
         return img
+
+
+def crop_to_card(img: np.ndarray, white: int = 250, min_fraction: float = 0.995,
+                 max_trim: float = 0.25) -> np.ndarray:
+    """
+    Trim the pure-white margin around a scanned card.
+
+    Flatbed scans arrive with ~3 mm of pure-white (255) scanner background on
+    every side, and deskew pads its rotated canvas with the same white. Rows
+    and columns are trimmed from each edge while (nearly) every pixel in them
+    is pure white. Printed white/off-white card borders scan below that level
+    and sit behind the card's dark edge line, so they are kept.
+
+    Trims at most max_trim of the height/width per side, so an unusual scan
+    can never lose real card area. Returns the original image if nothing (or
+    everything) would be trimmed.
+    """
+    if img is None or img.size == 0:
+        return img
+
+    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY) if len(img.shape) == 3 else img
+    is_white = gray >= white
+    row_bg = is_white.mean(axis=1) >= min_fraction   # tolerates dust specks
+    col_bg = is_white.mean(axis=0) >= min_fraction
+
+    def run_length(flags, limit):
+        n = 0
+        while n < limit and flags[n]:
+            n += 1
+        return n
+
+    h, w = gray.shape[:2]
+    top = run_length(row_bg, int(h * max_trim))
+    bottom = run_length(row_bg[::-1], int(h * max_trim))
+    left = run_length(col_bg, int(w * max_trim))
+    right = run_length(col_bg[::-1], int(w * max_trim))
+
+    if top + bottom >= h or left + right >= w or row_bg.all():
+        return img
+    if not (top or bottom or left or right):
+        return img
+    return img[top:h - bottom, left:w - right]
+
+
+def clean_scan(img: np.ndarray) -> np.ndarray:
+    """Straighten a scanned card, then trim the white scanner margin."""
+    return crop_to_card(deskew(img))
 
 
 def _rotate_bound(img: np.ndarray, angle: float) -> np.ndarray:

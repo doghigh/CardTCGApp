@@ -210,8 +210,14 @@ if a genuinely large collection shows lag. Documented so the analysis isn't lost
 - [ ] **Estimated-spend counter + billing link (dashboard)** — Anthropic has
       NO API to read a key's real balance (Console-only, like the OAuth wall).
       Buildable version: a dashboard tile "~$X.XX estimated this month" from the
-      identification count (≈$0.006/card) + a "View billing" button deep-linking
+      identification count (≈$0.012/card) + a "View billing" button deep-linking
       to console.anthropic.com. NOT a real balance — an estimate.
+- [ ] **Orientation-check follow-ups** — (a) optionally skip the Sonnet
+      orientation check for portrait scans the user marks as already upright,
+      to save cost (it roughly doubles per-card spend); (b) cards saved before
+      the orientation fix were identified without it — "Re-identify Selected"
+      (`ui/collection_tab.py`) already re-runs them through it; consider
+      prompting users to re-process upside-down/sideways cards.
 - [ ] **De-slop pass (site + app)** — remove AI-generated-slop signals: the
       color scheme, the "tagging"/marketing paragraphs that read as AI-written,
       and any generic filler copy. Make the landing page + in-app copy read as

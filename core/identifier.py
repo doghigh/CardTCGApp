@@ -90,6 +90,21 @@ Include front_rotation and back_rotation as additional fields in the SAME
 JSON object."""
 
 
+# Orientation is checked in its own call, BEFORE identification, so the
+# identification call always reads an upright card. Reading an upside-down
+# card produced nonsense names ("Wyld", "Witch" for Island, Mountain) even
+# when its rotation was reported correctly. Haiku also judged orientation
+# poorly; Sonnet at low effort was correct on all 126 sides of 63 test scans
+# (upright, upside down and sideways) — see the orientation commit message.
+ORIENTATION_MODEL = "claude-sonnet-5-5"
+ORIENTATION_PROMPT = """Image 1 is the FRONT of a trading card and image 2 is its BACK, as they came off a scanner. Either may be upside down or sideways.
+For each image, find text you can read (card name, type line, copyright line, logo/wordmark) and decide how many degrees the image must be rotated CLOCKWISE so that text reads normally: 0, 90, 180 or 270.
+Reply with JSON only: {"front": <degrees>, "back": <degrees>}"""
+ORIENTATION_PROMPT_FRONT_ONLY = """This image is a trading card as it came off a scanner. It may be upside down or sideways.
+Find text you can read (card name, type line, copyright line, logo/wordmark) and decide how many degrees the image must be rotated CLOCKWISE so that text reads normally: 0, 90, 180 or 270.
+Reply with JSON only: {"front": <degrees>}"""
+
+
 def _clamp_rotation(value) -> int:
     """Clamp a rotation value to {0, 90, 180, 270}; anything else is 0."""
     try:
@@ -185,10 +200,20 @@ class CardIdentifier:
             # do not consume a credit, do not fabricate via OCR.
             return self._trial_blocked('trial_unavailable')
 
-        # mode == 'own': existing behavior, unchanged.
+        # mode == 'own': turn the card upright first, then identify it.
+        # The reported rotations are the detected ones — callers rotate their
+        # own copies by them — never the identification call's own guess.
+        from utils.image_ops import rotate_by
+        front_deg, back_deg = self.detect_orientation(front_img, back_img)
+        front_img = rotate_by(front_img, front_deg)
+        if back_img is not None:
+            back_img = rotate_by(back_img, back_deg)
+
         result = self._identify_with_claude(front_img, back_img)
         if result and result.get('name'):
             result['source'] = 'claude'
+            result['front_rotation'] = front_deg
+            result['back_rotation'] = back_deg
             return result
 
         # OCR fallback — degraded mode. Only the (header-OCR) name is reasonably
@@ -199,7 +224,48 @@ class CardIdentifier:
         header_text = self.extract_header_text(back_img) if back_img is not None else ""
         info = self.parse_card_info(front_text, back_text, header_text)
         info['source'] = 'ocr'
+        info['front_rotation'] = front_deg
+        info['back_rotation'] = back_deg
         return info
+
+    def detect_orientation(self, front_img: np.ndarray,
+                           back_img: Optional[np.ndarray] = None) -> tuple:
+        """Return (front_deg, back_deg): clockwise rotation that makes each
+        image upright, each one of 0/90/180/270. (0, 0) when unsure or on any
+        error, so a failed check never rotates anything. Own-key mode only —
+        the trial proxy keeps the single-call flow."""
+        client, mode = self._resolve_client()
+        if client is None or mode != 'own':
+            return 0, 0
+        try:
+            content = []
+            for img in ([front_img] if back_img is None else [front_img, back_img]):
+                b64 = self._img_to_base64(img, max_side=1200)
+                if not b64:
+                    return 0, 0
+                content.append({
+                    "type": "image",
+                    "source": {"type": "base64", "media_type": "image/jpeg", "data": b64}
+                })
+            content.append({"type": "text", "text": (
+                ORIENTATION_PROMPT if back_img is not None else ORIENTATION_PROMPT_FRONT_ONLY)})
+
+            response = client.messages.create(
+                model=ORIENTATION_MODEL,
+                max_tokens=4000,
+                output_config={"effort": "low"},
+                messages=[{"role": "user", "content": content}]
+            )
+            text = next((b.text for b in response.content if b.type == "text"), "")
+            match = re.search(r'\{.*\}', text, re.S)
+            if not match:
+                return 0, 0
+            data = json.loads(match.group(0))
+            back_deg = _clamp_rotation(data.get('back')) if back_img is not None else 0
+            return _clamp_rotation(data.get('front')), back_deg
+        except Exception as e:
+            logger.warning("Orientation check error: %s", e)
+            return 0, 0
 
     @staticmethod
     def _trial_blocked(reason: str) -> Dict:
@@ -285,15 +351,15 @@ class CardIdentifier:
             logger.warning("Claude vision error: %s", e)
             return None
 
-    def _img_to_base64(self, img: np.ndarray) -> Optional[str]:
+    def _img_to_base64(self, img: np.ndarray, max_side: int = 1600) -> Optional[str]:
         if img is None or img.size == 0:
             return None
         try:
             bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
             # Resize if very large to keep API payload reasonable
             h, w = bgr.shape[:2]
-            if max(h, w) > 1600:
-                scale = 1600 / max(h, w)
+            if max(h, w) > max_side:
+                scale = max_side / max(h, w)
                 bgr = cv2.resize(bgr, None, fx=scale, fy=scale,
                                  interpolation=cv2.INTER_AREA)
             ok, buf = cv2.imencode('.jpg', bgr, [cv2.IMWRITE_JPEG_QUALITY, 85])

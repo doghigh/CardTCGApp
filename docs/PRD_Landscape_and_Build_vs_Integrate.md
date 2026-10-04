@@ -16,8 +16,8 @@ Confirmed by reading the codebase (`core/`, `ui/`, `ebay_webhook/`, packaging):
 
 | # | Capability | Current implementation in Lorebox |
 |---|------------|-----------------------------------|
-| A | **Image acquisition / scanning** | `core/scanner.py` — `twain` lib, flatbed + ADF duplex, DPI/bit-depth control, OpenCV denoise + unsharp enhancement |
-| B | **Card identification** | `core/identifier.py` — Claude vision (`claude-haiku-4-5`) primary, Tesseract OCR fallback; extracts name/set/number/rarity/year/game across MTG, Pokémon, Yu-Gi-Oh!, One Piece, Lorcana, sports, non-sport |
+| A | **Image acquisition / scanning** | `core/scanner.py` — `twain` lib, flatbed + ADF duplex, DPI/bit-depth control, OpenCV denoise + unsharp enhancement; `utils/image_ops.py` `clean_scan()` deskews and trims the white scanner margin on every import path |
+| B | **Card identification** | `core/identifier.py` — with the user's own key, a Claude Sonnet 5.5 (`claude-sonnet-5-5`) orientation check first rotates front/back upright (no rotation if the check fails), then Claude vision (`claude-haiku-4-5`) identifies the upright card; Tesseract OCR fallback; extracts name/set/number/rarity/year/game across MTG, Pokémon, Yu-Gi-Oh!, One Piece, Lorcana, sports, non-sport |
 | C | **Catalog / card data** | None held locally — relies on the identifier's free-text output; no canonical card DB |
 | D | **Pricing / valuation** | `core/valuator.py` — Scryfall (MTG, official), eBay Browse API (everything else, OAuth client-credentials), condition multipliers; PriceCharting scrape retired; TradingCardAPI planned |
 | E | **Condition grading** | `core/inspector.py` — pure OpenCV heuristics: corners, edges, surface creases/staining, centering → 8-tier grade + 0–100 score |
