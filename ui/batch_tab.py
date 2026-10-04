@@ -184,7 +184,7 @@ class ImageBatchWorker(QThread):
         if desc is None:
             return None
         from utils import pdf_utils
-        from utils.image_ops import deskew
+        from utils.image_ops import clean_scan
         if desc["kind"] == "pdf":
             img = pdf_utils.render_page(desc["source"], desc["page"], dpi=300)
         else:
@@ -192,7 +192,7 @@ class ImageBatchWorker(QThread):
         if img is None:
             return None
         try:
-            return deskew(img)
+            return clean_scan(img)
         except Exception:
             return img
 

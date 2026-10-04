@@ -97,7 +97,7 @@ class CardDetailDialog(QDialog):
         for text, op, a11y in [("↺ 90°", 'ccw', f"Rotate {label} 90 degrees counter-clockwise"),
                                ("↻ 180°", '180', f"Rotate {label} 180 degrees"),
                                ("↻ 90°", 'cw', f"Rotate {label} 90 degrees clockwise"),
-                               ("📐", 'deskew', f"Auto-straighten the {label} image")]:
+                               ("📐", 'deskew', f"Auto-straighten the {label} image and trim the white scanner margin")]:
             btn = QPushButton(text)
             btn.setMinimumHeight(28)
             btn.setToolTip(a11y)
@@ -122,7 +122,7 @@ class CardDetailDialog(QDialog):
             'cw': image_ops.rotate_90_cw,
             'ccw': image_ops.rotate_90_ccw,
             '180': image_ops.rotate_180,
-            'deskew': image_ops.deskew,
+            'deskew': image_ops.clean_scan,
         }[op]
         self._imgs[side] = fn(img)
         self._dirty.add(side)

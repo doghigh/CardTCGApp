@@ -83,10 +83,10 @@ class BatchProcessWorker(QThread):
         self.finished.emit()
 
     def _process(self, idx: int, chunk: List[np.ndarray]) -> dict:
-        from utils.image_ops import deskew, rotate_by
+        from utils.image_ops import clean_scan, rotate_by
 
-        # Auto-straighten before identification/grading — improves both
-        chunk = [deskew(im) for im in chunk]
+        # Auto-straighten and trim the scanner margin before identification/grading — improves both
+        chunk = [clean_scan(im) for im in chunk]
         front = chunk[0]
         back  = chunk[1] if len(chunk) > 1 else None
 
@@ -241,7 +241,7 @@ class BatchReviewDialog(QDialog):
         rotate_btn.setToolTip("Rotate the selected row's image 90° clockwise")
         rotate_btn.clicked.connect(self._rotate_selected_row)
         straighten_btn = QPushButton("📐 Straighten Row")
-        straighten_btn.setToolTip("Auto-correct skew on the selected row's image")
+        straighten_btn.setToolTip("Straighten the selected row's image and trim the white scanner margin")
         straighten_btn.clicked.connect(self._straighten_selected_row)
         header.addWidget(rotate_btn)
         header.addWidget(straighten_btn)
@@ -459,7 +459,7 @@ class BatchReviewDialog(QDialog):
             return
 
         fn = {'cw': image_ops.rotate_90_cw,
-              'deskew': image_ops.deskew}[op]
+              'deskew': image_ops.clean_scan}[op]
         result['images'] = [fn(im) for im in result['images']]
 
         # Refresh the thumbnail in place

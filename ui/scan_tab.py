@@ -414,9 +414,9 @@ class ScanTab(QWidget):
                   for i in range(0, len(images), pages_per_card)]
 
         if len(chunks) == 1:
-            # Single card — auto-straighten, then load into the viewer
-            from utils.image_ops import deskew
-            chunk = [deskew(im) for im in chunks[0]]
+            # Single card — auto-straighten and trim, then load into the viewer
+            from utils.image_ops import clean_scan
+            chunk = [clean_scan(im) for im in chunks[0]]
             self._load_card_images(chunk)
             usage.log_event("scan_completed")
             self._auto_identify()
@@ -442,7 +442,7 @@ class ScanTab(QWidget):
             ("↺ 90°",     'ccw',    f"Rotate {side} 90 degrees counter-clockwise"),
             ("↻ 180°",    '180',    f"Rotate {side} 180 degrees"),
             ("↻ 90°",     'cw',     f"Rotate {side} 90 degrees clockwise"),
-            ("📐 Straighten", 'deskew', f"Auto-straighten the {side} image"),
+            ("📐 Straighten", 'deskew', f"Auto-straighten the {side} image and trim the white scanner margin"),
         ]
         for label, op, a11y in buttons:
             btn = QPushButton(label)
@@ -464,7 +464,7 @@ class ScanTab(QWidget):
             'cw':     (image_ops.rotate_90_cw,  "rotated 90° CW"),
             'ccw':    (image_ops.rotate_90_ccw, "rotated 90° CCW"),
             '180':    (image_ops.rotate_180,    "rotated 180°"),
-            'deskew': (image_ops.deskew,        "straightened"),
+            'deskew': (image_ops.clean_scan,    "straightened"),
         }
         fn, desc = ops[op]
         result = fn(img)

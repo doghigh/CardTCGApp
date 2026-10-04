@@ -26,7 +26,9 @@ class _FakeValuator:
 
 
 def _marked(h=40, w=20):
-    img = np.full((h, w, 3), 255, np.uint8)
+    # Non-white body: a pure-white image would be trimmed as scanner margin
+    # by clean_scan, which these rotation-wiring tests don't exercise.
+    img = np.full((h, w, 3), 128, np.uint8)
     img[0:5, 0:5] = (10, 20, 30)
     return img
 
