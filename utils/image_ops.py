@@ -65,9 +65,13 @@ def deskew(img: np.ndarray, max_angle: float = 15.0) -> np.ndarray:
         _, thresh = cv2.threshold(blurred, 0, 255,
                                   cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
-        # If the card is darker than background this gives card=white; if not,
-        # invert so the card region is the foreground.
-        if np.mean(thresh) > 127:
+        # Make the card the (white) foreground. The background is whatever
+        # touches the image edge — not whatever covers most of the image: on
+        # a real flatbed scan the card fills nearly the whole frame, and a
+        # majority test picked the thin margin as "card" and measured the
+        # frame (always 0°) instead of the card.
+        edge = np.concatenate([thresh[0], thresh[-1], thresh[:, 0], thresh[:, -1]])
+        if np.mean(edge) > 127:
             thresh = cv2.bitwise_not(thresh)
 
         coords = cv2.findNonZero(thresh)
