@@ -14,6 +14,7 @@ def img():
 def test_own_key_calls_direct_and_does_not_consume(monkeypatch, img):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-real")
     ident = CardIdentifier()
+    monkeypatch.setattr(ident, "detect_orientation", lambda f, b: (0, 0))
     monkeypatch.setattr(ident, "_identify_with_claude",
                         lambda f, b: {"name": "Black Lotus"})
     consumed = {"n": 0}
