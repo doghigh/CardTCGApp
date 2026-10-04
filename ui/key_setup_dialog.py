@@ -42,7 +42,7 @@ class KeySetupDialog(QDialog):
         msg = QLabel(
             f"<b>{headline}</b><br><br>"
             f"{lead}, add your own free Anthropic key — it's about "
-            "$0.006 per card. Once added, scanning goes directly to Anthropic; "
+            "$0.012 per card. Once added, scanning goes directly to Anthropic; "
             "nothing passes through us."
         )
         msg.setWordWrap(True)

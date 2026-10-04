@@ -42,7 +42,7 @@ those providers and is governed by their privacy policies.
 
 | Service | What is sent | Purpose |
 |---------|--------------|---------|
-| **Anthropic (Claude API)** | Images of your cards | Identify the card's name, set, number, year, and game |
+| **Anthropic (Claude API)** | Images of your cards | Check which way up the card image is, then identify the card's name, set, number, year, and game |
 | **eBay (Browse API)** | Card name / search keywords | Fetch current market prices |
 | **Scryfall** | Card name (Magic cards) | Fetch Magic: The Gathering prices |
 

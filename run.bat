@@ -14,7 +14,7 @@ cd /d "%~dp0"
 where python >nul 2>nul
 if %errorlevel% neq 0 (
     echo [ERROR] Python is not installed or not in PATH.
-    echo Please download from https://python.org and check "Add Python to PATH"
+    echo Please install Python 3.10-3.13 from https://python.org ^(3.14 is not supported yet^) and check "Add Python to PATH"
     pause
     exit /b 1
 )

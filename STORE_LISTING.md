@@ -28,6 +28,7 @@ Built for collectors of sports cards and trading card games alike.
 
 WHAT YOU CAN DO
 • Identify cards automatically from a scan or photo
+• Turn upside-down or sideways scans upright and trim the white scanner border automatically
 • Get an estimated condition grade for every card
 • See approximate market values, adjusted for condition
 • Browse, search, and sort your whole collection
@@ -66,6 +67,8 @@ Lorebox is open source (AGPL-3.0). Learn more at https://loreboxapp.dev
 - Searchable, sortable collection with editable details
 - Bulk import from folders and multi-page PDFs
 - Front/back pairing, including sideways-back orientation
+- Upside-down or sideways scans turned upright automatically
+- White scanner border trimmed automatically
 - Scheduled auto-import from a watch folder
 - Dashboard: value over time, by game, and set completion
 - Duplicate detection and one-click merge

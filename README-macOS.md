@@ -6,9 +6,12 @@ on macOS you import from image files and PDFs instead.
 
 ## Requirements
 
-- Python 3.10+
+- Python 3.10–3.13 (3.14 is not supported yet: some pinned dependencies have
+  no 3.14 builds, so pip tries to compile them and fails)
 - Anthropic + eBay developer API keys (free to create) — for card identification
-  and market values. Anthropic charges about **$0.006 per card** identified.
+  and market values. Anthropic charges about **$0.012 per card** identified
+  (just over a cent; this includes a quick check that turns sideways or
+  upside-down scans upright before identifying them).
 - Tesseract OCR — **optional**, only used as a fallback when no Anthropic key is set.
 
 ## Install
@@ -17,7 +20,9 @@ on macOS you import from image files and PDFs instead.
 
 If you don't have [Homebrew](https://brew.sh), install it first, then:
 
-    brew install python tesseract
+    brew install python@3.12 tesseract
+
+(Plain `brew install python` now gives 3.14, which isn't supported yet.)
 
 ### 2. Get the code and launch
 
@@ -27,11 +32,13 @@ If you don't have [Homebrew](https://brew.sh), install it first, then:
     ./run.sh
 
 `run.sh` creates a virtual environment, installs the dependencies, and starts
-the app. (`pytwain` is skipped automatically off Windows.)
+the app. (`pytwain` is skipped automatically off Windows.) It builds the venv
+with whatever `python3` is on your `PATH`; if that's 3.14, run
+`python3.12 -m venv venv` first and `run.sh` will reuse it.
 
 Prefer to do it by hand:
 
-    python3 -m venv venv
+    python3.12 -m venv venv
     source venv/bin/activate
     pip install -r requirements.txt
     python main.py
@@ -75,7 +82,7 @@ To keep it somewhere else, set `LOREBOX_DATA_DIR` in `.env`:
 ## Troubleshooting
 
 - **"Python was not installed as a framework" / Qt display errors:** use the
-  Homebrew `python` (not the system one) and run inside the venv created by
+  Homebrew `python@3.12` (not the system one) and run inside the venv created by
   `run.sh`.
 - **Starts but can't identify cards:** set your Anthropic API key (Settings or
   `.env`).

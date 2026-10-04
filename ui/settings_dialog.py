@@ -103,7 +103,7 @@ class SettingsDialog(QDialog):
         intro = QLabel(
             "Enter your own API keys below. They're stored encrypted on this "
             "computer and never shared. You only pay your providers for what "
-            "you use (Anthropic card scanning is ~$0.006 per card; eBay is free)."
+            "you use (Anthropic card scanning is ~$0.012 per card; eBay is free)."
         )
         intro.setWordWrap(True)
         intro.setStyleSheet("color: #8b8fa8;")

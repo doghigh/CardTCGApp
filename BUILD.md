@@ -86,7 +86,7 @@ imported anywhere else, so the other two are separate, easy-to-forget edits:
   circular import, since `main.py` imports `MainWindow` before `APP_VERSION`
   is defined in its own module)
 
-Then rebuild and repack:
+Then rebuild and repack (pytest is not in `requirements.txt` — `pip install pytest` first):
 
 ```powershell
 python -m pytest tests/ -q
